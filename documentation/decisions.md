@@ -233,3 +233,25 @@ Adding a feature means adding a folder with its own barrel export, not scatterin
 
 - **True micro-frontends (Module Federation or similar).** Rejected: real added complexity, new build tooling and runtime composition risk, for a project at this scale, and it contradicts the single Next.js app decision already in `TECH-STACK.md` §1.
 - **A conventional layer-first structure (`components/`, `hooks/`, `pages/` shared across all features).** Rejected: this is exactly what produces the tangled cross-feature coupling the operator wants to avoid. A feature cannot be understood, tested or swapped in isolation when its pieces are scattered across shared directories by technical layer instead of grouped by domain.
+
+---
+
+## ADR-0009: `orgflow_app` assumed via `SET LOCAL ROLE`, not connected to directly
+
+**Date:** 2026-08-13
+**Status:** Accepted
+**Deciders:** Project operator
+
+**Context**
+`PRD.md` §2.5 creates `orgflow_app` as `NOLOGIN` and comments that "the application connects as orgflow_app," which is contradictory as literally written: a `NOLOGIN` role cannot authenticate a database connection. The surrounding comment is clear on the property that matters, that the application must never operate as the tables' owner, because `FORCE ROW LEVEL SECURITY` still exempts an owning role, so a decision was needed on the actual connection mechanics before `packages/db` could implement the `SET LOCAL` transaction pattern from ADR-0004.
+
+**Decision**
+The application connects with an ordinary login role, locally the Docker Compose bootstrap `orgflow` user, and every scoped transaction issues `SET LOCAL ROLE orgflow_app` in addition to `SET LOCAL orgflow.organisation_id = ...`, both inside the same transaction the query runs in. Postgres evaluates Row-Level Security and ownership-bypass against the role active after `SET ROLE` (`current_user`), not the role that authenticated the connection (`session_user`), so this correctly subjects every scoped query to tenant isolation even though the connecting role is a superuser locally. The connecting role is granted membership in `orgflow_app` (`GRANT orgflow_app TO orgflow;`) so `SET ROLE` is permitted without relying on superuser privilege to bypass the membership check, keeping the mechanism valid once a deployed environment uses a non-superuser connecting role.
+
+**Consequences**
+`packages/db`'s transaction helper sets both `SET LOCAL` values together, so a repository call that forgets one is incomplete rather than partially safe. No second Postgres role is needed locally beyond `orgflow_app` itself. The migration that creates `orgflow_app` must also grant it membership to whichever role runs migrations, and must grant `orgflow_app` itself the ordinary CRUD privileges the application needs on each tenant table, since `PRD.md` only shows the append-only grant for `audit_events` and is silent on the rest.
+
+**Alternatives rejected**
+
+- **A dedicated third login role** (for example `orgflow_app_login`), granted membership in `orgflow_app`, with `ORGFLOW_DATABASE_URL` pointed at it instead of the Docker Compose bootstrap user. Rejected: adds a role, a grant and compose/init wiring to create it locally, without adding any protection beyond `SET LOCAL ROLE`, since Postgres already evaluates RLS against `current_user` after `SET ROLE` regardless of which role authenticated the connection.
+- **Treating "connects as orgflow_app" literally and making the role `LOGIN`.** Rejected: this was considered as the simplest fix, but it was not what the surrounding comment protects against. The property PRD.md cares about, that the effective role never owns the tables, holds under `SET ROLE` without changing `orgflow_app`'s login attribute, and changing it would be a needless deviation from the exact SQL the PRD specifies.
