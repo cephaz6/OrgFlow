@@ -255,3 +255,48 @@ The application connects with an ordinary login role, locally the Docker Compose
 
 - **A dedicated third login role** (for example `orgflow_app_login`), granted membership in `orgflow_app`, with `ORGFLOW_DATABASE_URL` pointed at it instead of the Docker Compose bootstrap user. Rejected: adds a role, a grant and compose/init wiring to create it locally, without adding any protection beyond `SET LOCAL ROLE`, since Postgres already evaluates RLS against `current_user` after `SET ROLE` regardless of which role authenticated the connection.
 - **Treating "connects as orgflow_app" literally and making the role `LOGIN`.** Rejected: this was considered as the simplest fix, but it was not what the surrounding comment protects against. The property PRD.md cares about, that the effective role never owns the tables, holds under `SET ROLE` without changing `orgflow_app`'s login attribute, and changing it would be a needless deviation from the exact SQL the PRD specifies.
+
+---
+
+## ADR-0010: Sessions are a stateless signed cookie, not a server-side store
+
+**Date:** 2026-08-13
+**Status:** Accepted
+**Deciders:** Project operator
+
+**Context**
+`PRD.md` §12.1 says to "create session; set httpOnly Secure SameSite=Lax cookie" but does not say what the cookie holds or where session state lives. `PRD.md` §2's Postgres schema has no `sessions` table, and no session store (Redis or otherwise) appears anywhere in `TECH-STACK.md`. `TECH-STACK.md` §4 does list `jose` for apps/api specifically for JWT/JWS handling, and `ORGFLOW_SESSION_SECRET` already exists in the environment convention from Phase 0 step 1. A decision was needed before the auth shell could issue or verify a session at all.
+
+**Decision**
+A session is a JWE, signed and encrypted with `ORGFLOW_SESSION_SECRET` using `jose`, carried directly in the httpOnly, Secure, SameSite=Lax cookie: no server-side session table or store. The token's claims carry `userId`, the active `organisationId` once one is selected, `roles`, `issuedAt` and an absolute expiry; both are checked on every verify, per `GOV-STANDARDS.md` §6.2's absolute and idle timeout requirement. "Rotate the session identifier on privilege change" (also §6.2) is implemented by re-issuing a fresh token with new claims and a new `issuedAt`, not by invalidating a stored identifier, since nothing is stored server-side to invalidate.
+
+**Consequences**
+No Redis or other session-store infrastructure is needed for Phase 0 or Phase 1. Revoking one specific still-valid session before its natural expiry, for example a "log out everywhere" feature or responding to a compromised session, is not possible under this design, because there is no server-side record to delete; this is a real capability gap, deferred as a follow-up rather than solved now, since `PRD.md` does not currently ask for it. If that requirement becomes concrete, it will need a supersession of this ADR, most likely a short-lived denylist or a move to a server-side store.
+
+**Alternatives rejected**
+
+- **A `sessions` table in Postgres**, keyed by a random identifier stored in the cookie. Rejected: `PRD.md`'s schema does not define one, introducing it was not asked for, and it would need its own cleanup job for expired rows, none of which Phase 0's scope covers.
+- **A Redis-backed session store.** Rejected: not part of `TECH-STACK.md`'s dependency list, and would add new local infrastructure (another Docker Compose service) that nothing in the PRD calls for.
+
+---
+
+## ADR-0011: Pre-tenant-context identity lookups bypass RLS deliberately
+
+**Date:** 2026-08-13
+**Status:** Accepted
+**Deciders:** Project operator (in absence; flagged for review on return)
+
+**Context**
+`PRD.md` §12.1 has two lookups that happen before any single organisation has been chosen for the session: step 2, resolving which identity provider governs a given email's domain (`GET /auth/providers?email=`), and step 7, resolving which organisations the now-authenticated user belongs to. Both `identity_providers` and `organisation_members` carry the `tenant_isolation` RLS policy from `PRD.md` §2.6: a row is visible only when its `organisation_id` matches the single value in `orgflow.organisation_id` for the current transaction. At both of these points in the flow there is no such value yet, by definition, since discovering which organisation is in play is the very thing each step needs to do. Under the policy as written, a query with no tenant context set does not error, it silently returns zero rows for every organisation, which would make both PRD-mandated steps permanently impossible through the ordinary tenant-scoped query path (`withTenantTransaction`), not merely awkward.
+
+**Decision**
+Two narrowly-scoped repository functions, `findIdentityProviderByEmailDomain(email)` and `findMembershipsForUser(userId)`, query `identity_providers` and `organisation_members` respectively without going through `withTenantTransaction`: neither issues `SET LOCAL ROLE orgflow_app`, and both run as the same elevated connecting role migrations already use (locally, the Docker Compose bootstrap `orgflow` superuser, which bypasses RLS by virtue of the superuser attribute itself, not by weakening any policy). Both are treated as deliberate identity-plane exceptions, not a general escape hatch: each accepts only the one identifying argument its name describes, neither accepts an `organisationId` or any tenant-scoped filter, neither is exported for use outside the auth flow, and together they are the only places in the codebase permitted to read these two tables unscoped. Everything downstream of choosing an organisation, every ordinary business query, still goes through `withTenantTransaction` exactly as ADR-0004 and ADR-0009 require.
+
+**Consequences**
+The auth flow can complete `PRD.md` §12.1 steps 2 and 7 at all, which are otherwise structurally impossible under the RLS policy as specified. This narrows, rather than removes, the tenant-isolation guarantee: there are now exactly two code paths that can read across organisations, and both are auditable by name and by the fact that they are the only callers of an elevated, non-`SET ROLE` connection outside the migration runner. In a deployed environment, the elevated connecting role must not be a blanket superuser the way the local bootstrap user is; it needs the narrower `BYPASSRLS` attribute (or equivalent) granted specifically so these two queries keep working without the connecting credential otherwise being able to bypass RLS on every table. That deployment-time role design is deferred to the CDK/RDS work in a later phase and is flagged here so it is not forgotten.
+
+**Alternatives rejected**
+
+- **Do nothing and accept these steps cannot be implemented as specified.** Rejected outright: both are named steps in `PRD.md`'s own auth flow, not an optional nicety.
+- **Separate, unscoped mapping tables** (for example `user_organisation_index`, `email_domain_provider_index`) maintained alongside `organisation_members` and `identity_providers`. Rejected: introduces a second source of truth that must stay in sync with every insert, update and removal on the table it mirrors, which is exactly the kind of drift-prone denormalisation the rest of the schema avoids; not asked for by `PRD.md`.
+- **Weaken the RLS policies themselves** to also match on `user_id` or `email_domains`, via a join or a broader `USING` clause. Rejected: this was considered, but it would mean the policy engine trusts a different, weaker claim on every single query against these tables, not just at these two narrow, unauthenticated or pre-tenant moments in the login flow.

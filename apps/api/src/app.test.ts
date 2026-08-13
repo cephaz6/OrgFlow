@@ -16,6 +16,9 @@ function buildApp() {
     mongoClient: {} as MongoClient,
     corsOrigin: 'http://localhost:3000',
     logger: createLogger('silent'),
+    sessionSecret: '0'.repeat(64),
+    isLocal: true,
+    apiBaseUrl: 'http://localhost:4000',
   });
 }
 
@@ -43,5 +46,31 @@ describe('an unmatched route', () => {
     expect(response.status).toBe(404);
     expect(response.headers['content-type']).toContain('application/problem+json');
     expect(response.body).toMatchObject({ title: 'Not Found', status: 404 });
+  });
+});
+
+describe('POST /auth/dev-login', () => {
+  it('fails closed outside local, before touching the database', async () => {
+    const app = createApp({
+      db: {} as Kysely<Database>,
+      mongoClient: {} as MongoClient,
+      corsOrigin: 'http://localhost:3000',
+      logger: createLogger('silent'),
+      sessionSecret: '0'.repeat(64),
+      isLocal: false,
+      apiBaseUrl: 'http://localhost:4000',
+    });
+
+    const response = await request(app).post('/auth/dev-login');
+
+    expect(response.status).toBe(404);
+  });
+});
+
+describe('GET /auth/session', () => {
+  it('returns 401 with no session cookie', async () => {
+    const response = await request(buildApp()).get('/auth/session');
+
+    expect(response.status).toBe(401);
   });
 });
