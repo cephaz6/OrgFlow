@@ -49,4 +49,22 @@ The requirement or problem it addresses.
 
 ## Entries
 
-*No server code has been written yet. Phase 0 is in progress; the first entry will record the monorepo scaffold and `packages/types`.*
+## 2026-08-13: Configuration convention established
+
+**Type:** Change
+**Area:** repository root
+
+**What changed**
+Replaced the README's inline table of environment variables and example values with `.env.example` as the single source of truth, plus a short Configuration section explaining the convention. Added a rule to `CLAUDE.md` §3 that `process.env` is read only inside an application's config module.
+
+**Why**
+The original README exposed a Postgres connection string with credentials and enumerated every variable with a concrete value. Even for local-only values, that is the wrong pattern to establish in the most-read file in the repository, and it duplicates `.env.example`.
+
+**Notes**
+- Full rationale recorded as ADR-0001 in `documentation/decisions.md`.
+- The convention: validate the whole environment once at boot against a Zod schema, export a typed frozen object, read `process.env` nowhere else. No code exists yet to enforce this; the ESLint rule is Phase 0 scope.
+- `.env.example` may hold the credentials of local Docker Compose containers, since they are ephemeral and bound to localhost, but never a genuine secret.
+- Deployed environments do not use `.env`; configuration comes from AWS Secrets Manager and Parameter Store.
+
+**Follow-ups**
+- Write the actual config module and the ESLint rule restricting `process.env` access, in the Phase 0 toolchain increment.

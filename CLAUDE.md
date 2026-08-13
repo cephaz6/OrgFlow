@@ -57,6 +57,7 @@ Steps 6 and 7 are not optional. They hold current state. Skipping them means re-
 - Never `eval` a tenant-authored expression. The condition language is a declarative AST interpreted by a pure function.
 - Parameterised queries only.
 - No secrets in the repository.
+- `process.env` is read only inside an application's config module, which validates the whole environment at boot and exports a typed frozen object. Reading it anywhere else is a defect, enforced by lint. See ADR-0001.
 - Audit rows are append-only, enforced by database grants.
 
 **Testing**

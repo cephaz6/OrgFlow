@@ -121,32 +121,23 @@ cd OrgFlow
 npm install
 ```
 
-### Environment variables
-
-Copy the example file and edit it. Every variable is prefixed `ORGFLOW_`. The file is gitignored and no secret belongs anywhere else in the repository.
+### Configuration
 
 ```bash
 cp .env.example .env
 ```
 
-| Variable | Example | Purpose |
-|---|---|---|
-| `ORGFLOW_ENV` | `local` | Environment marker. The seeded development login is refused unless this is `local`, and it fails closed. |
-| `ORGFLOW_API_PORT` | `4000` | Port the Express API listens on. |
-| `ORGFLOW_WEB_URL` | `http://localhost:3000` | Used for callback URLs and notification links. |
-| `ORGFLOW_DATABASE_URL` | `postgres://orgflow:orgflow@localhost:5432/orgflow` | Postgres connection string. |
-| `ORGFLOW_MONGODB_URI` | `mongodb://localhost:27017/orgflow` | MongoDB connection string. |
-| `ORGFLOW_SESSION_SECRET` | *(generated)* | Signs the session cookie. Generate a fresh value locally; never reuse one across environments. |
-| `ORGFLOW_AWS_REGION` | `eu-west-2` | Default region. London by default, for data residency. |
-| `ORGFLOW_AWS_ENDPOINT` | `http://localhost:4566` | LocalStack endpoint. Leave unset in a deployed environment. |
-| `ORGFLOW_S3_BUCKET` | `orgflow-local-attachments` | Attachment bucket. |
-| `ORGFLOW_EVENTS_TOPIC_ARN` | *(from LocalStack)* | SNS topic domain events publish to. |
-| `ORGFLOW_OIDC_ISSUER_URL` | *(provider specific)* | Optional locally. Without it, use the seeded development login. |
-| `ORGFLOW_OIDC_CLIENT_ID` | *(provider specific)* | Optional locally. |
-| `ORGFLOW_LOG_LEVEL` | `debug` | Pino log level. |
-| `NEXT_PUBLIC_ORGFLOW_API_URL` | `http://localhost:4000/api/v1` | The only variable exposed to the browser. Next.js requires the `NEXT_PUBLIC_` prefix. |
+All configuration arrives through environment variables, every one prefixed `ORGFLOW_`. Three rules govern how they are handled, and they are recorded as ADR-0001 in [decisions.md](documentation/decisions.md).
 
-In a deployed environment, secrets come from AWS Secrets Manager or Parameter Store. They are never committed, never logged and never printed.
+**`.env.example` is the source of truth for what exists.** It is committed, it lists every variable the application reads, and it explains what each is for. This README deliberately does not repeat that inventory, because a second copy of a list is a copy that goes stale. Read the file.
+
+**Configuration is validated once, at boot.** Each application parses its environment against a Zod schema and exports a typed, frozen object. If anything is missing or malformed, startup fails immediately and names the offending variable, rather than surfacing as an undefined value three layers deep at request time. `process.env` is read nowhere else, and ESLint enforces that.
+
+**Deployed environments do not use `.env` at all.** Configuration and secrets come from AWS Secrets Manager and Parameter Store, injected at runtime. No secret is committed, logged or printed, and Pino redaction covers the keys that carry them.
+
+The variables fall into six groups: runtime identity, datastore connections, session signing, AWS resources and endpoints, identity provider credentials, and the single browser-exposed value. Only variables prefixed `NEXT_PUBLIC_` reach the client, each declared deliberately; the environment is never spread into client code.
+
+Two values deserve particular care. `ORGFLOW_SESSION_SECRET` is load-bearing, so rotating it signs every user out. The datastore credentials in `.env.example` belong to throwaway Docker containers bound to localhost, and must never be repointed at a shared or deployed database.
 
 ### Running locally
 
@@ -310,4 +301,6 @@ A change is complete only when all of the following hold.
 
 ## Licence
 
-Not yet set. The intention is an open licence, in line with the "make new source code open" principle in the GDS Service Standard, with MIT as the expected choice. A `LICENSE` file will be added once that is confirmed. Until then, no licence is granted.
+MIT. See [LICENSE](LICENSE).
+
+Chosen in line with the "make new source code open" principle in the GDS Service Standard, and recorded as ADR-0005.

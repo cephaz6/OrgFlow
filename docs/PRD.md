@@ -73,6 +73,8 @@ Templates (system | organisation | published)
 
 All identifiers `snake_case`. All primary keys UUID v7. All timestamps `TIMESTAMPTZ` in UTC. Every tenant table has `organisation_id` immediately after the primary key and Row-Level Security enabled.
 
+> **Identifier generation.** Postgres 16 provides no `uuidv7()` function; it arrives in Postgres 18, and the `pg_uuidv7` extension is not available on RDS. Primary keys are therefore generated in TypeScript inside `packages/db`, never by a column default and never in `packages/core`, which stays pure. See ADR-0003.
+
 ### 2.1 Identity and tenancy
 
 ```sql
@@ -137,9 +139,16 @@ CREATE TABLE invitations (
   expires_at          TIMESTAMPTZ NOT NULL,
   accepted_at         TIMESTAMPTZ,
   revoked_at          TIMESTAMPTZ,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (organisation_id, email) WHERE accepted_at IS NULL AND revoked_at IS NULL
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- One outstanding invitation per email per organisation. This must be a partial
+-- unique INDEX, not a table constraint: Postgres does not accept a WHERE clause
+-- on UNIQUE. Accepted and revoked rows are excluded, so an address can be
+-- re-invited after a previous invitation is resolved.
+CREATE UNIQUE INDEX uq_invitations_pending
+  ON invitations (organisation_id, email)
+  WHERE accepted_at IS NULL AND revoked_at IS NULL;
 
 CREATE TABLE identity_providers (
   provider_id         UUID PRIMARY KEY,
@@ -417,6 +426,15 @@ CREATE TABLE audit_events (
 CREATE INDEX idx_audit_org_entity ON audit_events (organisation_id, entity_type, entity_id, occurred_at DESC);
 CREATE INDEX idx_audit_org_time   ON audit_events (organisation_id, occurred_at DESC);
 
+-- Two roles, deliberately distinct. The migration role owns the tables; the
+-- application connects as orgflow_app and never owns anything. They must be
+-- separate, because FORCE ROW LEVEL SECURITY still exempts a table's owner
+-- unless the owner is itself subject to the policy, so an application running
+-- as the owner would bypass tenant isolation entirely.
+--
+-- Created by the first migration, before any grant references the role.
+CREATE ROLE orgflow_app NOLOGIN;
+
 -- Append-only, enforced by grants rather than convention
 REVOKE UPDATE, DELETE ON audit_events FROM orgflow_app;
 GRANT  INSERT, SELECT  ON audit_events TO   orgflow_app;
@@ -439,11 +457,22 @@ Applied to every table carrying `organisation_id`.
 ALTER TABLE cases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cases FORCE ROW LEVEL SECURITY;
 
+-- The second argument to current_setting is missing_ok. Without it, the function
+-- raises when the setting is absent, so every connection that has not yet set a
+-- tenant errors on every query, including the migration runner and the readiness
+-- check. With it, an unset tenant yields NULL, the comparison yields NULL, and
+-- the policy denies the row. Failing closed is the correct behaviour.
 CREATE POLICY tenant_isolation ON cases
-  USING (organisation_id = current_setting('orgflow.organisation_id')::uuid);
+  USING (
+    organisation_id = NULLIF(current_setting('orgflow.organisation_id', true), '')::uuid
+  );
 ```
 
-The application sets `orgflow.organisation_id` per connection, from the authenticated session only. **Repeat for every tenant table.** RLS is defence in depth; the repository layer is the primary control.
+The application sets `orgflow.organisation_id` **per transaction, with `SET LOCAL`**, from the authenticated session only.
+
+> **This must not be per connection.** Under a connection pool, a value set on the connection outlives the request that set it and is inherited by whichever request is handed that connection next, which leaks one tenant's context into another tenant's query. `SET LOCAL` is scoped to the surrounding transaction and reverts on commit or rollback, so a pooled connection cannot carry stale tenant context. Every repository call therefore runs inside a transaction. See ADR-0004.
+
+**Repeat for every tenant table.** RLS is defence in depth; the repository layer is the primary control.
 
 ---
 
