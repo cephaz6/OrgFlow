@@ -83,7 +83,12 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    rules: {},
+    rules: {
+      // Express error-handling middleware requires all four parameters
+      // (err, req, res, next) even when next is unused; underscore-prefix
+      // is the convention for a deliberately unused parameter elsewhere too.
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
   },
   {
     files: ['**/*.ts', '**/*.tsx'],
