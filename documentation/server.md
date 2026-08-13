@@ -105,6 +105,8 @@ With AWS Secrets Manager integration planned for a later phase, the operator cho
 
 - Fill in `ORGFLOW_OIDC_*` and `ORGFLOW_EVENTS_TOPIC_ARN` in local `.env` once those are provisioned (Phase 0 step 7, Phase 1 respectively).
 
+- 2026-08-13 [Feature] packages/types: added shared domain contracts (organisation, user, membership, process definition/version, the Mongo definition document, condition AST, engine input/output, domain event envelope) per PRD.md §1-2, §4-7, §10; zero runtime deps.
+
 - 2026-08-13 [Infrastructure] eslint.config.mjs, turbo.json: added the `no-restricted-imports` dependency-direction rule (CLAUDE.md §3) and the `no-restricted-syntax` process.env boundary rule (ADR-0001), both verified against deliberate fixture violations; added `globalDependencies` to turbo.json so shared config edits correctly invalidate every package's task cache.
 
 - 2026-08-13 [Infrastructure] docker-compose.yml: added Postgres 16, MongoDB 7 and LocalStack 3 (s3, sqs, sns, events, scheduler) with healthchecks, matching the values already in local `.env`; wired `pnpm dev` to bring the stack up before `turbo run dev`; verified all three reach healthy and are reachable from the host on their mapped ports, then torn down cleanly.
