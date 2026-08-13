@@ -1,5 +1,6 @@
 export { createDb } from './connection.js';
 export type { DbConnectionConfig } from './connection.js';
+export { pingDatabase } from './health.js';
 export { withTenantTransaction } from './tenant-transaction.js';
 export { generateId } from './uuid.js';
 export type { Database } from './schema.js';
