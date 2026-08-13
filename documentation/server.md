@@ -96,3 +96,23 @@ Phase 0 build order, step 1: the tooling and workspace layout everything else bu
 - `packages/types`: shared domain contracts (Phase 0 build order, step 2).
 - Dependency-direction and `process.env`-boundary ESLint rules (step 3).
 - Real content for `packages/db`, `apps/api`, the OIDC auth shell, `apps/web`, the Testcontainers/security-scan CI jobs, and the CDK skeleton follow in the remaining Phase 0 steps.
+
+## 2026-08-13: `.env.example` stripped of values
+
+**Type:** Change
+**Area:** repository root
+
+**What changed**
+`.env.example` now lists every `ORGFLOW_`/`NEXT_PUBLIC_` variable name and its explanatory comment with the value left blank, carrying no values at all rather than the previous mix of harmless local defaults alongside blank secrets. The actual local development values (Docker Compose connection strings, ports, LocalStack endpoint) now live only in a real `.env` at the repository root, which was never committed.
+
+**Why**
+With AWS Secrets Manager integration planned for a later phase, the operator chose to tighten the convention now rather than let committed-but-harmless values normalise the habit of putting values into a tracked file.
+
+**Notes**
+
+- Recorded as ADR-0007, which supersedes the values policy (not the overall structure) of ADR-0001.
+- Genuine secrets (`ORGFLOW_SESSION_SECRET`, `ORGFLOW_OIDC_CLIENT_SECRET`) remain blank in both files, as before.
+
+**Follow-ups**
+
+- Fill in `ORGFLOW_OIDC_*` and `ORGFLOW_EVENTS_TOPIC_ARN` in local `.env` once those are provisioned (Phase 0 step 7, Phase 1 respectively).

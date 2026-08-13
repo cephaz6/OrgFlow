@@ -189,3 +189,25 @@ The monorepo uses **pnpm workspaces** (`pnpm-workspace.yaml`) in place of npm wo
 
 - **npm workspaces, as originally specified in `TECH-STACK.md` §1.** Rejected: the phantom-dependency gap described above, plus slower, larger installs in CI than pnpm's content-addressable store produces.
 - **Yarn Berry (Plug'n'Play).** Rejected: PnP's resolution model is a bigger departure from the conventional `node_modules` shape that most tooling and troubleshooting guidance assumes, which is unwarranted friction for a learning project versus pnpm's more conventional (if strict) layout.
+
+---
+
+## ADR-0007: `.env.example` carries no values at all
+
+**Date:** 2026-08-13
+**Status:** Accepted, supersedes the values policy in ADR-0001
+**Deciders:** Project operator
+
+**Context**
+ADR-0001 decided that `.env.example` could carry concrete values where they were local, throwaway and not secret: ports, localhost URLs, the credentials of ephemeral Docker Compose containers. In practice this meant a committed file mixed pure documentation (variable names, what each is for) with working configuration (actual connection strings), which is exactly the kind of file a future contributor skims and copies without reading closely. With AWS Secrets Manager integration planned for a later phase, the operator chose to tighten the convention now, before the habit of putting any value, however harmless, into a committed file becomes established.
+
+**Decision**
+`.env.example` lists every variable name and its explanatory comment, with every value left blank. It is documentation only: which variables exist and what each does, never what to set them to. The actual local development values, including the harmless Docker Compose credentials ADR-0001 permitted, now live only in a real `.env` at the repository root, which is gitignored and was never committed.
+
+**Consequences**
+A contributor copying `.env.example` to `.env` starts from a genuinely blank slate and must supply every value deliberately, including the harmless ones, rather than inheriting values by default. This is a small amount of extra local setup friction in exchange for a committed file that can never be mistaken for carrying anything usable. `ORGFLOW_` variables gated behind AWS Secrets Manager in a later phase slot into the same blank-by-default pattern without a further convention change.
+
+**Alternatives rejected**
+
+- **Keep ADR-0001's mixed convention.** Rejected: the operator judged the small convenience of pre-filled local values not worth the risk of the pattern normalising committed values as the project's dependency on real secrets grows.
+- **Delete `.env.example` and document variables in `TECH-STACK.md` or a README table instead.** Rejected: ADR-0001 already rejected a second, driftable copy of the variable inventory living in prose documentation; that reasoning still holds.
