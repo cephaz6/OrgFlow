@@ -95,7 +95,12 @@
       "Bash(pnpm run *)",
       "Bash(git config *)",
       "Bash(pnpm exec *)",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(sleep:*)",
+      "Bash(kill:*)",
+      "Bash(curl:*)",
+      "Bash(jobs:*)",
+      "Bash(ps:*)"
     ],
     "deny": [
       "Read(//c/Users/admin/Documents/MERN/org-flow/.env)",
@@ -121,36 +126,15 @@
       "Bash(chmod 777:*)",
       "Bash(ssh-keygen -t:*)",
       "Bash(aws configure:*)",
-      "Bash(docker system prune:*)"
-    ],
-    "ask": [
-      "Bash(git push:*)",
-      "Bash(git merge:*)",
-      "Bash(git rebase:*)",
-      "Bash(git cherry-pick:*)",
-      "Bash(git revert:*)",
-      "Bash(git reset:*)",
-      "Bash(git branch -D:*)",
-      "Bash(git push --delete:*)",
-      "Bash(gh pr merge:*)",
+      "Bash(docker system prune:*)",
       "Bash(gh repo delete:*)",
       "Bash(gh secret:*)",
-      "Bash(gh workflow run:*)",
-      "Bash(npm install:*)",
-      "Bash(npm uninstall:*)",
-      "Bash(npm i:*)",
-      "Bash(npm publish:*)",
       "Bash(npx cdk deploy:*)",
       "Bash(npx cdk destroy:*)",
-      "Bash(npx cdk bootstrap:*)",
-      "Bash(aws:*)",
-      "Bash(ssh:*)",
-      "Bash(scp:*)",
-      "Bash(rsync:*)",
-      "Bash(curl:*)",
-      "Bash(wget:*)"
+      "Bash(npx cdk bootstrap:*)"
     ],
-    "defaultMode": "acceptEdits",
+    "ask": [],
+    "defaultMode": "bypassPermissions",
     "additionalDirectories": [
       "c:\\Users\\admin\\.claude\\projects\\c--Users-admin-Documents-MERN-org-flow\\memory"
     ]
