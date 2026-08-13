@@ -12,13 +12,13 @@
 
 ## 2. Users
 
-| Role | Needs |
-|---|---|
-| **Requester**, anyone in the organisation | Find the right process, understand the rules before submitting, track status without chasing |
-| **Approver**, line managers, finance, IT, security | One prioritised queue, all context on one screen, delegation during absence |
-| **Process owner**, HR, IT, finance, ops leads | Define and change processes without engineering, see volume and bottlenecks, evidence decisions |
-| **Organisation admin** | Manage members and roles, configure identity, oversee all processes |
-| **Platform admin**, the OrgFlow operator | Manage system template catalogue, monitor platform health |
+| Role                                               | Needs                                                                                           |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Requester**, anyone in the organisation          | Find the right process, understand the rules before submitting, track status without chasing    |
+| **Approver**, line managers, finance, IT, security | One prioritised queue, all context on one screen, delegation during absence                     |
+| **Process owner**, HR, IT, finance, ops leads      | Define and change processes without engineering, see volume and bottlenecks, evidence decisions |
+| **Organisation admin**                             | Manage members and roles, configure identity, oversee all processes                             |
+| **Platform admin**, the OrgFlow operator           | Manage system template catalogue, monitor platform health                                       |
 
 ---
 
@@ -49,7 +49,7 @@
 
 - Citizen or customer-facing services (internal staff tooling only)
 - BPMN 2.0 semantics
-- Parallel and multi-branch workflow steps *(v2. The data model accommodates it; the engine does not implement it initially.)*
+- Parallel and multi-branch workflow steps _(v2. The data model accommodates it; the engine does not implement it initially.)_
 - System-to-system integration workflows
 - Document management, project tracking, CRM
 - Mobile native applications (responsive web only)
@@ -76,11 +76,11 @@ Four ideas govern the entire design. Full detail in `TECH-STACK.md` §11 and `PR
 
 Phases are **sequencing guidance for coherent build order**, not a scope gate. All phases are in scope. Each phase must end with something that works end to end and is deployed. No phase leaves the system in a half-wired state.
 
-### Phase 0: Foundations *(must be complete before anything else)*
+### Phase 0: Foundations _(must be complete before anything else)_
 
 Monorepo, shared types, database schemas, CI pipeline, local dev environment, CDK skeleton, auth shell. This phase is the contract everything else builds against. **Do not parallelise this phase.**
 
-**Done when:** `npm run dev` starts the whole stack locally; a seeded user can log in; CI runs lint, tests and build on every push; `cdk synth` succeeds.
+**Done when:** `pnpm dev` starts the whole stack locally; a seeded user can log in; CI runs lint, tests and build on every push; `cdk synth` succeeds.
 
 ### Phase 1: Vertical slice
 
@@ -169,6 +169,7 @@ For this project the default is **one builder agent working sequentially**. Para
 `documentation/client.md` and `documentation/server.md` are **append-only running logs**, not static documents. They are updated as part of the change, in the same commit, never retrospectively.
 
 **Append an entry whenever any of the following happens:**
+
 - A feature or component is added or significantly changed
 - A dependency is added or removed
 - A database schema or Mongo document shape changes
@@ -192,11 +193,13 @@ Added the approver queue with age-based sorting and overdue highlighting.
 Phase 1 requirement. Approvers currently have no way to see outstanding tasks.
 
 **Notes**
+
 - Uses TanStack Query with a 30s refetch interval
 - Overdue state indicated by icon plus text, not colour alone (WCAG 1.4.1)
 - Empty state added; tested with axe, no violations
 
 **Follow-ups**
+
 - Filtering by process is deferred to Phase 8
 ```
 
@@ -207,6 +210,7 @@ Phase 1 requirement. Approvers currently have no way to see outstanding tasks.
 > **The operator has supplied the concrete permissions. `CLAUDE.md` section 8 is the authoritative statement of them; the classification below is the shape they follow.**
 
 **Minor: commit, push, merge to main directly**
+
 - UI copy, styling and layout adjustments
 - Adding tests
 - Documentation log entries
@@ -214,6 +218,7 @@ Phase 1 requirement. Approvers currently have no way to see outstanding tasks.
 - Refactors with no interface change
 
 **High: branch, push, stop, request review before merging**
+
 - Any Postgres migration or Mongo document shape change
 - Anything touching authentication, authorisation or tenant isolation
 - Any change to `packages/types` (it is the contract; changes ripple)
@@ -241,11 +246,11 @@ Only after Phase 0 and Phase 1 are complete and stable. Preconditions:
 
 **Viable parallel split after Phase 2:**
 
-| Agent | Owns |
-|---|---|
-| A | Form builder and form runtime (`apps/web`, `packages/ui`) |
-| B | Notifications, SLA and escalation (`workers/`, messaging infra) |
-| C | Reporting and analytics (API read-side, dashboard UI) |
+| Agent | Owns                                                            |
+| ----- | --------------------------------------------------------------- |
+| A     | Form builder and form runtime (`apps/web`, `packages/ui`)       |
+| B     | Notifications, SLA and escalation (`workers/`, messaging infra) |
+| C     | Reporting and analytics (API read-side, dashboard UI)           |
 
 Each consumes `packages/types` and the OpenAPI contract. None modifies the engine.
 
@@ -272,18 +277,21 @@ A feature is complete only when **all** of the following hold:
 ## 8. Success criteria for the project
 
 **Functional**
+
 - A non-technical user can build and publish a working process in under fifteen minutes
 - A submitted case routes correctly, notifies the right people, escalates when overdue, and completes
 - A published change to a definition provably does not affect in-flight cases
 - Cross-tenant access is impossible, demonstrated by an adversarial test suite
 
 **Quality**
+
 - WCAG 2.2 AA verified by automated and manual testing
 - Zero high or critical security findings
 - API p95 latency under 300ms for read endpoints
 - Every queue consumer proven idempotent
 
-**Learning** *(the reason this project exists)*
+**Learning** _(the reason this project exists)_
+
 - TypeScript, React, Next.js and Express exercised at depth
 - Lambda, S3, SQS, SNS, API Gateway and EventBridge each used for a genuine purpose, not decoratively
 - PostgreSQL and MongoDB each used where they are actually the right tool

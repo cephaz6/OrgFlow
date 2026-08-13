@@ -46,6 +46,7 @@ What was decided, stated plainly and actively.
 What this makes easy, what it makes hard, and what it commits the project to.
 
 **Alternatives rejected**
+
 - **Option A.** Why it was not chosen.
 - **Option B.** Why it was not chosen.
 ```
@@ -70,6 +71,7 @@ Every configuration variable is prefixed `ORGFLOW_`. `.env.example` is the singl
 A missing or malformed variable fails loudly at boot with the offending name, rather than surfacing as an undefined value several layers deep at request time. Adding a variable means updating exactly one file plus its schema, not the README. The trade-off is one extra module per application that every new environment-reading feature must route through, which is the point: it makes an accidental `process.env` read outside that module a lint failure rather than a silent leak.
 
 **Alternatives rejected**
+
 - **Document the inventory in the README, as originally written.** Rejected because a second copy of a list of variables is a copy that goes stale, and it is the wrong place to normalise reading secrets casually.
 - **Read `process.env` directly wherever a value is needed.** Rejected because it scatters the contract for what configuration exists across the codebase, makes a missing variable a runtime surprise instead of a boot-time failure, and gives no single point to enforce validation or redaction.
 - **A `.env.production` committed with placeholder values for every environment.** Rejected because it invites exactly the mistake it is meant to prevent: someone eventually fills in a placeholder with a real value and commits it.
@@ -92,6 +94,7 @@ Google is the first identity provider, integrated through the generic OIDC Autho
 Phase 0 and Phase 1 can build and test the full auth flow, including token validation and domain-based routing, without provisioning a second identity provider. The `hd` claim check means a personal Google account, one not tied to a Workspace domain, cannot authenticate against an organisation that requires domain verification, which is correct for staff tooling but must be documented clearly at the login screen so it is not mistaken for a bug.
 
 **Alternatives rejected**
+
 - **Email magic links.** Rejected: not OIDC, so it does not fit the auth model `GOV-STANDARDS.md` assumes, it depends on SES deliverability for every login rather than only for notifications, and it provides weaker assurance than a corporate identity provider that already enforces the organisation's own authentication policy, such as its own multi-factor requirement.
 - **A Google-specific SDK (`google-auth-library`) instead of generic OIDC.** Rejected: it would tie the authentication code to one provider's client shape, so adding Entra ID or Okta later would mean two parallel auth implementations rather than one flow reading different configuration.
 - **GOV.UK One Login.** Rejected outright: it is the citizen identity system, `GOV-STANDARDS.md` §2 states this explicitly, and OrgFlow authenticates staff.
@@ -114,6 +117,7 @@ Primary keys are generated in TypeScript, inside `packages/db`, using a UUID v7 
 Every insert must supply its own primary key rather than omitting the column and reading back a generated value, which is a small but universal change to how repository write methods are shaped. The moment Postgres 18 is adopted, or `pg_uuidv7` becomes available on RDS, this can move to a column default without changing the type or the value format, since the generated identifiers are wire-compatible either way.
 
 **Alternatives rejected**
+
 - **UUID v4 via `gen_random_uuid()`.** Rejected: it is natively available but not time-sortable, which was the specific property `PRD.md` chose UUID v7 for, and switching to v4 would be a silent regression against the specification rather than a considered substitution.
 - **`pg_uuidv7` extension.** Rejected: not supported on RDS, so it would work locally and fail in every deployed environment, which is the worst kind of inconsistency to discover late.
 - **Sequential bigint primary keys.** Rejected outright: exposes row counts across tenant boundaries, which `PRD.md` and `GOV-STANDARDS.md` §6.1 both treat as unacceptable for a multi-tenant product.
@@ -136,6 +140,7 @@ The tenant is set with `SET LOCAL orgflow.organisation_id = ...`, inside the sam
 Every repository method wraps its work in a transaction, which is a small overhead accepted deliberately, since the alternative is a class of bug that leaks data across tenants. This is the one place in the schema where `PRD.md` as originally specified would have produced the exact failure the whole isolation design exists to prevent, so `packages/db`'s connection-handling code is a high-priority path for the cross-tenant test suite required by `GOV-STANDARDS.md` §6.1 and `TECH-STACK.md` §8.
 
 **Alternatives rejected**
+
 - **Set per connection, as originally specified, and rely on the pool always resetting session state between checkouts.** Rejected: this depends on pool configuration and discipline holding for the life of the project with zero exceptions, where `SET LOCAL` makes the correct behaviour structural rather than a matter of remembering to reset it.
 - **Application-level tenant filtering only, without RLS.** Rejected: `PRD.md` and `GOV-STANDARDS.md` §6.1 both require RLS as defence in depth alongside the repository layer, not as a substitute for it.
 - **`current_setting` without `missing_ok`, catching the exception in application code.** Rejected: it turns a configuration gap into a thrown error on the hot path of every query, rather than the policy failing closed on its own.
@@ -158,6 +163,29 @@ MIT. A `LICENSE` file sits at the repository root, and the README states it plai
 The repository can be forked, reused and redistributed with minimal friction, which fits a learning project intended to be publicly readable. It carries no patent grant and no copyleft obligation, so nothing downstream is required to remain open.
 
 **Alternatives rejected**
+
 - **Apache 2.0.** Rejected: its explicit patent grant is more relevant to a project fielding patentable techniques than a workflow platform assembled from well-understood web technologies, so the extra licence text bought little here.
 - **No licence, left as an all-rights-reserved private repository.** Rejected: conflicts directly with the open-source commitment `GOV-STANDARDS.md` records.
 - **A copyleft licence such as AGPL.** Rejected: this is a learning project, not a product OrgFlow needs to defend from unmodified commercial reuse, so copyleft's obligations were unwarranted friction.
+
+---
+
+## ADR-0006: pnpm workspaces instead of npm workspaces
+
+**Date:** 2026-08-13
+**Status:** Accepted
+**Deciders:** Project operator
+
+**Context**
+`TECH-STACK.md` §1 originally pinned npm workspaces alongside Turborepo as the monorepo tool. Before any code or CI configuration came to depend on that choice, the operator questioned it while reviewing the Phase 0 scaffolding plan. npm hoists all dependencies into a single flat `node_modules`, which means a package can import something it never declared in its own `package.json` and the import will still resolve, because some other package's dependency happens to be hoisted alongside it. That failure mode is invisible locally and surfaces only when the dependency graph shifts, which is exactly the kind of defect `CLAUDE.md` §3 wants structurally impossible rather than caught by review, in the same spirit as the dependency-direction ESLint rule.
+
+**Decision**
+The monorepo uses **pnpm workspaces** (`pnpm-workspace.yaml`) in place of npm workspaces. Turborepo remains the task orchestrator, unchanged. Every `npm <command>` reference in the documentation becomes `pnpm <command>`, including the `npm run dev` used as shorthand for "one command starts everything" in `TECH-STACK.md` §7 and the Phase 0 acceptance criteria in `PRD.md` §20 and `PRD-SUMMARY.md` §5, since those commands would not actually work once package dependencies inside the workspace use `workspace:*` specifiers, which pnpm resolves and npm does not.
+
+**Consequences**
+`pnpm-lock.yaml` is the committed lockfile, not `package-lock.json`. CI installs via `pnpm/action-setup` rather than npm's built-in caching. Every workspace package gets pnpm's strict, symlinked `node_modules`, so an undeclared import fails immediately at install or build time instead of working by accident. This is the one place in the toolchain where a "file layout preference" style decision was deliberately promoted to an ADR, because it changes the lockfile format and the CI install step for the life of the project, which is exactly the kind of thing this register exists to stop being silently re-decided later.
+
+**Alternatives rejected**
+
+- **npm workspaces, as originally specified in `TECH-STACK.md` §1.** Rejected: the phantom-dependency gap described above, plus slower, larger installs in CI than pnpm's content-addressable store produces.
+- **Yarn Berry (Plug'n'Play).** Rejected: PnP's resolution model is a bigger departure from the conventional `node_modules` shape that most tooling and troubleshooting guidance assumes, which is unwarranted friction for a learning project versus pnpm's more conventional (if strict) layout.
