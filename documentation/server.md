@@ -39,9 +39,11 @@ One or two sentences.
 The requirement or problem it addresses.
 
 **Notes**
+
 - Decisions made, patterns used, gotchas encountered
 
 **Follow-ups**
+
 - Anything deliberately deferred
 ```
 
@@ -61,10 +63,36 @@ Replaced the README's inline table of environment variables and example values w
 The original README exposed a Postgres connection string with credentials and enumerated every variable with a concrete value. Even for local-only values, that is the wrong pattern to establish in the most-read file in the repository, and it duplicates `.env.example`.
 
 **Notes**
+
 - Full rationale recorded as ADR-0001 in `documentation/decisions.md`.
 - The convention: validate the whole environment once at boot against a Zod schema, export a typed frozen object, read `process.env` nowhere else. No code exists yet to enforce this; the ESLint rule is Phase 0 scope.
 - `.env.example` may hold the credentials of local Docker Compose containers, since they are ephemeral and bound to localhost, but never a genuine secret.
 - Deployed environments do not use `.env`; configuration comes from AWS Secrets Manager and Parameter Store.
 
 **Follow-ups**
+
 - Write the actual config module and the ESLint rule restricting `process.env` access, in the Phase 0 toolchain increment.
+
+## 2026-08-13: Monorepo scaffold and tooling
+
+**Type:** Infrastructure
+**Area:** repository root, apps/_, packages/_, workers, infra
+
+**What changed**
+Scaffolded the Phase 0 monorepo: pnpm workspaces plus Turborepo, base TypeScript config, ESLint flat config with `typescript-eslint`, Prettier, Husky pre-commit and commit-msg hooks, commitlint, Changesets, and a GitHub Actions CI workflow running lint, typecheck, test and build on every push and pull request. Every workspace package named in `TECH-STACK.md` §2 (`apps/web`, `apps/api`, `packages/types`, `packages/core`, `packages/db`, `packages/documents`, `packages/events`, `packages/ui`, `workers`, `infra`) now exists as a placeholder package: its own `package.json`, a `tsconfig.json` extending the root `tsconfig.base.json`, and a minimal `src/index.ts`, so the pipeline is real rather than aspirational.
+
+**Why**
+Phase 0 build order, step 1: the tooling and workspace layout everything else builds on, per `CLAUDE.md` §9 and the `buildnow`-derived Phase 0 plan.
+
+**Notes**
+
+- The package manager is **pnpm**, not the npm workspaces originally pinned in `TECH-STACK.md` §1. Recorded as ADR-0006. `TECH-STACK.md`, `CLAUDE.md` §9 and the `pnpm dev` references in `PRD.md`/`PRD-SUMMARY.md` were updated in this same commit.
+- No package has real logic yet beyond an empty `export {};`, and no cross-package imports exist, so the dependency-direction ESLint rule and the `process.env` boundary rule from ADR-0001 are deliberately deferred to the next step, once `packages/types` gives them something to enforce against.
+- Each package's `lint`/`typecheck`/`test`/`build` scripts invoke `eslint`, `tsc` and `vitest` directly rather than each declaring its own copy; these resolve via the root workspace's hoisted `node_modules/.bin`, which is the standard pnpm-workspace pattern for shared dev tooling versions.
+- `lint`, `typecheck`, `test` and `build` all pass cleanly across all ten packages, confirmed both cold and Turborepo-cached.
+
+**Follow-ups**
+
+- `packages/types`: shared domain contracts (Phase 0 build order, step 2).
+- Dependency-direction and `process.env`-boundary ESLint rules (step 3).
+- Real content for `packages/db`, `apps/api`, the OIDC auth shell, `apps/web`, the Testcontainers/security-scan CI jobs, and the CDK skeleton follow in the remaining Phase 0 steps.

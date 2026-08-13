@@ -54,18 +54,18 @@ Templates (system | organisation | published)
 
 **Entity definitions**
 
-| Entity | Description | Store |
-|---|---|---|
-| **Organisation** | A tenant. The root of all scoping. | Postgres |
-| **User** | A person. Global identity; may belong to several organisations. | Postgres |
-| **OrganisationMember** | A user's membership of an organisation, with roles. | Postgres |
-| **ProcessDefinition** | A named process. A registry row pointing at versions. | Postgres (registry) |
-| **ProcessVersion** | An immutable published snapshot: form + workflow. | Postgres (registry) + Mongo (document) |
-| **Case** | One running instance of one process version. | Postgres (state) + Mongo (values) |
-| **Task** | A unit of work assigned to a person or role within a case. | Postgres |
-| **Transition** | A recorded movement between steps. | Postgres |
-| **AuditEvent** | Append-only record of anything that happened. | Postgres |
-| **Template** | A non-runnable blueprint. | Postgres (registry) + Mongo (document) |
+| Entity                 | Description                                                     | Store                                  |
+| ---------------------- | --------------------------------------------------------------- | -------------------------------------- |
+| **Organisation**       | A tenant. The root of all scoping.                              | Postgres                               |
+| **User**               | A person. Global identity; may belong to several organisations. | Postgres                               |
+| **OrganisationMember** | A user's membership of an organisation, with roles.             | Postgres                               |
+| **ProcessDefinition**  | A named process. A registry row pointing at versions.           | Postgres (registry)                    |
+| **ProcessVersion**     | An immutable published snapshot: form + workflow.               | Postgres (registry) + Mongo (document) |
+| **Case**               | One running instance of one process version.                    | Postgres (state) + Mongo (values)      |
+| **Task**               | A unit of work assigned to a person or role within a case.      | Postgres                               |
+| **Transition**         | A recorded movement between steps.                              | Postgres                               |
+| **AuditEvent**         | Append-only record of anything that happened.                   | Postgres                               |
+| **Template**           | A non-runnable blueprint.                                       | Postgres (registry) + Mongo (document) |
 
 ---
 
@@ -482,11 +482,11 @@ All fields `camelCase`. No mapping layer. `organisationId` on every document, in
 
 ### 3.1 Collections
 
-| Collection | Contents | Mutability |
-|---|---|---|
-| `processDefinitions` | Definition documents, one per version | Draft mutable; **published immutable** |
-| `templates` | Template blueprints | Mutable |
-| `caseValues` | Submitted field values, one per case | Mutable until submission, then append-only revisions |
+| Collection           | Contents                              | Mutability                                           |
+| -------------------- | ------------------------------------- | ---------------------------------------------------- |
+| `processDefinitions` | Definition documents, one per version | Draft mutable; **published immutable**               |
+| `templates`          | Template blueprints                   | Mutable                                              |
+| `caseValues`         | Submitted field values, one per case  | Mutable until submission, then append-only revisions |
 
 ### 3.2 `caseValues`
 
@@ -700,46 +700,46 @@ The central data structure of the product. Stored in `processDefinitions`.
 
 Reserved, prefixed `$`, never user-definable:
 
-| Key | Meaning |
-|---|---|
-| `$completed` | Case closed successfully. `outcome = 'approved'` |
-| `$rejected` | Case closed with rejection. `outcome = 'rejected'` |
-| `$cancelled` | Case cancelled by requester or admin |
+| Key                    | Meaning                                                 |
+| ---------------------- | ------------------------------------------------------- |
+| `$completed`           | Case closed successfully. `outcome = 'approved'`        |
+| `$rejected`            | Case closed with rejection. `outcome = 'rejected'`      |
+| `$cancelled`           | Case cancelled by requester or admin                    |
 | `$returnedToRequester` | Returned for amendment; requester may edit and resubmit |
 
 ### 4.2 Field types
 
-| Type | Storage | Validation options |
-|---|---|---|
-| `text` | string | `minLength`, `maxLength`, `pattern` |
-| `textarea` | string | `minLength`, `maxLength` |
-| `number` | number | `min`, `max`, `step` |
-| `currency` | number (2dp) | `min`, `max` |
-| `select` | string | `options` |
-| `multiSelect` | string[] | `options`, `minSelections`, `maxSelections` |
-| `radio` | string | `options` |
-| `checkbox` | boolean | none |
-| `date` | ISO date | `minDate`, `maxDate` (supports `today`, `+30d`) |
-| `dateTime` | ISO datetime | `minDate`, `maxDate` |
-| `file` | attachment id[] | `maxSizeBytes`, `acceptedMimeTypes`, `maxFiles` |
-| `user` | user id | `restrictToRole`, `restrictToGroup` |
-| `email` | string | format-validated |
-| `phone` | string | format-validated |
-| `heading` | not stored | display only |
-| `paragraph` | not stored | display only |
+| Type          | Storage         | Validation options                              |
+| ------------- | --------------- | ----------------------------------------------- |
+| `text`        | string          | `minLength`, `maxLength`, `pattern`             |
+| `textarea`    | string          | `minLength`, `maxLength`                        |
+| `number`      | number          | `min`, `max`, `step`                            |
+| `currency`    | number (2dp)    | `min`, `max`                                    |
+| `select`      | string          | `options`                                       |
+| `multiSelect` | string[]        | `options`, `minSelections`, `maxSelections`     |
+| `radio`       | string          | `options`                                       |
+| `checkbox`    | boolean         | none                                            |
+| `date`        | ISO date        | `minDate`, `maxDate` (supports `today`, `+30d`) |
+| `dateTime`    | ISO datetime    | `minDate`, `maxDate`                            |
+| `file`        | attachment id[] | `maxSizeBytes`, `acceptedMimeTypes`, `maxFiles` |
+| `user`        | user id         | `restrictToRole`, `restrictToGroup`             |
+| `email`       | string          | format-validated                                |
+| `phone`       | string          | format-validated                                |
+| `heading`     | not stored      | display only                                    |
+| `paragraph`   | not stored      | display only                                    |
 
 Every field additionally supports: `key`, `label`, `hint`, `required`, `defaultValue`, `visibleWhen`, `containsPersonalData`, `readOnlyAfterSubmit`.
 
 ### 4.3 Step types
 
-| Type | Behaviour |
-|---|---|
-| `approval` | Creates a task with approve / reject / return decisions |
-| `action` | Creates a task requiring completion, optionally capturing output fields |
-| `acknowledgement` | Creates a task requiring only confirmation of receipt |
-| `automatic` | No task; evaluates conditions and transitions immediately |
+| Type              | Behaviour                                                               |
+| ----------------- | ----------------------------------------------------------------------- |
+| `approval`        | Creates a task with approve / reject / return decisions                 |
+| `action`          | Creates a task requiring completion, optionally capturing output fields |
+| `acknowledgement` | Creates a task requiring only confirmation of receipt                   |
+| `automatic`       | No task; evaluates conditions and transitions immediately               |
 
-*(`parallel` is a v2 addition. The schema accommodates it; the engine does not implement it initially.)*
+_(`parallel` is a v2 addition. The schema accommodates it; the engine does not implement it initially.)_
 
 ---
 
@@ -752,19 +752,28 @@ A declarative JSON AST evaluated by a pure function in `packages/core`. **Never 
 ```typescript
 type Condition =
   | { field: string; operator: Operator; value?: unknown }
-  | { all: Condition[] }        // logical AND
-  | { any: Condition[] }        // logical OR
+  | { all: Condition[] } // logical AND
+  | { any: Condition[] } // logical OR
   | { not: Condition }
-  | null;                       // always true: the default branch
+  | null; // always true: the default branch
 
 type Operator =
-  | 'eq' | 'neq'
-  | 'gt' | 'gte' | 'lt' | 'lte'
-  | 'in' | 'notIn'
-  | 'contains' | 'notContains'
-  | 'startsWith' | 'endsWith'
-  | 'isEmpty' | 'isNotEmpty'
-  | 'isTrue' | 'isFalse';
+  | 'eq'
+  | 'neq'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'in'
+  | 'notIn'
+  | 'contains'
+  | 'notContains'
+  | 'startsWith'
+  | 'endsWith'
+  | 'isEmpty'
+  | 'isNotEmpty'
+  | 'isTrue'
+  | 'isFalse';
 ```
 
 ### 5.2 Field references
@@ -772,28 +781,28 @@ type Operator =
 - Form values: `"estimatedCost"`, resolved against the case's submitted values
 - Context values, prefixed `$`:
 
-| Reference | Resolves to |
-|---|---|
-| `$submitter.department` | Submitter's department |
-| `$submitter.roles` | Submitter's roles array |
-| `$case.daysOpen` | Whole days since submission |
-| `$step.escalationLevel` | Current escalation level |
-| `$now` | Current UTC timestamp |
+| Reference               | Resolves to                 |
+| ----------------------- | --------------------------- |
+| `$submitter.department` | Submitter's department      |
+| `$submitter.roles`      | Submitter's roles array     |
+| `$case.daysOpen`        | Whole days since submission |
+| `$step.escalationLevel` | Current escalation level    |
+| `$now`                  | Current UTC timestamp       |
 
 ### 5.3 Null and missing semantics, specified explicitly
 
 This is the most common source of workflow bugs. Behaviour is defined, not incidental.
 
-| Situation | Result |
-|---|---|
-| Field absent from values | Treated as `null` |
-| Field is `null`, operator is `eq`/`neq` | Compared normally; `null eq null` is `true` |
-| Field is `null`, operator is a comparison (`gt`, `lt`, …) | **`false`**, never an error |
-| Field is `null`, operator is `isEmpty` | `true` |
-| Empty string, empty array | `isEmpty` is `true` |
-| Type mismatch (string vs number) | **`false`**, and a warning is logged |
-| Unknown field key | **`false`**, and a warning is logged |
-| Unknown operator | Throws. This is a definition validation failure, caught at publish time |
+| Situation                                                 | Result                                                                  |
+| --------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Field absent from values                                  | Treated as `null`                                                       |
+| Field is `null`, operator is `eq`/`neq`                   | Compared normally; `null eq null` is `true`                             |
+| Field is `null`, operator is a comparison (`gt`, `lt`, …) | **`false`**, never an error                                             |
+| Field is `null`, operator is `isEmpty`                    | `true`                                                                  |
+| Empty string, empty array                                 | `isEmpty` is `true`                                                     |
+| Type mismatch (string vs number)                          | **`false`**, and a warning is logged                                    |
+| Unknown field key                                         | **`false`**, and a warning is logged                                    |
+| Unknown operator                                          | Throws. This is a definition validation failure, caught at publish time |
 
 **Guiding principle:** condition evaluation never throws at runtime. An unevaluable condition is `false`. A workflow must never crash a case because a field was missing.
 
@@ -811,11 +820,11 @@ This is the most common source of workflow bugs. Behaviour is defined, not incid
 
 ```typescript
 interface EngineInput {
-  definition: ProcessDefinitionDocument;   // the PINNED version
+  definition: ProcessDefinitionDocument; // the PINNED version
   caseState: CaseState;
   values: Record<string, unknown>;
   event: EngineEvent;
-  context: EvaluationContext;              // submitter, roles, now
+  context: EvaluationContext; // submitter, roles, now
 }
 
 interface EngineOutput {
@@ -836,14 +845,14 @@ The caller, `apps/api`, persists everything the engine returns, in one transacti
 
 ### 6.2 Engine events
 
-| Event | Trigger |
-|---|---|
-| `caseSubmitted` | Requester submits a draft |
-| `taskDecided` | An approver records a decision |
-| `taskExpired` | An SLA expiry timer fires |
-| `escalationTriggered` | An escalation timer fires |
-| `caseCancelled` | Requester or admin cancels |
-| `caseResubmitted` | A returned case is amended and resubmitted |
+| Event                 | Trigger                                    |
+| --------------------- | ------------------------------------------ |
+| `caseSubmitted`       | Requester submits a draft                  |
+| `taskDecided`         | An approver records a decision             |
+| `taskExpired`         | An SLA expiry timer fires                  |
+| `escalationTriggered` | An escalation timer fires                  |
+| `caseCancelled`       | Requester or admin cancels                 |
+| `caseResubmitted`     | A returned case is amended and resubmitted |
 
 ### 6.3 Advance algorithm
 
@@ -911,15 +920,15 @@ type AssignmentStrategy =
   | { strategy: 'fieldReference'; fieldKey: string };
 ```
 
-| Strategy | Resolution | Failure behaviour |
-|---|---|---|
-| `specificUser` | Named user; must be an active member | Case → `unassigned` |
-| `role` | All active members holding the role. Task is claimable by any; first to claim owns it. | Case → `unassigned` |
-| `lineManager` | Submitter's `line_manager_user_id` | Case → `unassigned` |
-| `lineManagerOfAssignee` | Line manager of the current assignee, used for escalation | Falls back to the next escalation level |
-| `submitter` | The person who raised the case | Cannot fail |
-| `group` | All active group members; claimable | Case → `unassigned` |
-| `fieldReference` | User selected in a `user`-type field | Case → `unassigned` |
+| Strategy                | Resolution                                                                             | Failure behaviour                       |
+| ----------------------- | -------------------------------------------------------------------------------------- | --------------------------------------- |
+| `specificUser`          | Named user; must be an active member                                                   | Case → `unassigned`                     |
+| `role`                  | All active members holding the role. Task is claimable by any; first to claim owns it. | Case → `unassigned`                     |
+| `lineManager`           | Submitter's `line_manager_user_id`                                                     | Case → `unassigned`                     |
+| `lineManagerOfAssignee` | Line manager of the current assignee, used for escalation                              | Falls back to the next escalation level |
+| `submitter`             | The person who raised the case                                                         | Cannot fail                             |
+| `group`                 | All active group members; claimable                                                    | Case → `unassigned`                     |
+| `fieldReference`        | User selected in a `user`-type field                                                   | Case → `unassigned`                     |
 
 **Rules**
 
@@ -980,11 +989,11 @@ There is no automatic migration of in-flight cases to a new version. If a versio
 
 ### 9.1 Scopes
 
-| Scope | Owner | Visibility | Editable |
-|---|---|---|---|
-| `system` | OrgFlow | All organisations | No, read-only |
-| `organisation` | One organisation | That organisation | Yes, by process owners |
-| `published` | One organisation | All organisations (opt-in library) | By owner only |
+| Scope          | Owner            | Visibility                         | Editable               |
+| -------------- | ---------------- | ---------------------------------- | ---------------------- |
+| `system`       | OrgFlow          | All organisations                  | No, read-only          |
+| `organisation` | One organisation | That organisation                  | Yes, by process owners |
+| `published`    | One organisation | All organisations (opt-in library) | By owner only          |
 
 ### 9.2 Cloning
 
@@ -1013,8 +1022,8 @@ Published to SNS. Every event carries a common envelope.
 interface DomainEvent {
   eventId: string;
   eventType: string;
-  organisationId: string;      // ALWAYS present, re-asserted by consumers
-  occurredAt: string;          // ISO 8601 UTC
+  organisationId: string; // ALWAYS present, re-asserted by consumers
+  occurredAt: string; // ISO 8601 UTC
   actorUserId: string | null;
   actorType: 'user' | 'system' | 'scheduler';
   correlationId: string;
@@ -1023,34 +1032,34 @@ interface DomainEvent {
 }
 ```
 
-| Event type | Emitted when | Key payload |
-|---|---|---|
-| `organisation.created` | New org created | `organisationId`, `createdBy` |
-| `member.invited` | Invitation sent | `email`, `roles` |
-| `member.joined` | Invitation accepted | `userId` |
-| `member.removed` | Membership revoked | `userId` |
-| `definition.published` | Version published | `definitionId`, `versionId`, `versionNumber` |
-| `definition.archived` | Definition archived | `definitionId` |
-| `case.submitted` | Draft submitted | `caseId`, `reference`, `versionId` |
-| `case.stepChanged` | Case advanced | `fromStepKey`, `toStepKey`, `conditionResult` |
-| `case.returned` | Returned to requester | `caseId`, `reason` |
-| `case.resubmitted` | Amended and resubmitted | `caseId`, `revisionNumber` |
-| `case.completed` | Reached `$completed` | `caseId`, `durationSeconds` |
-| `case.rejected` | Reached `$rejected` | `caseId`, `rejectedAtStep`, `reason` |
-| `case.cancelled` | Cancelled | `caseId`, `reason` |
-| `case.unassigned` | Assignment resolution failed | `caseId`, `stepKey`, `strategy` |
-| `task.created` | Task created | `taskId`, `assigneeUserId`, `dueAt` |
-| `task.claimed` | Claimed from a role or group pool | `taskId`, `claimedBy` |
-| `task.decided` | Decision recorded | `taskId`, `decision`, `comment` |
-| `task.reassigned` | Manually reassigned | `taskId`, `fromUserId`, `toUserId` |
-| `task.delegated` | Assigned to a delegate | `taskId`, `delegatedFrom` |
-| `task.reminderDue` | Reminder timer fired | `taskId`, `hoursRemaining` |
-| `task.escalated` | Escalation timer fired | `taskId`, `escalationLevel`, `escalatedTo` |
-| `task.expired` | Expiry timer fired | `taskId` |
-| `attachment.uploaded` | Upload completed | `attachmentId`, `caseId` |
-| `attachment.scanned` | Virus scan completed | `attachmentId`, `scanStatus` |
-| `export.requested` | Export queued | `exportId`, `type` |
-| `export.completed` | Export ready | `exportId`, `s3Key` |
+| Event type             | Emitted when                      | Key payload                                   |
+| ---------------------- | --------------------------------- | --------------------------------------------- |
+| `organisation.created` | New org created                   | `organisationId`, `createdBy`                 |
+| `member.invited`       | Invitation sent                   | `email`, `roles`                              |
+| `member.joined`        | Invitation accepted               | `userId`                                      |
+| `member.removed`       | Membership revoked                | `userId`                                      |
+| `definition.published` | Version published                 | `definitionId`, `versionId`, `versionNumber`  |
+| `definition.archived`  | Definition archived               | `definitionId`                                |
+| `case.submitted`       | Draft submitted                   | `caseId`, `reference`, `versionId`            |
+| `case.stepChanged`     | Case advanced                     | `fromStepKey`, `toStepKey`, `conditionResult` |
+| `case.returned`        | Returned to requester             | `caseId`, `reason`                            |
+| `case.resubmitted`     | Amended and resubmitted           | `caseId`, `revisionNumber`                    |
+| `case.completed`       | Reached `$completed`              | `caseId`, `durationSeconds`                   |
+| `case.rejected`        | Reached `$rejected`               | `caseId`, `rejectedAtStep`, `reason`          |
+| `case.cancelled`       | Cancelled                         | `caseId`, `reason`                            |
+| `case.unassigned`      | Assignment resolution failed      | `caseId`, `stepKey`, `strategy`               |
+| `task.created`         | Task created                      | `taskId`, `assigneeUserId`, `dueAt`           |
+| `task.claimed`         | Claimed from a role or group pool | `taskId`, `claimedBy`                         |
+| `task.decided`         | Decision recorded                 | `taskId`, `decision`, `comment`               |
+| `task.reassigned`      | Manually reassigned               | `taskId`, `fromUserId`, `toUserId`            |
+| `task.delegated`       | Assigned to a delegate            | `taskId`, `delegatedFrom`                     |
+| `task.reminderDue`     | Reminder timer fired              | `taskId`, `hoursRemaining`                    |
+| `task.escalated`       | Escalation timer fired            | `taskId`, `escalationLevel`, `escalatedTo`    |
+| `task.expired`         | Expiry timer fired                | `taskId`                                      |
+| `attachment.uploaded`  | Upload completed                  | `attachmentId`, `caseId`                      |
+| `attachment.scanned`   | Virus scan completed              | `attachmentId`, `scanStatus`                  |
+| `export.requested`     | Export queued                     | `exportId`, `type`                            |
+| `export.completed`     | Export ready                      | `exportId`, `s3Key`                           |
 
 **Consumer contract**
 
@@ -1067,116 +1076,116 @@ Base: `/api/v1`. JSON, `camelCase`. Errors follow RFC 7807 problem details. Tena
 
 ### 11.1 Authentication
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/auth/providers?email=` | Resolve IdP for an email domain |
-| `GET` | `/auth/login` | Begin OIDC authorization code + PKCE flow |
-| `GET` | `/auth/callback` | OIDC redirect handler |
-| `POST` | `/auth/logout` | End session |
-| `GET` | `/auth/session` | Current user, organisations, roles, permissions |
-| `POST` | `/auth/switch-organisation` | Change active organisation context |
-| `POST` | `/auth/dev-login` | **Local only.** Fails closed outside development. |
+| Method | Path                        | Purpose                                           |
+| ------ | --------------------------- | ------------------------------------------------- |
+| `GET`  | `/auth/providers?email=`    | Resolve IdP for an email domain                   |
+| `GET`  | `/auth/login`               | Begin OIDC authorization code + PKCE flow         |
+| `GET`  | `/auth/callback`            | OIDC redirect handler                             |
+| `POST` | `/auth/logout`              | End session                                       |
+| `GET`  | `/auth/session`             | Current user, organisations, roles, permissions   |
+| `POST` | `/auth/switch-organisation` | Change active organisation context                |
+| `POST` | `/auth/dev-login`           | **Local only.** Fails closed outside development. |
 
 ### 11.2 Organisations and members
 
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/organisations` | Self-serve creation |
-| `GET` | `/organisations/current` | Active organisation |
-| `PATCH` | `/organisations/current` | Update name, branding, settings |
-| `GET` | `/members` | List members (paginated, filterable) |
-| `PATCH` | `/members/:userId` | Update roles, department, line manager |
-| `DELETE` | `/members/:userId` | Remove member |
-| `POST` | `/invitations` | Invite by email |
-| `GET` | `/invitations` | List pending |
-| `DELETE` | `/invitations/:id` | Revoke |
-| `POST` | `/invitations/:token/accept` | Accept (unauthenticated by org) |
-| `GET`/`POST`/`PATCH`/`DELETE` | `/groups`, `/groups/:id` | Group management |
-| `GET`/`POST`/`PATCH` | `/identity-providers` | IdP configuration |
+| Method                        | Path                         | Purpose                                |
+| ----------------------------- | ---------------------------- | -------------------------------------- |
+| `POST`                        | `/organisations`             | Self-serve creation                    |
+| `GET`                         | `/organisations/current`     | Active organisation                    |
+| `PATCH`                       | `/organisations/current`     | Update name, branding, settings        |
+| `GET`                         | `/members`                   | List members (paginated, filterable)   |
+| `PATCH`                       | `/members/:userId`           | Update roles, department, line manager |
+| `DELETE`                      | `/members/:userId`           | Remove member                          |
+| `POST`                        | `/invitations`               | Invite by email                        |
+| `GET`                         | `/invitations`               | List pending                           |
+| `DELETE`                      | `/invitations/:id`           | Revoke                                 |
+| `POST`                        | `/invitations/:token/accept` | Accept (unauthenticated by org)        |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/groups`, `/groups/:id`     | Group management                       |
+| `GET`/`POST`/`PATCH`          | `/identity-providers`        | IdP configuration                      |
 
 ### 11.3 Definitions
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/process-definitions` | List, filterable by status and category |
-| `POST` | `/process-definitions` | Create (blank or from template) |
-| `GET` | `/process-definitions/:id` | Definition with current version |
-| `PATCH` | `/process-definitions/:id` | Update metadata |
-| `DELETE` | `/process-definitions/:id` | Archive (never hard delete) |
-| `GET` | `/process-definitions/:id/versions` | Version history |
-| `GET` | `/process-definitions/:id/versions/:versionId` | Specific version document |
-| `POST` | `/process-definitions/:id/draft` | Create draft from current version |
-| `PUT` | `/process-definitions/:id/draft` | Save draft document |
-| `POST` | `/process-definitions/:id/draft/validate` | Validate without publishing |
-| `POST` | `/process-definitions/:id/draft/publish` | Publish draft as new version |
-| `DELETE` | `/process-definitions/:id/draft` | Discard draft |
+| Method   | Path                                           | Purpose                                 |
+| -------- | ---------------------------------------------- | --------------------------------------- |
+| `GET`    | `/process-definitions`                         | List, filterable by status and category |
+| `POST`   | `/process-definitions`                         | Create (blank or from template)         |
+| `GET`    | `/process-definitions/:id`                     | Definition with current version         |
+| `PATCH`  | `/process-definitions/:id`                     | Update metadata                         |
+| `DELETE` | `/process-definitions/:id`                     | Archive (never hard delete)             |
+| `GET`    | `/process-definitions/:id/versions`            | Version history                         |
+| `GET`    | `/process-definitions/:id/versions/:versionId` | Specific version document               |
+| `POST`   | `/process-definitions/:id/draft`               | Create draft from current version       |
+| `PUT`    | `/process-definitions/:id/draft`               | Save draft document                     |
+| `POST`   | `/process-definitions/:id/draft/validate`      | Validate without publishing             |
+| `POST`   | `/process-definitions/:id/draft/publish`       | Publish draft as new version            |
+| `DELETE` | `/process-definitions/:id/draft`               | Discard draft                           |
 
 ### 11.4 Templates
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/templates?scope=system\|organisation\|published` | Browse catalogue |
-| `GET` | `/templates/:id` | Template detail |
-| `POST` | `/templates` | Save current definition as an organisation template |
-| `POST` | `/templates/:id/clone` | Clone into a new definition |
-| `PATCH` | `/templates/:id` | Update (organisation scope only) |
-| `POST` | `/templates/:id/publish-to-library` | Share publicly |
+| Method  | Path                                               | Purpose                                             |
+| ------- | -------------------------------------------------- | --------------------------------------------------- |
+| `GET`   | `/templates?scope=system\|organisation\|published` | Browse catalogue                                    |
+| `GET`   | `/templates/:id`                                   | Template detail                                     |
+| `POST`  | `/templates`                                       | Save current definition as an organisation template |
+| `POST`  | `/templates/:id/clone`                             | Clone into a new definition                         |
+| `PATCH` | `/templates/:id`                                   | Update (organisation scope only)                    |
+| `POST`  | `/templates/:id/publish-to-library`                | Share publicly                                      |
 
 ### 11.5 Cases
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/cases` | List. Filters: `status`, `definitionId`, `submittedBy`, `view=mine\|all` |
-| `POST` | `/cases` | Create draft against a definition |
-| `GET` | `/cases/:id` | Full case: state, values, tasks, timeline, attachments |
-| `PATCH` | `/cases/:id` | Update draft values |
-| `POST` | `/cases/:id/submit` | Submit. Pins the version, starts the engine |
-| `POST` | `/cases/:id/resubmit` | Resubmit a returned case |
-| `POST` | `/cases/:id/cancel` | Cancel with reason |
-| `GET` | `/cases/:id/timeline` | Transitions, decisions, comments and audit, merged |
-| `GET` | `/cases/:id/audit` | Raw audit events |
-| `POST` | `/cases/:id/comments` | Add comment |
-| `POST` | `/cases/:id/validate` | Validate values without submitting |
+| Method  | Path                  | Purpose                                                                  |
+| ------- | --------------------- | ------------------------------------------------------------------------ |
+| `GET`   | `/cases`              | List. Filters: `status`, `definitionId`, `submittedBy`, `view=mine\|all` |
+| `POST`  | `/cases`              | Create draft against a definition                                        |
+| `GET`   | `/cases/:id`          | Full case: state, values, tasks, timeline, attachments                   |
+| `PATCH` | `/cases/:id`          | Update draft values                                                      |
+| `POST`  | `/cases/:id/submit`   | Submit. Pins the version, starts the engine                              |
+| `POST`  | `/cases/:id/resubmit` | Resubmit a returned case                                                 |
+| `POST`  | `/cases/:id/cancel`   | Cancel with reason                                                       |
+| `GET`   | `/cases/:id/timeline` | Transitions, decisions, comments and audit, merged                       |
+| `GET`   | `/cases/:id/audit`    | Raw audit events                                                         |
+| `POST`  | `/cases/:id/comments` | Add comment                                                              |
+| `POST`  | `/cases/:id/validate` | Validate values without submitting                                       |
 
 ### 11.6 Tasks
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/tasks` | Assigned to current user. Filters: `status`, `overdue`, `definitionId` |
-| `GET` | `/tasks/available` | Claimable role/group tasks |
-| `GET` | `/tasks/:id` | Task with full case context |
-| `POST` | `/tasks/:id/claim` | Claim from a pool |
-| `POST` | `/tasks/:id/decide` | Record decision. Body: `decision`, `comment`, `outputValues` |
-| `POST` | `/tasks/:id/reassign` | Reassign (permission-gated) |
-| `GET`/`POST`/`DELETE` | `/delegations` | Out-of-office delegation |
+| Method                | Path                  | Purpose                                                                |
+| --------------------- | --------------------- | ---------------------------------------------------------------------- |
+| `GET`                 | `/tasks`              | Assigned to current user. Filters: `status`, `overdue`, `definitionId` |
+| `GET`                 | `/tasks/available`    | Claimable role/group tasks                                             |
+| `GET`                 | `/tasks/:id`          | Task with full case context                                            |
+| `POST`                | `/tasks/:id/claim`    | Claim from a pool                                                      |
+| `POST`                | `/tasks/:id/decide`   | Record decision. Body: `decision`, `comment`, `outputValues`           |
+| `POST`                | `/tasks/:id/reassign` | Reassign (permission-gated)                                            |
+| `GET`/`POST`/`DELETE` | `/delegations`        | Out-of-office delegation                                               |
 
 ### 11.7 Attachments
 
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/attachments/presign-upload` | Presigned POST. Body: `caseId`, `fieldKey`, `fileName`, `mimeType`, `sizeBytes` |
-| `POST` | `/attachments/:id/confirm` | Confirm upload, queue scan |
-| `GET` | `/attachments/:id/download` | Presigned GET. **404 unless `scanStatus = 'clean'`** |
-| `DELETE` | `/attachments/:id` | Soft delete |
+| Method   | Path                          | Purpose                                                                         |
+| -------- | ----------------------------- | ------------------------------------------------------------------------------- |
+| `POST`   | `/attachments/presign-upload` | Presigned POST. Body: `caseId`, `fieldKey`, `fileName`, `mimeType`, `sizeBytes` |
+| `POST`   | `/attachments/:id/confirm`    | Confirm upload, queue scan                                                      |
+| `GET`    | `/attachments/:id/download`   | Presigned GET. **404 unless `scanStatus = 'clean'`**                            |
+| `DELETE` | `/attachments/:id`            | Soft delete                                                                     |
 
 ### 11.8 Reporting
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/reports/overview` | Volume, completion rate, median turnaround |
-| `GET` | `/reports/definitions/:id` | Per-process metrics |
-| `GET` | `/reports/bottlenecks` | Mean time per step, ranked |
-| `GET` | `/reports/approver-load` | Volume and turnaround per approver (permission-gated) |
-| `POST` | `/exports` | Request CSV or PDF export, asynchronously via the queue |
-| `GET` | `/exports/:id` | Status and download link |
+| Method | Path                       | Purpose                                                 |
+| ------ | -------------------------- | ------------------------------------------------------- |
+| `GET`  | `/reports/overview`        | Volume, completion rate, median turnaround              |
+| `GET`  | `/reports/definitions/:id` | Per-process metrics                                     |
+| `GET`  | `/reports/bottlenecks`     | Mean time per step, ranked                              |
+| `GET`  | `/reports/approver-load`   | Volume and turnaround per approver (permission-gated)   |
+| `POST` | `/exports`                 | Request CSV or PDF export, asynchronously via the queue |
+| `GET`  | `/exports/:id`             | Status and download link                                |
 
 ### 11.9 Data protection
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/data-protection/subject-export?userId=` | All data relating to a subject |
-| `POST` | `/data-protection/redact` | Redact personal content, retain audit skeleton |
-| `GET`/`PATCH` | `/data-protection/retention` | Retention policy per definition |
+| Method        | Path                                      | Purpose                                        |
+| ------------- | ----------------------------------------- | ---------------------------------------------- |
+| `GET`         | `/data-protection/subject-export?userId=` | All data relating to a subject                 |
+| `POST`        | `/data-protection/redact`                 | Redact personal content, retain audit skeleton |
+| `GET`/`PATCH` | `/data-protection/retention`              | Retention policy per definition                |
 
 ### 11.10 Conventions
 
@@ -1211,13 +1220,13 @@ Base: `/api/v1`. JSON, `camelCase`. Errors follow RFC 7807 problem details. Tena
 
 Per organisation, not global.
 
-| Role | Capabilities |
-|---|---|
-| `member` | Submit cases, view own cases, act on assigned tasks |
-| `approver` | Plus: act on role-assigned tasks |
+| Role           | Capabilities                                                                           |
+| -------------- | -------------------------------------------------------------------------------------- |
+| `member`       | Submit cases, view own cases, act on assigned tasks                                    |
+| `approver`     | Plus: act on role-assigned tasks                                                       |
 | `processOwner` | Plus: create and publish definitions, view all cases for owned processes, view reports |
-| `admin` | Plus: manage members, groups, IdP, retention; view all cases |
-| `owner` | Plus: manage organisation settings, delete organisation |
+| `admin`        | Plus: manage members, groups, IdP, retention; view all cases                           |
+| `owner`        | Plus: manage organisation settings, delete organisation                                |
 
 Roles are additive. A user may hold several.
 
@@ -1225,8 +1234,8 @@ Roles are additive. A user may hold several.
 
 Two distinct questions, always evaluated separately:
 
-- **Visibility.** May this user *see* this case? True if: submitter, current or past assignee, process owner of the definition, or admin.
-- **Actionability.** May this user *act* on this task? True only if: the resolved assignee, an active delegate of the assignee, or a member of the assigned role or group for an unclaimed task.
+- **Visibility.** May this user _see_ this case? True if: submitter, current or past assignee, process owner of the definition, or admin.
+- **Actionability.** May this user _act_ on this task? True only if: the resolved assignee, an active delegate of the assignee, or a member of the assigned role or group for an unclaimed task.
 
 Both are evaluated server-side on every request. Client-side checks are presentation only.
 
@@ -1270,12 +1279,14 @@ Both are evaluated server-side on every request. Client-side checks are presenta
 ### 13.2 Key screens
 
 **Dashboard**
+
 - Approvals awaiting me, overdue first, count badge
 - My open requests with live status
 - Quick-start tiles for frequent processes
 - Empty state directing to the catalogue
 
 **Approval queue**, the highest-value screen in the product
+
 - Sorted by due date ascending, overdue pinned to top
 - Each row: reference, process, requester, age, due, urgency indicator (**icon plus text, never colour alone**)
 - Filters: process, overdue, claimed/unclaimed
@@ -1283,6 +1294,7 @@ Both are evaluated server-side on every request. Client-side checks are presenta
 - Keyboard navigable: arrow keys between rows, Enter to open
 
 **Decision screen**
+
 - Every piece of information needed to decide, on one screen, with no expanding and no navigating away
 - Submitted values in a read-only summary
 - Attachments, download-gated on clean scan status
@@ -1292,6 +1304,7 @@ Both are evaluated server-side on every request. Client-side checks are presenta
 - Confirmation step for irreversible decisions
 
 **Form builder**
+
 - Three panes: field palette, canvas, properties
 - Drag to add and reorder, **plus a full keyboard alternative** (move up, move down, move to section), with `aria-live` announcements
 - Conditional visibility configured through a rule builder UI, never raw JSON
@@ -1300,6 +1313,7 @@ Both are evaluated server-side on every request. Client-side checks are presenta
 - Personal data flag on each field, with an acknowledgement prompt
 
 **Workflow builder**
+
 - React Flow canvas; steps as nodes, transitions as edges
 - Per-step panel: name, type, assignment strategy, instructions, allowed decisions, SLA, escalation
 - Branch conditions via the same rule builder as the form
@@ -1307,6 +1321,7 @@ Both are evaluated server-side on every request. Client-side checks are presenta
 - **Keyboard alternative:** a list view of steps and transitions, fully operable without the canvas
 
 **Case detail**
+
 - Header: reference, process, status, submitted date, requester
 - Progress indicator showing completed, current and remaining steps
 - Submitted values, marking any changed on resubmission
@@ -1320,18 +1335,18 @@ Both are evaluated server-side on every request. Client-side checks are presenta
 
 ### 14.1 Templates
 
-| Key | Trigger | Recipient |
-|---|---|---|
-| `caseSubmitted` | `case.submitted` | Submitter |
-| `taskAssigned` | `task.created` | Assignee |
-| `taskClaimable` | `task.created` (role/group) | Eligible members |
-| `taskReminder` | `task.reminderDue` | Assignee |
-| `taskEscalated` | `task.escalated` | Escalation target, and original assignee |
-| `caseReturned` | `case.returned` | Submitter |
-| `caseCompleted` | `case.completed` | Submitter |
-| `caseRejected` | `case.rejected` | Submitter |
-| `caseUnassigned` | `case.unassigned` | Organisation admins |
-| `delegationStarted` | Delegation activates | Delegate |
+| Key                 | Trigger                     | Recipient                                |
+| ------------------- | --------------------------- | ---------------------------------------- |
+| `caseSubmitted`     | `case.submitted`            | Submitter                                |
+| `taskAssigned`      | `task.created`              | Assignee                                 |
+| `taskClaimable`     | `task.created` (role/group) | Eligible members                         |
+| `taskReminder`      | `task.reminderDue`          | Assignee                                 |
+| `taskEscalated`     | `task.escalated`            | Escalation target, and original assignee |
+| `caseReturned`      | `case.returned`             | Submitter                                |
+| `caseCompleted`     | `case.completed`            | Submitter                                |
+| `caseRejected`      | `case.rejected`             | Submitter                                |
+| `caseUnassigned`    | `case.unassigned`           | Organisation admins                      |
+| `delegationStarted` | Delegation activates        | Delegate                                 |
 
 ### 14.2 Rules
 
@@ -1357,11 +1372,11 @@ Both are evaluated server-side on every request. Client-side checks are presenta
 
 Three types, all EventBridge Scheduler one-off schedules created at task creation:
 
-| Type | Fires |
-|---|---|
-| `reminder` | At each configured `atHoursBefore` the deadline |
-| `escalation` | At each configured `atHoursAfter` the deadline |
-| `expiry` | At an optional hard expiry, after which the task auto-decides per `onExpiry` |
+| Type         | Fires                                                                        |
+| ------------ | ---------------------------------------------------------------------------- |
+| `reminder`   | At each configured `atHoursBefore` the deadline                              |
+| `escalation` | At each configured `atHoursAfter` the deadline                               |
+| `expiry`     | At an optional hard expiry, after which the task auto-decides per `onExpiry` |
 
 All timers for a task are cancelled when the task is completed, reassigned or cancelled.
 
@@ -1406,17 +1421,17 @@ All timers for a task are cancelled when the task is completed, reassigned or ca
 
 ### 17.1 Metrics
 
-| Metric | Definition |
-|---|---|
-| Volume | Cases submitted per period, by process |
-| Completion rate | Completed ÷ (completed + rejected + cancelled) |
+| Metric            | Definition                                                              |
+| ----------------- | ----------------------------------------------------------------------- |
+| Volume            | Cases submitted per period, by process                                  |
+| Completion rate   | Completed ÷ (completed + rejected + cancelled)                          |
 | Median turnaround | Submission to terminal state, median not mean, because outliers distort |
-| p90 turnaround | Tail latency; better indicator of user experience |
-| Step duration | Mean and median time per step. **This is the bottleneck view** |
-| Rejection reasons | Grouped by step and comment sentiment |
-| Approver load | Tasks handled and median turnaround per approver |
-| Escalation rate | Proportion of tasks escalating at least once |
-| Return rate | Proportion returned to requester at least once, a form quality signal |
+| p90 turnaround    | Tail latency; better indicator of user experience                       |
+| Step duration     | Mean and median time per step. **This is the bottleneck view**          |
+| Rejection reasons | Grouped by step and comment sentiment                                   |
+| Approver load     | Tasks handled and median turnaround per approver                        |
+| Escalation rate   | Proportion of tasks escalating at least once                            |
+| Return rate       | Proportion returned to requester at least once, a form quality signal   |
 
 ### 17.2 Rules
 
@@ -1429,30 +1444,30 @@ All timers for a task are cancelled when the task is completed, reassigned or ca
 
 ## 18. Data protection features
 
-| Feature | Behaviour |
-|---|---|
-| **Personal data flagging** | Builder marks fields with `containsPersonalData`. Flagged fields are redaction targets and are excluded from exports by default. |
-| **Retention** | Per definition, in days. A scheduled Lambda finds expired cases nightly and redacts them. |
-| **Redaction** | Personal values replaced with a tombstone; attachments deleted; audit skeleton retained (who decided what, and when, with content removed). `redacted_at` set. **The redaction is itself an audit event.** |
-| **Subject access export** | All data relating to a user across cases they submitted, decided on, or are named in. JSON plus attachment manifest. |
-| **Erasure** | Implemented as redaction, not deletion. The record that a decision occurred is typically retained under legal obligation; personal content is removed. |
-| **Region** | Configurable, defaulting to `eu-west-2`. |
+| Feature                    | Behaviour                                                                                                                                                                                                  |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Personal data flagging** | Builder marks fields with `containsPersonalData`. Flagged fields are redaction targets and are excluded from exports by default.                                                                           |
+| **Retention**              | Per definition, in days. A scheduled Lambda finds expired cases nightly and redacts them.                                                                                                                  |
+| **Redaction**              | Personal values replaced with a tombstone; attachments deleted; audit skeleton retained (who decided what, and when, with content removed). `redacted_at` set. **The redaction is itself an audit event.** |
+| **Subject access export**  | All data relating to a user across cases they submitted, decided on, or are named in. JSON plus attachment manifest.                                                                                       |
+| **Erasure**                | Implemented as redaction, not deletion. The record that a decision occurred is typically retained under legal obligation; personal content is removed.                                                     |
+| **Region**                 | Configurable, defaulting to `eu-west-2`.                                                                                                                                                                   |
 
 ---
 
 ## 19. Non-functional requirements
 
-| Category | Requirement |
-|---|---|
-| **Performance** | API p95 < 300ms for reads, < 800ms for writes. Approval queue renders < 1s at 500 tasks. Form builder responsive at 100 fields. |
-| **Scalability** | 1,000 organisations, 10,000 members per organisation, 100,000 cases per organisation. Queue-based async absorbs bursts. |
-| **Availability** | 99.5% target. Notification, export or scan outage must not block submission or approval. |
-| **Durability** | Postgres PITR with a 7-day window. S3 versioning. Restore rehearsed at least once. |
-| **Security** | Full compliance with `GOV-STANDARDS.md` §6. Zero high or critical findings. |
-| **Accessibility** | WCAG 2.2 AA across every screen, verified automatically and manually. |
-| **Observability** | Structured logs with correlation IDs across all boundaries. Alarms per `TECH-STACK.md` §10. |
-| **Browser support** | Latest two versions of Chrome, Firefox, Safari, Edge. Responsive from 320px. |
-| **Localisation** | English only at v1; all user-facing strings externalised so translation is possible without code change. |
+| Category            | Requirement                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Performance**     | API p95 < 300ms for reads, < 800ms for writes. Approval queue renders < 1s at 500 tasks. Form builder responsive at 100 fields. |
+| **Scalability**     | 1,000 organisations, 10,000 members per organisation, 100,000 cases per organisation. Queue-based async absorbs bursts.         |
+| **Availability**    | 99.5% target. Notification, export or scan outage must not block submission or approval.                                        |
+| **Durability**      | Postgres PITR with a 7-day window. S3 versioning. Restore rehearsed at least once.                                              |
+| **Security**        | Full compliance with `GOV-STANDARDS.md` §6. Zero high or critical findings.                                                     |
+| **Accessibility**   | WCAG 2.2 AA across every screen, verified automatically and manually.                                                           |
+| **Observability**   | Structured logs with correlation IDs across all boundaries. Alarms per `TECH-STACK.md` §10.                                     |
+| **Browser support** | Latest two versions of Chrome, Firefox, Safari, Edge. Responsive from 320px.                                                    |
+| **Localisation**    | English only at v1; all user-facing strings externalised so translation is possible without code change.                        |
 
 ---
 
@@ -1461,7 +1476,8 @@ All timers for a task are cancelled when the task is completed, reassigned or ca
 Grouped by phase. Each is verifiable.
 
 ### Phase 0: Foundations
-- [ ] `npm run dev` starts web, API, Postgres, Mongo and LocalStack with one command
+
+- [ ] `pnpm dev` starts web, API, Postgres, Mongo and LocalStack with one command
 - [ ] `packages/core` has zero runtime dependencies beyond `zod` and `date-fns`
 - [ ] `apps/web` cannot import from `packages/db`, enforced by an ESLint rule rather than convention
 - [ ] Migrations run forward and backward cleanly
@@ -1470,6 +1486,7 @@ Grouped by phase. Each is verifiable.
 - [ ] A seeded user can log in locally and see an empty dashboard
 
 ### Phase 1: Vertical slice
+
 - [ ] A case can be submitted, approved and completed in a deployed environment
 - [ ] Every state change writes an audit row in the same transaction
 - [ ] The approver receives an email via SNS → SQS → Lambda → SES
@@ -1477,6 +1494,7 @@ Grouped by phase. Each is verifiable.
 - [ ] Attempting to fetch another organisation's case by ID returns `404`
 
 ### Phase 2: Engine
+
 - [ ] A new process runs from seeded JSON with no code change
 - [ ] Condition evaluator coverage above 95%, including every null and missing case in §5.3
 - [ ] Engine is pure: its test suite runs with no database and no network
@@ -1484,6 +1502,7 @@ Grouped by phase. Each is verifiable.
 - [ ] Automatic-step loop guard triggers at 20 iterations
 
 ### Phase 3: Form runtime and builder
+
 - [ ] Any valid definition renders as a working form
 - [ ] Conditional fields appear and disappear correctly, and are announced to screen readers
 - [ ] Every drag operation has a keyboard equivalent, verified by keyboard-only test
@@ -1492,17 +1511,20 @@ Grouped by phase. Each is verifiable.
 - [ ] Values persist across validation failure, so nothing is re-typed (SC 3.3.7)
 
 ### Phase 4: Workflow builder
+
 - [ ] A complete process can be built in the UI and run without touching JSON
 - [ ] Unreachable steps and missing default branches are flagged before publish
 - [ ] The list view offers full parity with the canvas for keyboard users
 
 ### Phase 5: Versioning and templates
+
 - [ ] **The pinning test:** submit a case, publish a version removing a field the workflow branches on, confirm the in-flight case completes correctly on its original version
 - [ ] Published version documents are immutable, so an update attempt is rejected
 - [ ] Cloning a template and then editing the template leaves the clone unchanged
 - [ ] All six system templates publish and run
 
 ### Phase 6: Notifications, SLA, escalation
+
 - [ ] An overdue task escalates automatically, with the escalation audited
 - [ ] Escalation adds an assignee rather than replacing one
 - [ ] Business-hours SLA calculation excludes weekends and configured holidays
@@ -1510,17 +1532,20 @@ Grouped by phase. Each is verifiable.
 - [ ] A notification outage does not block an approval decision
 
 ### Phase 7: Files
+
 - [ ] An EICAR test file is quarantined and permanently undownloadable
 - [ ] Download returns `404` while `scanStatus` is `pending`
 - [ ] MIME type is validated by content sniffing, not the supplied header
 - [ ] Every download writes an audit event
 
 ### Phase 8: Reporting
+
 - [ ] Median turnaround and slowest step are visible per process
 - [ ] Individual-level views are permission-gated and suppressed below five records
 - [ ] Export runs asynchronously and delivers a presigned link
 
 ### Phase 9: Administration and hardening
+
 - [ ] Every item in the `GOV-STANDARDS.md` §11 checklist is ticked
 - [ ] Cross-tenant test suite covers every endpoint and passes
 - [ ] Row-Level Security verified active on every tenant table

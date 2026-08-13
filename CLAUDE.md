@@ -29,31 +29,37 @@ Steps 6 and 7 are not optional. They hold current state. Skipping them means re-
 ## 3. Non-negotiable rules
 
 **Tenant isolation**
+
 - Every Postgres query is scoped by `organisation_id`. Every Mongo query by `organisationId`. No exceptions, including admin, reporting and background jobs.
-- Scoping lives in the repository layer. If a route handler *could* forget it, the abstraction is wrong.
+- Scoping lives in the repository layer. If a route handler _could_ forget it, the abstraction is wrong.
 - Tenant context comes from the authenticated session. Never from a body, query param or header.
 - Cross-tenant access returns `404`, never `403`.
 
 **Version pinning**
+
 - A case executes the definition version it was submitted against, forever.
 - Load definitions by `version_id`. Loading by `definition_id` in a case execution path is a defect.
 
 **Engine purity**
+
 - `packages/core` performs no I/O. No database, no HTTP, no AWS SDK, no `Date.now()`. Time is injected via context.
 - The engine returns what should happen. The caller persists it.
 
 **Dependency direction**
+
 - `types` → `core` → `db`/`documents`/`events` → `api`/`workers`
 - `web` imports only `types` and `ui`. It never imports server code.
 - Enforced by ESLint. Violating it is a defect even if it compiles.
 
 **Accessibility**
+
 - WCAG 2.2 AA is a completion criterion, not a follow-up ticket.
 - Every drag interaction has a keyboard equivalent.
 - `axe-core` passes in CI. Zero violations.
 - Status is never conveyed by colour alone.
 
 **Security**
+
 - Never `eval` a tenant-authored expression. The condition language is a declarative AST interpreted by a pure function.
 - Parameterised queries only.
 - No secrets in the repository.
@@ -61,6 +67,7 @@ Steps 6 and 7 are not optional. They hold current state. Skipping them means re-
 - Audit rows are append-only, enforced by database grants.
 
 **Testing**
+
 - Tests are written with the code, not after.
 - Never mock the database in integration tests; use Testcontainers.
 - Every queue consumer has an idempotency test that delivers the same message twice.
@@ -69,21 +76,21 @@ Steps 6 and 7 are not optional. They hold current state. Skipping them means re-
 
 ## 4. Conventions
 
-| Context | Convention |
-|---|---|
-| TypeScript variables, functions, properties | `camelCase` |
-| TypeScript types, interfaces, classes | `PascalCase` |
-| TypeScript constants | `SCREAMING_SNAKE_CASE` |
-| Postgres tables and columns | `snake_case`, tables plural |
-| MongoDB collections and fields | `camelCase` |
-| API routes | `kebab-case`, plural |
-| API JSON keys | `camelCase` |
-| Component files | `PascalCase.tsx` |
-| All other files | `kebab-case.ts` |
-| Directories | `kebab-case` |
-| Environment variables | `ORGFLOW_` prefix, `SCREAMING_SNAKE_CASE` |
-| Events | `dot.case`, past tense, for example `case.submitted` |
-| Branches | `type/kebab-description` |
+| Context                                     | Convention                                           |
+| ------------------------------------------- | ---------------------------------------------------- |
+| TypeScript variables, functions, properties | `camelCase`                                          |
+| TypeScript types, interfaces, classes       | `PascalCase`                                         |
+| TypeScript constants                        | `SCREAMING_SNAKE_CASE`                               |
+| Postgres tables and columns                 | `snake_case`, tables plural                          |
+| MongoDB collections and fields              | `camelCase`                                          |
+| API routes                                  | `kebab-case`, plural                                 |
+| API JSON keys                               | `camelCase`                                          |
+| Component files                             | `PascalCase.tsx`                                     |
+| All other files                             | `kebab-case.ts`                                      |
+| Directories                                 | `kebab-case`                                         |
+| Environment variables                       | `ORGFLOW_` prefix, `SCREAMING_SNAKE_CASE`            |
+| Events                                      | `dot.case`, past tense, for example `case.submitted` |
+| Branches                                    | `type/kebab-description`                             |
 
 **The single mapping boundary:** `camelCase` in TypeScript ↔ `snake_case` in Postgres, translated inside `packages/db` and nowhere else. Mongo needs no mapping.
 
@@ -124,6 +131,7 @@ Steps 6 and 7 are not optional. They hold current state. Skipping them means re-
 `documentation/client.md` and `documentation/server.md` are **append-only running logs**. Update them **in the same commit as the change**, never retrospectively.
 
 **Append an entry when:**
+
 - A feature or component is added or significantly changed
 - A dependency is added or removed
 - A Postgres schema or Mongo document shape changes
@@ -147,9 +155,11 @@ One or two sentences.
 The requirement or problem it addresses.
 
 **Notes**
+
 - Decisions made, patterns used, gotchas encountered
 
 **Follow-ups**
+
 - Anything deliberately deferred
 ```
 
@@ -160,11 +170,13 @@ The requirement or problem it addresses.
 ## 7. Working method
 
 **At the start of a session**
+
 1. Read the documents in §2.
 2. State which phase is active and what is outstanding.
 3. State the plan before implementing.
 
 **While working**
+
 - Build vertical slices. A thin feature working end to end beats a complete layer that cannot be exercised.
 - Implement error, empty and loading states as part of the feature, not afterwards.
 - When the spec is ambiguous on something expensive to reverse, such as schema shape, API contract or auth model, **ask rather than guess**.
@@ -172,6 +184,7 @@ The requirement or problem it addresses.
 - Do not substitute technologies. Introducing a library not in `TECH-STACK.md` is an ADR decision, agreed first.
 
 **Definition of done**
+
 - [ ] Implemented per `PRD.md`
 - [ ] Unit tests pass; `packages/core` coverage above 90%
 - [ ] Integration tests pass against real Postgres and Mongo
@@ -195,6 +208,7 @@ The requirement or problem it addresses.
 **Staging.** Stage named files. Never `git add -A` or `git add .`. Review the diff before staging, every time.
 
 **Minor: commit, push and merge to `main` directly**
+
 - UI copy, styling, layout
 - Adding tests
 - Documentation log entries
@@ -202,6 +216,7 @@ The requirement or problem it addresses.
 - Refactors with no interface change
 
 **High: branch, push, then stop and request a decision before merging**
+
 - Any Postgres migration or Mongo document shape change
 - Anything touching authentication, authorisation or tenant isolation
 - Any change to `packages/types`
@@ -225,7 +240,8 @@ Classify every push before making it. When in doubt, treat it as high and ask.
 **Active phase:** Phase 0, Foundations
 
 **Outstanding:**
-- [ ] Monorepo scaffold with Turborepo and npm workspaces
+
+- [ ] Monorepo scaffold with Turborepo and pnpm workspaces
 - [ ] `packages/types` with core domain contracts
 - [ ] Postgres migrations for identity and tenancy tables
 - [ ] Docker Compose for Postgres, Mongo, LocalStack
