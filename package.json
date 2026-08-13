@@ -7,7 +7,10 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "docker compose up -d && turbo run dev",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

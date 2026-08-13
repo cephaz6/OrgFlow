@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: orgflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: orgflow
+      POSTGRES_PASSWORD: orgflow
+      POSTGRES_DB: orgflow
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U orgflow -d orgflow']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7
+    container_name: orgflow-mongo
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  localstack:
+    image: localstack/localstack:3
+    container_name: orgflow-localstack
+    restart: unless-stopped
+    environment:
+      SERVICES: s3,sqs,sns,events,scheduler
+      DEBUG: 0
+      PERSISTENCE: 0
+    ports:
+      - '4566:4566'
+    volumes:
+      - localstack-data:/var/lib/localstack
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:4566/_localstack/health']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  mongo-data:
+  localstack-data:
