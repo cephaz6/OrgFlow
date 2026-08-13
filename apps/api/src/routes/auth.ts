@@ -156,7 +156,7 @@ export function createAuthRouter(deps: AuthDeps): Router {
       );
 
       const authorizationUrl = buildAuthorizationRequestUrl(config, {
-        redirectUri: `${deps.apiBaseUrl}/auth/callback`,
+        redirectUri: `${deps.apiBaseUrl}/api/v1/auth/callback`,
         state,
         nonce,
         codeChallenge,

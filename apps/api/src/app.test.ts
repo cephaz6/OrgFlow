@@ -61,7 +61,7 @@ describe('POST /auth/dev-login', () => {
       apiBaseUrl: 'http://localhost:4000',
     });
 
-    const response = await request(app).post('/auth/dev-login');
+    const response = await request(app).post('/api/v1/auth/dev-login');
 
     expect(response.status).toBe(404);
   });
@@ -69,7 +69,7 @@ describe('POST /auth/dev-login', () => {
 
 describe('GET /auth/session', () => {
   it('returns 401 with no session cookie', async () => {
-    const response = await request(buildApp()).get('/auth/session');
+    const response = await request(buildApp()).get('/api/v1/auth/session');
 
     expect(response.status).toBe(401);
   });

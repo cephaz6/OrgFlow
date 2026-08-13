@@ -39,8 +39,14 @@ export function createApp(deps: CreateAppDeps): Express {
   app.use(express.json());
   app.use(cookieParser());
 
+  // /health and /ready are infrastructure probes, not API resources: they
+  // stay unversioned so a load balancer or container orchestrator never
+  // has to track the API version to check liveness.
   app.use(createHealthRouter({ db: deps.db, mongoClient: deps.mongoClient }));
+
+  // PRD.md §11: every API route lives under /api/v1.
   app.use(
+    '/api/v1',
     createAuthRouter({
       db: deps.db,
       sessionSecret: deps.sessionSecret,
