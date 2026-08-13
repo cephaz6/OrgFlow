@@ -104,3 +104,5 @@ With AWS Secrets Manager integration planned for a later phase, the operator cho
 **Follow-ups**
 
 - Fill in `ORGFLOW_OIDC_*` and `ORGFLOW_EVENTS_TOPIC_ARN` in local `.env` once those are provisioned (Phase 0 step 7, Phase 1 respectively).
+
+- 2026-08-13 [Infrastructure] eslint.config.mjs, turbo.json: added the `no-restricted-imports` dependency-direction rule (CLAUDE.md §3) and the `no-restricted-syntax` process.env boundary rule (ADR-0001), both verified against deliberate fixture violations; added `globalDependencies` to turbo.json so shared config edits correctly invalidate every package's task cache.
