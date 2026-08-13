@@ -9,7 +9,8 @@
       "Bash(git remote *)",
       "Bash(git checkout *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git commit -q -m 'chore: restore expanded harness permissions *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\admin\\.claude\\projects\\c--Users-admin-Documents-MERN-org-flow\\memory"
