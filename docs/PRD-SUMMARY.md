@@ -178,29 +178,10 @@ For this project the default is **one builder agent working sequentially**. Para
 - A pattern or convention is established
 - A bug with a non-obvious cause is fixed
 
-**Entry format:**
+**Entry format: one line per entry.** No sections, no headers.
 
 ```markdown
-## 2026-08-14: Approval queue view
-
-**Type:** Feature
-**Area:** apps/web, app/(app)/approvals
-
-**What changed**
-Added the approver queue with age-based sorting and overdue highlighting.
-
-**Why**
-Phase 1 requirement. Approvers currently have no way to see outstanding tasks.
-
-**Notes**
-
-- Uses TanStack Query with a 30s refetch interval
-- Overdue state indicated by icon plus text, not colour alone (WCAG 1.4.1)
-- Empty state added; tested with axe, no violations
-
-**Follow-ups**
-
-- Filtering by process is deferred to Phase 8
+- 2026-08-14 [Feature] apps/web, app/(app)/approvals: added the approver queue, age-sorted, overdue pinned to top.
 ```
 
 `documentation/decisions.md` holds architectural decisions in ADR form: context, decision, consequences, alternatives rejected. Its job is to stop settled choices being re-litigated in a later session.

@@ -26,26 +26,14 @@ Schema and API entries carry extra weight. Record the migration filename, and st
 
 ## Entry format
 
+One line per entry. No sections, no headers. Entries below this point predate the switch to
+this format; do not rewrite them, per the append-only rule above.
+
 ```markdown
-## YYYY-MM-DD: Short title
-
-**Type:** Feature | Change | Fix | Dependency | Schema | Infrastructure
-**Area:** package/path
-
-**What changed**
-One or two sentences.
-
-**Why**
-The requirement or problem it addresses.
-
-**Notes**
-
-- Decisions made, patterns used, gotchas encountered
-
-**Follow-ups**
-
-- Anything deliberately deferred
+- YYYY-MM-DD [Type] area/path: one-sentence summary of what changed and why. (ADR-000X if applicable.)
 ```
+
+`Type` is one of Feature, Change, Fix, Dependency, Schema, Infrastructure.
 
 ---
 

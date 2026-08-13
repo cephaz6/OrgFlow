@@ -23,27 +23,16 @@ An append-only running log of everything built in `apps/web` and `packages/ui`.
 
 ## Entry format
 
+One line per entry. No sections, no headers.
+
 ```markdown
-## YYYY-MM-DD: Short title
-
-**Type:** Feature | Change | Fix | Dependency | Schema | Infrastructure
-**Area:** package/path
-
-**What changed**
-One or two sentences.
-
-**Why**
-The requirement or problem it addresses.
-
-**Notes**
-- Decisions made, patterns used, gotchas encountered
-
-**Follow-ups**
-- Anything deliberately deferred
+- YYYY-MM-DD [Type] area/path: one-sentence summary of what changed and why. (ADR-000X if applicable.)
 ```
+
+`Type` is one of Feature, Change, Fix, Dependency, Schema, Infrastructure.
 
 ---
 
 ## Entries
 
-*No client code has been written yet. Phase 0 is in progress; the first entry will record the Next.js app shell.*
+_No client code has been written yet. Phase 0 is in progress; the first entry will record the Next.js app shell._

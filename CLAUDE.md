@@ -140,28 +140,13 @@ Steps 6 and 7 are not optional. They hold current state. Skipping them means re-
 - A pattern or convention is established
 - A bug with a non-obvious cause is fixed
 
-**Format:**
+**Format: one line per entry.** No sections, no headers.
 
 ```markdown
-## YYYY-MM-DD: Short title
-
-**Type:** Feature | Change | Fix | Dependency | Schema | Infrastructure
-**Area:** package/path
-
-**What changed**
-One or two sentences.
-
-**Why**
-The requirement or problem it addresses.
-
-**Notes**
-
-- Decisions made, patterns used, gotchas encountered
-
-**Follow-ups**
-
-- Anything deliberately deferred
+- YYYY-MM-DD [Type] area/path: one-sentence summary of what changed and why. (ADR-000X if applicable.)
 ```
+
+`Type` is one of Feature, Change, Fix, Dependency, Schema, Infrastructure. Keep it to the one sentence; if the reasoning needs more than that, it belongs in an ADR, not a longer log line.
 
 `documentation/decisions.md` holds ADRs, each stating context, decision, consequences and alternatives rejected. Write one whenever a choice would be expensive to reverse. Its purpose is to stop settled questions being reopened in a later session.
 
