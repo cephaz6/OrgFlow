@@ -54,21 +54,21 @@ describe('apps/api against real Postgres and Mongo', () => {
     const app = buildApp();
     const agent = request.agent(app);
 
-    const loginResponse = await agent.post('/auth/dev-login');
+    const loginResponse = await agent.post('/api/v1/auth/dev-login');
     expect(loginResponse.status).toBe(200);
     expect(loginResponse.body.user.email).toBe('dev@orgflow.local');
     expect(loginResponse.headers['set-cookie']?.[0]).toContain('HttpOnly');
 
-    const sessionResponse = await agent.get('/auth/session');
+    const sessionResponse = await agent.get('/api/v1/auth/session');
     expect(sessionResponse.status).toBe(200);
     expect(sessionResponse.body.user.email).toBe('dev@orgflow.local');
     expect(sessionResponse.body.organisationId).toBeTruthy();
     expect(sessionResponse.body.roles).toContain('owner');
 
-    const logoutResponse = await agent.post('/auth/logout');
+    const logoutResponse = await agent.post('/api/v1/auth/logout');
     expect(logoutResponse.status).toBe(204);
 
-    const afterLogout = await agent.get('/auth/session');
+    const afterLogout = await agent.get('/api/v1/auth/session');
     expect(afterLogout.status).toBe(401);
   });
 
