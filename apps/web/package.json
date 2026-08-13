@@ -3,12 +3,33 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.7.1",
+    "@orgflow/types": "workspace:^",
+    "@orgflow/ui": "workspace:^",
+    "lucide-react": "^1.31.0",
+    "next": "^15",
+    "react": "^19",
+    "react-dom": "^19",
+    "react-hook-form": "^7.85.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@next/eslint-plugin-next": "^16.3.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3"
   }
 }
