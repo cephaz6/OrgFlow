@@ -50,6 +50,9 @@ Steps 6 and 7 are not optional. They hold current state. Skipping them means re-
 - `types` → `core` → `db`/`documents`/`events` → `api`/`workers`
 - `web` imports only `types` and `ui`. It never imports server code.
 - Enforced by ESLint. Violating it is a defect even if it compiles.
+- Internally, `apps/web` is a modular monolith: vertical-slice feature modules under
+  `src/features/<feature>/`, each with one public barrel export; swappable integrations sit
+  behind an interface with a dummy implementation. See ADR-0008.
 
 **Accessibility**
 

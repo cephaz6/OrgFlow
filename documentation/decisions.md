@@ -211,3 +211,25 @@ A contributor copying `.env.example` to `.env` starts from a genuinely blank sla
 
 - **Keep ADR-0001's mixed convention.** Rejected: the operator judged the small convenience of pre-filled local values not worth the risk of the pattern normalising committed values as the project's dependency on real secrets grows.
 - **Delete `.env.example` and document variables in `TECH-STACK.md` or a README table instead.** Rejected: ADR-0001 already rejected a second, driftable copy of the variable inventory living in prose documentation; that reasoning still holds.
+
+---
+
+## ADR-0008: `apps/web` organised as a modular monolith
+
+**Date:** 2026-08-13
+**Status:** Accepted
+**Deciders:** Project operator
+
+**Context**
+The operator wants each frontend concern, notifications and authentication named specifically, built as an individually swappable unit, so a concern such as the identity provider integration or the notification delivery channel can be replaced later without a rewrite rippling through the rest of the app. `TECH-STACK.md` fixes the outer shape (one Next.js app, one Express API, no micro-frontends) but says nothing about how `apps/web` is organised internally, which left it open to drift into an undifferentiated `components/`, `hooks/`, `pages/` layout where every feature reaches into every other feature's internals. A decision was needed before any frontend code exists, since retrofitting module boundaries onto an already-tangled app is far more expensive than establishing them from the first feature.
+
+**Decision**
+`apps/web` is organised as a set of vertical-slice feature modules under `apps/web/src/features/<feature>/` (`auth`, `notifications`, `cases`, `catalogue`, and so on), each exposing its public surface through a single `index.ts` barrel. Nothing outside a feature imports that feature's internals directly. Any feature that wraps a genuinely swappable external integration, the identity provider or the notification delivery channel among them, defines an interface for that integration plus a dummy implementation, following the pattern the `3pservice` skill already establishes for third-party integrations elsewhere in the project, so the concrete choice can change behind that interface without touching call sites. Cross-feature communication happens through typed events or a shared, feature-agnostic store, never a direct import of one feature's internals from another, mirroring the `events` skill's guidance for backend modules that may later become standalone services. True micro-frontends, with independent builds and runtime composition, were explicitly considered and rejected; this stays one Next.js build.
+
+**Consequences**
+Adding a feature means adding a folder with its own barrel export, not scattering files across shared `components/`, `hooks/` and `pages/` directories by technical layer. Swapping an integration means writing a new implementation of an existing interface, not touching the feature's consumers. The dependency-direction ESLint rule due in the Phase 0 build order (step 3) gains a second layer once this is enforced: not only `types → core → db/documents/events → api/workers` and `web → types/ui`, but feature boundaries within `apps/web` itself. That specific rule is deferred until two or three real features exist and the boundary is real rather than speculative, consistent with `CLAUDE.md`'s instruction against designing for requirements not yet stated.
+
+**Alternatives rejected**
+
+- **True micro-frontends (Module Federation or similar).** Rejected: real added complexity, new build tooling and runtime composition risk, for a project at this scale, and it contradicts the single Next.js app decision already in `TECH-STACK.md` §1.
+- **A conventional layer-first structure (`components/`, `hooks/`, `pages/` shared across all features).** Rejected: this is exactly what produces the tangled cross-feature coupling the operator wants to avoid. A feature cannot be understood, tested or swapped in isolation when its pieces are scattered across shared directories by technical layer instead of grouped by domain.

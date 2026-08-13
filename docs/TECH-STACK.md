@@ -51,6 +51,8 @@ types  ←  core  ←  db / documents / events  ←  api / workers
 - `core` is pure: no I/O, no database, no AWS SDK. This is what makes the engine unit-testable without infrastructure.
 - `web` depends only on `types` and `ui`. It never imports `db`, `core` internals or server code.
 
+**Internally, `apps/web` is a modular monolith.** Vertical-slice feature modules under `src/features/<feature>/` (`auth`, `notifications`, `cases`, and so on), each with a single public `index.ts` barrel; nothing outside a feature imports its internals. Swappable integrations, the identity provider and the notification delivery channel among them, sit behind an interface with a dummy implementation, per the `3pservice` skill's pattern. Cross-feature communication goes through typed events or a shared feature-agnostic store, never a direct import of another feature's internals. See ADR-0008.
+
 ---
 
 ## 3. Frontend
