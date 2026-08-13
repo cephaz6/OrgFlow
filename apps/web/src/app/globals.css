@@ -1,0 +1,53 @@
+@import 'tailwindcss';
+@import '@orgflow/ui/tokens.css';
+
+/* Tailwind v4's automatic content detection skips node_modules, which is
+   where pnpm symlinks workspace packages; @orgflow/ui's class names would
+   otherwise be purged. */
+@source '../../../../packages/ui/src';
+
+/* Maps the raw token values from @orgflow/ui/tokens.css onto Tailwind's
+   theme namespace, so utilities like bg-primary and text-muted-foreground
+   exist. This is the only place that mapping happens (CLAUDE.md §5.3). */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+/* Overrides the generic fallbacks from tokens.css with the actual
+   next/font variable names (see fonts.ts), applied via a className on
+   <html> in the root layout. */
+:root {
+  --font-sans: var(--font-sans-app), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-app), ui-monospace, monospace;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}

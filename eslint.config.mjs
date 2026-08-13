@@ -1,4 +1,7 @@
 import js from '@eslint/js';
+import nextPlugin from '@next/eslint-plugin-next';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
+import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 // The dependency graph from CLAUDE.md §3 and TECH-STACK.md §2:
@@ -78,6 +81,7 @@ export default tseslint.config(
       '**/cdk.out/**',
       '**/coverage/**',
       '**/node_modules/**',
+      '**/next-env.d.ts',
     ],
   },
   js.configs.recommended,
@@ -110,4 +114,24 @@ export default tseslint.config(
     },
   },
   ...dependencyDirectionConfigs,
+  {
+    files: ['apps/web/**/*.ts', 'apps/web/**/*.tsx'],
+    plugins: {
+      '@next/next': nextPlugin,
+      'jsx-a11y': jsxA11y,
+    },
+    settings: {
+      next: {
+        rootDir: `${import.meta.dirname}/apps/web`,
+      },
+    },
+    rules: {
+      ...nextPlugin.configs.recommended.rules,
+      ...jsxA11y.flatConfigs.recommended.rules,
+    },
+  },
+  {
+    files: ['apps/web/**/*.tsx'],
+    ...reactHooks.configs.flat['recommended-latest'],
+  },
 );

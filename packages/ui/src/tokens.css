@@ -1,0 +1,45 @@
+/*
+ * Design tokens (CLAUDE.md §5.3). Every colour, radius and font family a
+ * component uses resolves to one of these custom properties, never a raw
+ * value. Swapping a theme (for example, to GDS Transport and GOV.UK
+ * colours) means replacing this file, not touching a component.
+ *
+ * --font-sans and --font-mono are declared here as generic fallbacks; the
+ * consuming app overrides them with the actual next/font variable names
+ * (see apps/web/src/app/fonts.ts), so no component ever names a typeface.
+ */
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --success: oklch(0.52 0.15 150);
+  --success-foreground: oklch(0.985 0 0);
+
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
+  --radius: 0.5rem;
+
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
+}
