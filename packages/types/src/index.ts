@@ -9,6 +9,7 @@ export type * from './events.js';
 export type * from './membership.js';
 export type * from './organisation.js';
 export type * from './process-definition.js';
+export type * from './session.js';
 export type * from './task.js';
 export type * from './transition.js';
 export type * from './user.js';

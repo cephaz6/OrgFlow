@@ -12,8 +12,9 @@ import { createLogger } from './logger.js';
 // `docker compose up -d postgres mongo`.
 const DATABASE_URL = 'postgres://orgflow:orgflow@localhost:5432/orgflow';
 const MONGODB_URI = 'mongodb://localhost:27017/orgflow';
+const SESSION_SECRET = '11'.repeat(32);
 
-describe('GET /ready', () => {
+describe('apps/api against real Postgres and Mongo', () => {
   let db: Kysely<Database>;
   let mongoClient: MongoClient;
 
@@ -27,20 +28,60 @@ describe('GET /ready', () => {
     await mongoClient.close();
   });
 
-  it('returns 200 when Postgres and Mongo are both reachable', async () => {
-    const app = createApp({
+  function buildApp() {
+    return createApp({
       db,
       mongoClient,
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
+      sessionSecret: SESSION_SECRET,
+      isLocal: true,
+      apiBaseUrl: 'http://localhost:4000',
     });
+  }
 
-    const response = await request(app).get('/ready');
+  it('GET /ready returns 200 when Postgres and Mongo are both reachable', async () => {
+    const response = await request(buildApp()).get('/ready');
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
       status: 'ok',
       dependencies: { postgres: 'ok', mongo: 'ok' },
     });
+  });
+
+  it('dev-login, then /auth/session, then /auth/logout round-trip', async () => {
+    const app = buildApp();
+    const agent = request.agent(app);
+
+    const loginResponse = await agent.post('/auth/dev-login');
+    expect(loginResponse.status).toBe(200);
+    expect(loginResponse.body.user.email).toBe('dev@orgflow.local');
+    expect(loginResponse.headers['set-cookie']?.[0]).toContain('HttpOnly');
+
+    const sessionResponse = await agent.get('/auth/session');
+    expect(sessionResponse.status).toBe(200);
+    expect(sessionResponse.body.user.email).toBe('dev@orgflow.local');
+    expect(sessionResponse.body.organisationId).toBeTruthy();
+    expect(sessionResponse.body.roles).toContain('owner');
+
+    const logoutResponse = await agent.post('/auth/logout');
+    expect(logoutResponse.status).toBe(204);
+
+    const afterLogout = await agent.get('/auth/session');
+    expect(afterLogout.status).toBe(401);
+  });
+
+  it("discovers Google's real OIDC configuration", async () => {
+    const { discoverOidc } = await import('./auth/oidc-client.js');
+
+    const config = await discoverOidc({
+      issuerUrl: 'https://accounts.google.com',
+      clientId: 'placeholder-client-id',
+      clientSecret: 'placeholder-client-secret',
+    });
+
+    expect(config.serverMetadata().issuer).toBe('https://accounts.google.com');
+    expect(config.serverMetadata().authorization_endpoint).toContain('accounts.google.com');
   });
 });

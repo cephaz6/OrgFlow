@@ -18,6 +18,19 @@ async function main(): Promise<void> {
       mongoClient,
       corsOrigin: config.ORGFLOW_WEB_URL,
       logger,
+      sessionSecret: config.ORGFLOW_SESSION_SECRET,
+      isLocal: config.ORGFLOW_ENV === 'local',
+      apiBaseUrl: `http://localhost:${config.ORGFLOW_API_PORT}`,
+      platformOidc:
+        config.ORGFLOW_OIDC_ISSUER_URL &&
+        config.ORGFLOW_OIDC_CLIENT_ID &&
+        config.ORGFLOW_OIDC_CLIENT_SECRET
+          ? {
+              issuerUrl: config.ORGFLOW_OIDC_ISSUER_URL,
+              clientId: config.ORGFLOW_OIDC_CLIENT_ID,
+              clientSecret: config.ORGFLOW_OIDC_CLIENT_SECRET,
+            }
+          : undefined,
     });
 
     app.listen(config.ORGFLOW_API_PORT, () => {
