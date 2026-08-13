@@ -9,6 +9,20 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "migrate:up": "node-pg-migrate up -d ORGFLOW_DATABASE_URL -m migrations --envPath ../../.env",
+    "migrate:down": "node-pg-migrate down -d ORGFLOW_DATABASE_URL -m migrations --envPath ../../.env",
+    "migrate:create": "node-pg-migrate create -j sql -m migrations"
+  },
+  "dependencies": {
+    "@orgflow/types": "workspace:^",
+    "kysely": "^0.29.5",
+    "pg": "^8.23.0",
+    "uuid": "^14.0.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.21.0",
+    "node-pg-migrate": "^9.0.0"
   }
 }
