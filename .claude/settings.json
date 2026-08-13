@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"c:/Users/admin/Documents/MERN/org-flow\" status)",
+      "Read(//c/Users/admin/.claude/projects/c--Users-admin-Documents-MERN-org-flow/memory/**)",
+      "Bash(git ls-remote *)",
+      "Bash(git init *)",
+      "Bash(git branch *)",
+      "Bash(git remote *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\admin\\.claude\\projects\\c--Users-admin-Documents-MERN-org-flow\\memory"
+    ]
+  }
+}
