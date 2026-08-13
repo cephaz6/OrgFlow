@@ -87,7 +87,15 @@
       "Bash(ssh -T git@github.com)",
       "Bash(ssh-add -l)",
       "Bash(ssh-keygen -l:*)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git checkout *)",
+      "Bash(chmod +x .husky/pre-commit .husky/commit-msg)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm run *)",
+      "Bash(git config *)",
+      "Bash(pnpm exec *)",
+      "Bash(git pull *)"
     ],
     "deny": [
       "Read(//c/Users/admin/Documents/MERN/org-flow/.env)",
@@ -140,17 +148,7 @@
       "Bash(scp:*)",
       "Bash(rsync:*)",
       "Bash(curl:*)",
-      "Bash(wget:*)",
-      "Edit(//c/Users/admin/Documents/MERN/org-flow/packages/types/**)",
-      "Edit(//c/Users/admin/Documents/MERN/org-flow/packages/db/migrations/**)",
-      "Edit(//c/Users/admin/Documents/MERN/org-flow/packages/core/src/engine/**)",
-      "Edit(//c/Users/admin/Documents/MERN/org-flow/infra/**)",
-      "Edit(//c/Users/admin/Documents/MERN/org-flow/.github/workflows/**)",
-      "Write(//c/Users/admin/Documents/MERN/org-flow/packages/db/migrations/**)",
-      "Write(//c/Users/admin/Documents/MERN/org-flow/infra/**)",
-      "Write(//c/Users/admin/Documents/MERN/org-flow/.github/workflows/**)",
-      "Edit(//c/Users/admin/Documents/MERN/org-flow/package.json)",
-      "Edit(//c/Users/admin/Documents/MERN/org-flow/CLAUDE.md)"
+      "Bash(wget:*)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [
