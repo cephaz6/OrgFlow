@@ -9,6 +9,12 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests --coverage"
+  },
+  "dependencies": {
+    "@orgflow/types": "workspace:^"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^3.2.6"
   }
 }
