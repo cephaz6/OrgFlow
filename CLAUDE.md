@@ -225,19 +225,19 @@ Classify every push before making it. When in doubt, treat it as high and ask.
 
 > Update this section as phases complete.
 
-**Active phase:** Phase 0, Foundations
+**Active phase:** Phase 0, Foundations, complete. Phase 1 not yet started.
 
-**Outstanding:**
+**Done:**
 
-- [ ] Monorepo scaffold with Turborepo and pnpm workspaces
-- [ ] `packages/types` with core domain contracts
-- [ ] Postgres migrations for identity and tenancy tables
-- [ ] Docker Compose for Postgres, Mongo, LocalStack
-- [ ] Express API skeleton with health and readiness endpoints
-- [ ] Next.js app shell with shadcn and design tokens
-- [ ] OIDC auth with seeded local development path
-- [ ] GitHub Actions pipeline: lint, typecheck, test, build
-- [ ] CDK skeleton: Network, Data, Messaging stacks
-- [ ] ESLint rule enforcing dependency direction
+- [x] Monorepo scaffold with Turborepo and pnpm workspaces
+- [x] `packages/types` with core domain contracts
+- [x] Postgres migrations for identity and tenancy tables
+- [x] Docker Compose for Postgres, Mongo, LocalStack
+- [x] Express API skeleton with health and readiness endpoints
+- [x] Next.js app shell with shadcn and design tokens
+- [x] OIDC auth with seeded local development path
+- [x] GitHub Actions pipeline: lint, typecheck, test, build
+- [x] CDK skeleton: Network, Data, Messaging stacks
+- [x] ESLint rule enforcing dependency direction
 
-**Phase 0 is not parallelisable.** It is the contract everything else builds against.
+**Phase 0 is not parallelisable.** It was the contract everything else builds against. Phase 1 scope is not yet defined here; read `docs/PRD.md`'s phase breakdown before starting it.
