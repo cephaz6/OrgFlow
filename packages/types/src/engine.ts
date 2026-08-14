@@ -8,16 +8,33 @@ import type { TransitionTriggerType } from './transition.js';
 
 export interface EvaluationContext {
   now: IsoDateTimeString;
+  // Propagated onto every emitted DomainEvent. PRD.md §11.10 requires a
+  // correlation id to travel across HTTP, SNS and SQS boundaries, and the
+  // engine cannot invent one without breaking the determinism §6.4
+  // requires, so the caller supplies it.
+  correlationId: string;
   submitter: {
     userId: Uuid;
     department: string | null;
     roles: OrganisationRole[];
+    // Needed by the `lineManager` assignment strategy (PRD.md §7), which
+    // is the very first step of most approval processes. The engine
+    // performs no I/O, so the caller resolves it from
+    // organisation_members.line_manager_user_id and passes it in.
+    lineManagerUserId: Uuid | null;
   };
   case: {
     daysOpen: number;
   };
   step: {
     escalationLevel: number;
+  };
+  // Directory facts the caller resolves before invoking the engine.
+  // Assignment strategies name a group by its stable key, but case_tasks
+  // stores a group id, and turning one into the other is a database
+  // lookup the engine is not allowed to make.
+  directory: {
+    groupIdsByKey: Record<string, Uuid>;
   };
 }
 

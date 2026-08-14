@@ -4,3 +4,7 @@ export { resolveFieldValue } from './conditions/field-reference.js';
 export type { ConditionScope, ResolvedFieldValue } from './conditions/field-reference.js';
 export { applyOperator, UnknownConditionOperatorError } from './conditions/operators.js';
 export type { OperatorOutcome } from './conditions/operators.js';
+export { advance } from './engine/advance.js';
+export { resolveAssignment, resolveAssignmentWithValues } from './engine/assignment.js';
+export type { ResolvedAssignment } from './engine/assignment.js';
+export { computeDueAt } from './engine/sla.js';

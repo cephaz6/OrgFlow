@@ -7,13 +7,16 @@ import { applyOperator, UnknownConditionOperatorError } from './operators.js';
 
 const CONTEXT: EvaluationContext = {
   now: '2026-08-14T12:00:00.000Z',
+  correlationId: 'test-correlation-id',
   submitter: {
     userId: '00000000-0000-0000-0000-000000000001',
     department: 'Engineering',
     roles: ['member', 'approver'],
+    lineManagerUserId: '00000000-0000-0000-0000-000000000002',
   },
   case: { daysOpen: 3 },
   step: { escalationLevel: 1 },
+  directory: { groupIdsByKey: {} },
 };
 
 function scope(values: Record<string, unknown>): ConditionScope {
