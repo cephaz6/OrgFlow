@@ -8,10 +8,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from './app.js';
 import { createLogger } from './logger.js';
 
-// Local Docker Compose credentials, not a secret (ADR-0007). Requires
-// `docker compose up -d postgres mongo`.
-const DATABASE_URL = 'postgres://orgflow:orgflow@localhost:5432/orgflow';
-const MONGODB_URI = 'mongodb://localhost:27017/orgflow';
 const SESSION_SECRET = '11'.repeat(32);
 
 describe('apps/api against real Postgres and Mongo', () => {
@@ -19,8 +15,10 @@ describe('apps/api against real Postgres and Mongo', () => {
   let mongoClient: MongoClient;
 
   beforeAll(async () => {
-    db = createDb({ connectionString: DATABASE_URL });
-    mongoClient = await createMongoClient({ uri: MONGODB_URI });
+    // Provided by src/test/global-setup.ts: ephemeral Testcontainers
+    // Postgres (already migrated) and Mongo, not the Docker Compose stack.
+    db = createDb({ connectionString: process.env.ORGFLOW_TEST_DATABASE_URL! });
+    mongoClient = await createMongoClient({ uri: process.env.ORGFLOW_TEST_MONGODB_URI! });
   });
 
   afterAll(async () => {

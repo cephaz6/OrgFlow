@@ -72,6 +72,12 @@ const CONFIG_MODULE_GLOBS = [
   'workers/src/config/**/*.ts',
 ];
 
+// A separate concern from ADR-0001: test harness wiring (a Testcontainers
+// global setup handing an ephemeral connection string to its test files)
+// is not application runtime config, so it is exempted independently
+// rather than folded into CONFIG_MODULE_GLOBS above.
+const TEST_HARNESS_GLOBS = ['**/src/test/**/*.ts', '**/*.test.ts', '**/*.integration.test.ts'];
+
 export default tseslint.config(
   {
     ignores: [
@@ -108,7 +114,7 @@ export default tseslint.config(
     },
   },
   {
-    files: CONFIG_MODULE_GLOBS,
+    files: [...CONFIG_MODULE_GLOBS, ...TEST_HARNESS_GLOBS],
     rules: {
       'no-restricted-syntax': 'off',
     },

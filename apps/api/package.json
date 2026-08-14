@@ -32,11 +32,15 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@testcontainers/mongodb": "^12.1.0",
+    "@testcontainers/postgresql": "^12.1.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/node": "^22",
     "@types/supertest": "^7.2.1",
     "supertest": "^7.2.2",
+    "testcontainers": "^12.1.0",
     "tsx": "^4.23.12"
   }
 }
