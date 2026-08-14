@@ -1,0 +1,2333 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CDK skeleton: cdk synth and cdk-nag > synthesises DataStack with no unsuppressed cdk-nag findings 1`] = `
+{
+  "Mappings": {
+    "DatabaseRotationSingleUserSARMapping9AEB3E55": {
+      "aws": {
+        "applicationId": "arn:aws:serverlessrepo:us-east-1:297356227824:applications/SecretsManagerRDSPostgreSQLRotationSingleUser",
+        "semanticVersion": "1.1.671",
+      },
+      "aws-cn": {
+        "applicationId": "arn:aws-cn:serverlessrepo:cn-north-1:193023089310:applications/SecretsManagerRDSPostgreSQLRotationSingleUser",
+        "semanticVersion": "1.1.440",
+      },
+      "aws-us-gov": {
+        "applicationId": "arn:aws-us-gov:serverlessrepo:us-gov-west-1:023102451235:applications/SecretsManagerRDSPostgreSQLRotationSingleUser",
+        "semanticVersion": "1.1.383",
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F": {
+      "DependsOn": [
+        "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-\${AWS::AccountId}-eu-west-2",
+          },
+          "S3Key": "faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6.zip",
+        },
+        "Description": {
+          "Fn::Join": [
+            "",
+            [
+              "Lambda function for auto-deleting objects in ",
+              {
+                "Ref": "FilesBucket16450113",
+              },
+              " S3 bucket.",
+            ],
+          ],
+        },
+        "Handler": "index.handler",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs24.x",
+        "Timeout": 900,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Sub": "arn:\${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "DatabaseB269D8BB": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-RDS3",
+              "reason": "Multi-AZ is enabled for production (DataStack sets multiAz: environment.isProduction); a non-production synth intentionally runs single-AZ to avoid doubling the RDS cost of an environment with no real traffic.",
+            },
+            {
+              "id": "AwsSolutions-RDS10",
+              "reason": "Deletion protection is enabled for production (DataStack sets deletionProtection: environment.isProduction); a non-production environment must stay destroyable via cdk destroy during iteration.",
+            },
+            {
+              "id": "AwsSolutions-RDS11",
+              "reason": "Port obfuscation is not meaningful defence in depth here: the instance sits in an isolated private subnet with no route to the internet, and access control is the security group, not port secrecy. A non-default port would only add friction to every tool and runbook that assumes 5432.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AllocatedStorage": "100",
+        "BackupRetentionPeriod": 7,
+        "CopyTagsToSnapshot": true,
+        "DBInstanceClass": "db.t4g.micro",
+        "DBName": "orgflow",
+        "DBSubnetGroupName": {
+          "Ref": "DatabaseSubnetGroup7D60F180",
+        },
+        "DeletionProtection": false,
+        "Engine": "postgres",
+        "EngineVersion": "16",
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "MasterUserPassword": {
+          "Fn::Join": [
+            "",
+            [
+              "{{resolve:secretsmanager:",
+              {
+                "Ref": "TestDataDatabaseSecret8D6382DA3fdaad7efa858a3daf9490cf0a702aeb",
+              },
+              ":SecretString:password::}}",
+            ],
+          ],
+        },
+        "MasterUsername": "orgflow_app",
+        "MultiAZ": false,
+        "PubliclyAccessible": false,
+        "StorageEncrypted": true,
+        "StorageType": "gp2",
+        "VPCSecurityGroups": [
+          {
+            "Fn::GetAtt": [
+              "DatabaseSecurityGroup7319C0F6",
+              "GroupId",
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::RDS::DBInstance",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "DatabaseRotationSingleUser65F55654": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-RDS3",
+              "reason": "Multi-AZ is enabled for production (DataStack sets multiAz: environment.isProduction); a non-production synth intentionally runs single-AZ to avoid doubling the RDS cost of an environment with no real traffic.",
+            },
+            {
+              "id": "AwsSolutions-RDS10",
+              "reason": "Deletion protection is enabled for production (DataStack sets deletionProtection: environment.isProduction); a non-production environment must stay destroyable via cdk destroy during iteration.",
+            },
+            {
+              "id": "AwsSolutions-RDS11",
+              "reason": "Port obfuscation is not meaningful defence in depth here: the instance sits in an isolated private subnet with no route to the internet, and access control is the security group, not port secrecy. A non-default port would only add friction to every tool and runbook that assumes 5432.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Location": {
+          "ApplicationId": {
+            "Fn::FindInMap": [
+              "DatabaseRotationSingleUserSARMapping9AEB3E55",
+              {
+                "Ref": "AWS::Partition",
+              },
+              "applicationId",
+            ],
+          },
+          "SemanticVersion": {
+            "Fn::FindInMap": [
+              "DatabaseRotationSingleUserSARMapping9AEB3E55",
+              {
+                "Ref": "AWS::Partition",
+              },
+              "semanticVersion",
+            ],
+          },
+        },
+        "Parameters": {
+          "endpoint": {
+            "Fn::Join": [
+              "",
+              [
+                "https://secretsmanager.eu-west-2.",
+                {
+                  "Ref": "AWS::URLSuffix",
+                },
+              ],
+            ],
+          },
+          "excludeCharacters": " %+~\`#$&*()|[]{}:;<>?!'/@"\\",
+          "functionName": "TestDataDatabaseRotationSingleUserDCCBBBD2",
+          "vpcSecurityGroupIds": {
+            "Fn::GetAtt": [
+              "DatabaseRotationSingleUserSecurityGroupAC6E0E73",
+              "GroupId",
+            ],
+          },
+          "vpcSubnetIds": {
+            "Fn::Join": [
+              "",
+              [
+                {
+                  "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcisolatedSubnet1SubnetE62B1B9BEE029908",
+                },
+                ",",
+                {
+                  "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcisolatedSubnet2Subnet392170557C27A199",
+                },
+              ],
+            ],
+          },
+        },
+      },
+      "Type": "AWS::Serverless::Application",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "DatabaseRotationSingleUserSecurityGroupAC6E0E73": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-RDS3",
+              "reason": "Multi-AZ is enabled for production (DataStack sets multiAz: environment.isProduction); a non-production synth intentionally runs single-AZ to avoid doubling the RDS cost of an environment with no real traffic.",
+            },
+            {
+              "id": "AwsSolutions-RDS10",
+              "reason": "Deletion protection is enabled for production (DataStack sets deletionProtection: environment.isProduction); a non-production environment must stay destroyable via cdk destroy during iteration.",
+            },
+            {
+              "id": "AwsSolutions-RDS11",
+              "reason": "Port obfuscation is not meaningful defence in depth here: the instance sits in an isolated private subnet with no route to the internet, and access control is the security group, not port secrecy. A non-default port would only add friction to every tool and runbook that assumes 5432.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "GroupDescription": "TestData/Database/RotationSingleUser/SecurityGroup",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic by default",
+            "IpProtocol": "-1",
+          },
+        ],
+        "VpcId": {
+          "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpc8378EB38272D6E3A",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
+    "DatabaseSecretAttachmentE5D1B020": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-RDS3",
+              "reason": "Multi-AZ is enabled for production (DataStack sets multiAz: environment.isProduction); a non-production synth intentionally runs single-AZ to avoid doubling the RDS cost of an environment with no real traffic.",
+            },
+            {
+              "id": "AwsSolutions-RDS10",
+              "reason": "Deletion protection is enabled for production (DataStack sets deletionProtection: environment.isProduction); a non-production environment must stay destroyable via cdk destroy during iteration.",
+            },
+            {
+              "id": "AwsSolutions-RDS11",
+              "reason": "Port obfuscation is not meaningful defence in depth here: the instance sits in an isolated private subnet with no route to the internet, and access control is the security group, not port secrecy. A non-default port would only add friction to every tool and runbook that assumes 5432.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "SecretId": {
+          "Ref": "TestDataDatabaseSecret8D6382DA3fdaad7efa858a3daf9490cf0a702aeb",
+        },
+        "TargetId": {
+          "Ref": "DatabaseB269D8BB",
+        },
+        "TargetType": "AWS::RDS::DBInstance",
+      },
+      "Type": "AWS::SecretsManager::SecretTargetAttachment",
+    },
+    "DatabaseSecretAttachmentPolicy5ACFE6CA": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-RDS3",
+              "reason": "Multi-AZ is enabled for production (DataStack sets multiAz: environment.isProduction); a non-production synth intentionally runs single-AZ to avoid doubling the RDS cost of an environment with no real traffic.",
+            },
+            {
+              "id": "AwsSolutions-RDS10",
+              "reason": "Deletion protection is enabled for production (DataStack sets deletionProtection: environment.isProduction); a non-production environment must stay destroyable via cdk destroy during iteration.",
+            },
+            {
+              "id": "AwsSolutions-RDS11",
+              "reason": "Port obfuscation is not meaningful defence in depth here: the instance sits in an isolated private subnet with no route to the internet, and access control is the security group, not port secrecy. A non-default port would only add friction to every tool and runbook that assumes 5432.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "ResourcePolicy": {
+          "Statement": [
+            {
+              "Action": "secretsmanager:DeleteSecret",
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition",
+                      },
+                      ":iam::",
+                      {
+                        "Ref": "AWS::AccountId",
+                      },
+                      ":root",
+                    ],
+                  ],
+                },
+              },
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "SecretId": {
+          "Ref": "DatabaseSecretAttachmentE5D1B020",
+        },
+      },
+      "Type": "AWS::SecretsManager::ResourcePolicy",
+    },
+    "DatabaseSecretAttachmentRotationScheduleA4E9F034": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-RDS3",
+              "reason": "Multi-AZ is enabled for production (DataStack sets multiAz: environment.isProduction); a non-production synth intentionally runs single-AZ to avoid doubling the RDS cost of an environment with no real traffic.",
+            },
+            {
+              "id": "AwsSolutions-RDS10",
+              "reason": "Deletion protection is enabled for production (DataStack sets deletionProtection: environment.isProduction); a non-production environment must stay destroyable via cdk destroy during iteration.",
+            },
+            {
+              "id": "AwsSolutions-RDS11",
+              "reason": "Port obfuscation is not meaningful defence in depth here: the instance sits in an isolated private subnet with no route to the internet, and access control is the security group, not port secrecy. A non-default port would only add friction to every tool and runbook that assumes 5432.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "RotationLambdaARN": {
+          "Fn::GetAtt": [
+            "DatabaseRotationSingleUser65F55654",
+            "Outputs.RotationLambdaARN",
+          ],
+        },
+        "RotationRules": {
+          "ScheduleExpression": "rate(30 days)",
+        },
+        "SecretId": {
+          "Ref": "DatabaseSecretAttachmentE5D1B020",
+        },
+      },
+      "Type": "AWS::SecretsManager::RotationSchedule",
+    },
+    "DatabaseSecurityGroup7319C0F6": {
+      "Properties": {
+        "GroupDescription": "OrgFlow Postgres (RDS).",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "255.255.255.255/32",
+            "Description": "Disallow all traffic",
+            "FromPort": 252,
+            "IpProtocol": "icmp",
+            "ToPort": 86,
+          },
+        ],
+        "VpcId": {
+          "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpc8378EB38272D6E3A",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
+    "DatabaseSecurityGroupfromTestDataDatabaseRotationSingleUserSecurityGroupB2209E11IndirectPort9594A44E": {
+      "Properties": {
+        "Description": "from TestDataDatabaseRotationSingleUserSecurityGroupB2209E11:{IndirectPort}",
+        "FromPort": {
+          "Fn::GetAtt": [
+            "DatabaseB269D8BB",
+            "Endpoint.Port",
+          ],
+        },
+        "GroupId": {
+          "Fn::GetAtt": [
+            "DatabaseSecurityGroup7319C0F6",
+            "GroupId",
+          ],
+        },
+        "IpProtocol": "tcp",
+        "SourceSecurityGroupId": {
+          "Fn::GetAtt": [
+            "DatabaseRotationSingleUserSecurityGroupAC6E0E73",
+            "GroupId",
+          ],
+        },
+        "ToPort": {
+          "Fn::GetAtt": [
+            "DatabaseB269D8BB",
+            "Endpoint.Port",
+          ],
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroupIngress",
+    },
+    "DatabaseSubnetGroup7D60F180": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-RDS3",
+              "reason": "Multi-AZ is enabled for production (DataStack sets multiAz: environment.isProduction); a non-production synth intentionally runs single-AZ to avoid doubling the RDS cost of an environment with no real traffic.",
+            },
+            {
+              "id": "AwsSolutions-RDS10",
+              "reason": "Deletion protection is enabled for production (DataStack sets deletionProtection: environment.isProduction); a non-production environment must stay destroyable via cdk destroy during iteration.",
+            },
+            {
+              "id": "AwsSolutions-RDS11",
+              "reason": "Port obfuscation is not meaningful defence in depth here: the instance sits in an isolated private subnet with no route to the internet, and access control is the security group, not port secrecy. A non-default port would only add friction to every tool and runbook that assumes 5432.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "DBSubnetGroupDescription": "Subnet group for Database database",
+        "SubnetIds": [
+          {
+            "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcisolatedSubnet1SubnetE62B1B9BEE029908",
+          },
+          {
+            "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcisolatedSubnet2Subnet392170557C27A199",
+          },
+        ],
+      },
+      "Type": "AWS::RDS::DBSubnetGroup",
+    },
+    "EncryptionKey1B843E66": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Statement": [
+            {
+              "Action": "kms:*",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition",
+                      },
+                      ":iam::",
+                      {
+                        "Ref": "AWS::AccountId",
+                      },
+                      ":root",
+                    ],
+                  ],
+                },
+              },
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+      },
+      "Type": "AWS::KMS::Key",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "FilesBucket16450113": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "Server access logging deferred: nothing writes to this bucket yet (the S3 upload/download flow in PRD.md §5.3 is a later phase). Revisit alongside that work rather than standing up a log-destination bucket for a bucket nothing uses.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "BucketKeyEnabled": true,
+              "ServerSideEncryptionByDefault": {
+                "KMSMasterKeyID": {
+                  "Fn::GetAtt": [
+                    "EncryptionKey1B843E66",
+                    "Arn",
+                  ],
+                },
+                "SSEAlgorithm": "aws:kms",
+              },
+            },
+          ],
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "Id": "expire-noncurrent-versions",
+              "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 90,
+              },
+              "Status": "Enabled",
+            },
+          ],
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true,
+        },
+        "Tags": [
+          {
+            "Key": "aws-cdk:auto-delete-objects",
+            "Value": "true",
+          },
+        ],
+        "VersioningConfiguration": {
+          "Status": "Enabled",
+        },
+      },
+      "Type": "AWS::S3::Bucket",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "FilesBucketAutoDeleteObjectsCustomResource1910D462": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "FilesBucketPolicy8CA19688",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "Server access logging deferred: nothing writes to this bucket yet (the S3 upload/download flow in PRD.md §5.3 is a later phase). Revisit alongside that work rather than standing up a log-destination bucket for a bucket nothing uses.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "BucketName": {
+          "Ref": "FilesBucket16450113",
+        },
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::S3AutoDeleteObjects",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "FilesBucketPolicy8CA19688": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "Server access logging deferred: nothing writes to this bucket yet (the S3 upload/download flow in PRD.md §5.3 is a later phase). Revisit alongside that work rather than standing up a log-destination bucket for a bucket nothing uses.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Bucket": {
+          "Ref": "FilesBucket16450113",
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "FilesBucket16450113",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "FilesBucket16450113",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+            {
+              "Action": [
+                "s3:PutBucketPolicy",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*",
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::GetAtt": [
+                    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+                    "Arn",
+                  ],
+                },
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "FilesBucket16450113",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "FilesBucket16450113",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+      },
+      "Type": "AWS::S3::BucketPolicy",
+    },
+    "TestDataDatabaseSecret8D6382DA3fdaad7efa858a3daf9490cf0a702aeb": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-RDS3",
+              "reason": "Multi-AZ is enabled for production (DataStack sets multiAz: environment.isProduction); a non-production synth intentionally runs single-AZ to avoid doubling the RDS cost of an environment with no real traffic.",
+            },
+            {
+              "id": "AwsSolutions-RDS10",
+              "reason": "Deletion protection is enabled for production (DataStack sets deletionProtection: environment.isProduction); a non-production environment must stay destroyable via cdk destroy during iteration.",
+            },
+            {
+              "id": "AwsSolutions-RDS11",
+              "reason": "Port obfuscation is not meaningful defence in depth here: the instance sits in an isolated private subnet with no route to the internet, and access control is the security group, not port secrecy. A non-default port would only add friction to every tool and runbook that assumes 5432.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Description": {
+          "Fn::Join": [
+            "",
+            [
+              "Generated by the CDK for stack: ",
+              {
+                "Ref": "AWS::StackName",
+              },
+            ],
+          ],
+        },
+        "GenerateSecretString": {
+          "ExcludeCharacters": " %+~\`#$&*()|[]{}:;<>?!'/@"\\",
+          "GenerateStringKey": "password",
+          "PasswordLength": 30,
+          "SecretStringTemplate": "{"username":"orgflow_app"}",
+        },
+      },
+      "Type": "AWS::SecretsManager::Secret",
+      "UpdateReplacePolicy": "Delete",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+  "Transform": "AWS::Serverless-2016-10-31",
+}
+`;
+
+exports[`CDK skeleton: cdk synth and cdk-nag > synthesises MessagingStack with no unsuppressed cdk-nag findings 1`] = `
+{
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "DomainEventsTopic9EECFB64": {
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "TopicName": "orgflow-dev-domain-events",
+      },
+      "Type": "AWS::SNS::Topic",
+    },
+    "EncryptionKey1B843E66": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Statement": [
+            {
+              "Action": "kms:*",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition",
+                      },
+                      ":iam::",
+                      {
+                        "Ref": "AWS::AccountId",
+                      },
+                      ":root",
+                    ],
+                  ],
+                },
+              },
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "kms:Decrypt",
+                "kms:GenerateDataKey",
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "sns.amazonaws.com",
+              },
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+      },
+      "Type": "AWS::KMS::Key",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "SlaTimersScheduleGroup": {
+      "Properties": {
+        "Name": "orgflow-dev-sla-timers",
+      },
+      "Type": "AWS::Scheduler::ScheduleGroup",
+    },
+    "analyticsDeadLetterQueue9584CAF5": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "MessageRetentionPeriod": 1209600,
+        "QueueName": "orgflow-dev-analytics-dlq",
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "analyticsDeadLetterQueueAlarm83B105AE": {
+      "Properties": {
+        "AlarmDescription": "orgflow-dev-analytics-dlq has messages",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "analyticsDeadLetterQueue9584CAF5",
+                "QueueName",
+              ],
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Namespace": "AWS/SQS",
+        "Period": 300,
+        "Statistic": "Maximum",
+        "Threshold": 0,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "analyticsDeadLetterQueuePolicyC8E2FC99": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "analyticsDeadLetterQueue9584CAF5",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "analyticsDeadLetterQueue9584CAF5",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "analyticsQueue08DE51CB": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "QueueName": "orgflow-dev-analytics",
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "analyticsDeadLetterQueue9584CAF5",
+              "Arn",
+            ],
+          },
+          "maxReceiveCount": 5,
+        },
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "analyticsQueuePolicy2C8227EA": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "analyticsQueue08DE51CB",
+                  "Arn",
+                ],
+              },
+            },
+            {
+              "Action": "sqs:SendMessage",
+              "Condition": {
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Ref": "DomainEventsTopic9EECFB64",
+                  },
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "sns.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "analyticsQueue08DE51CB",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "analyticsQueue08DE51CB",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "analyticsQueueTestMessagingDomainEventsTopic474C3FBFB0EF0672": {
+      "DependsOn": [
+        "analyticsQueuePolicy2C8227EA",
+      ],
+      "Properties": {
+        "Endpoint": {
+          "Fn::GetAtt": [
+            "analyticsQueue08DE51CB",
+            "Arn",
+          ],
+        },
+        "Protocol": "sqs",
+        "TopicArn": {
+          "Ref": "DomainEventsTopic9EECFB64",
+        },
+      },
+      "Type": "AWS::SNS::Subscription",
+    },
+    "auditDeadLetterQueue9740CF9E": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "MessageRetentionPeriod": 1209600,
+        "QueueName": "orgflow-dev-audit-dlq",
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "auditDeadLetterQueueAlarmC6D606ED": {
+      "Properties": {
+        "AlarmDescription": "orgflow-dev-audit-dlq has messages",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "auditDeadLetterQueue9740CF9E",
+                "QueueName",
+              ],
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Namespace": "AWS/SQS",
+        "Period": 300,
+        "Statistic": "Maximum",
+        "Threshold": 0,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "auditDeadLetterQueuePolicyCE78EA11": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "auditDeadLetterQueue9740CF9E",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "auditDeadLetterQueue9740CF9E",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "auditQueue9BE77ABF": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "QueueName": "orgflow-dev-audit",
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "auditDeadLetterQueue9740CF9E",
+              "Arn",
+            ],
+          },
+          "maxReceiveCount": 5,
+        },
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "auditQueuePolicy71B29F64": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "auditQueue9BE77ABF",
+                  "Arn",
+                ],
+              },
+            },
+            {
+              "Action": "sqs:SendMessage",
+              "Condition": {
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Ref": "DomainEventsTopic9EECFB64",
+                  },
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "sns.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "auditQueue9BE77ABF",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "auditQueue9BE77ABF",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "auditQueueTestMessagingDomainEventsTopic474C3FBFB7F2B4C6": {
+      "DependsOn": [
+        "auditQueuePolicy71B29F64",
+      ],
+      "Properties": {
+        "Endpoint": {
+          "Fn::GetAtt": [
+            "auditQueue9BE77ABF",
+            "Arn",
+          ],
+        },
+        "Protocol": "sqs",
+        "TopicArn": {
+          "Ref": "DomainEventsTopic9EECFB64",
+        },
+      },
+      "Type": "AWS::SNS::Subscription",
+    },
+    "notificationsDeadLetterQueueAlarmB7B7902C": {
+      "Properties": {
+        "AlarmDescription": "orgflow-dev-notifications-dlq has messages",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "notificationsDeadLetterQueueE6E17869",
+                "QueueName",
+              ],
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Namespace": "AWS/SQS",
+        "Period": 300,
+        "Statistic": "Maximum",
+        "Threshold": 0,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "notificationsDeadLetterQueueE6E17869": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "MessageRetentionPeriod": 1209600,
+        "QueueName": "orgflow-dev-notifications-dlq",
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "notificationsDeadLetterQueuePolicy18BCDADA": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "notificationsDeadLetterQueueE6E17869",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "notificationsDeadLetterQueueE6E17869",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "notificationsQueue8852CCBB": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "QueueName": "orgflow-dev-notifications",
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "notificationsDeadLetterQueueE6E17869",
+              "Arn",
+            ],
+          },
+          "maxReceiveCount": 5,
+        },
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "notificationsQueuePolicyDE28AD5B": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "notificationsQueue8852CCBB",
+                  "Arn",
+                ],
+              },
+            },
+            {
+              "Action": "sqs:SendMessage",
+              "Condition": {
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Ref": "DomainEventsTopic9EECFB64",
+                  },
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "sns.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "notificationsQueue8852CCBB",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "notificationsQueue8852CCBB",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "notificationsQueueTestMessagingDomainEventsTopic474C3FBF5075BB75": {
+      "DependsOn": [
+        "notificationsQueuePolicyDE28AD5B",
+      ],
+      "Properties": {
+        "Endpoint": {
+          "Fn::GetAtt": [
+            "notificationsQueue8852CCBB",
+            "Arn",
+          ],
+        },
+        "Protocol": "sqs",
+        "TopicArn": {
+          "Ref": "DomainEventsTopic9EECFB64",
+        },
+      },
+      "Type": "AWS::SNS::Subscription",
+    },
+    "webhooksDeadLetterQueueAlarm042FAFC2": {
+      "Properties": {
+        "AlarmDescription": "orgflow-dev-webhooks-dlq has messages",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "webhooksDeadLetterQueueE83600D3",
+                "QueueName",
+              ],
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Namespace": "AWS/SQS",
+        "Period": 300,
+        "Statistic": "Maximum",
+        "Threshold": 0,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "webhooksDeadLetterQueueE83600D3": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "MessageRetentionPeriod": 1209600,
+        "QueueName": "orgflow-dev-webhooks-dlq",
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "webhooksDeadLetterQueuePolicyBE3A4888": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "webhooksDeadLetterQueueE83600D3",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "webhooksDeadLetterQueueE83600D3",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "webhooksQueue80C6885D": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "QueueName": "orgflow-dev-webhooks",
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "webhooksDeadLetterQueueE83600D3",
+              "Arn",
+            ],
+          },
+          "maxReceiveCount": 5,
+        },
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "webhooksQueuePolicy55F7BB12": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "webhooksQueue80C6885D",
+                  "Arn",
+                ],
+              },
+            },
+            {
+              "Action": "sqs:SendMessage",
+              "Condition": {
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Ref": "DomainEventsTopic9EECFB64",
+                  },
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "sns.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "webhooksQueue80C6885D",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "webhooksQueue80C6885D",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "webhooksQueueTestMessagingDomainEventsTopic474C3FBFE42955F8": {
+      "DependsOn": [
+        "webhooksQueuePolicy55F7BB12",
+      ],
+      "Properties": {
+        "Endpoint": {
+          "Fn::GetAtt": [
+            "webhooksQueue80C6885D",
+            "Arn",
+          ],
+        },
+        "Protocol": "sqs",
+        "TopicArn": {
+          "Ref": "DomainEventsTopic9EECFB64",
+        },
+      },
+      "Type": "AWS::SNS::Subscription",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;
+
+exports[`CDK skeleton: cdk synth and cdk-nag > synthesises NetworkStack with no unsuppressed cdk-nag findings 1`] = `
+{
+  "Outputs": {
+    "ExportsOutputRefVpc8378EB38272D6E3A": {
+      "Export": {
+        "Name": "TestNetwork:ExportsOutputRefVpc8378EB38272D6E3A",
+      },
+      "Value": {
+        "Ref": "Vpc8378EB38",
+      },
+    },
+    "ExportsOutputRefVpcisolatedSubnet1SubnetE62B1B9BEE029908": {
+      "Export": {
+        "Name": "TestNetwork:ExportsOutputRefVpcisolatedSubnet1SubnetE62B1B9BEE029908",
+      },
+      "Value": {
+        "Ref": "VpcisolatedSubnet1SubnetE62B1B9B",
+      },
+    },
+    "ExportsOutputRefVpcisolatedSubnet2Subnet392170557C27A199": {
+      "Export": {
+        "Name": "TestNetwork:ExportsOutputRefVpcisolatedSubnet2Subnet392170557C27A199",
+      },
+      "Value": {
+        "Ref": "VpcisolatedSubnet2Subnet39217055",
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "FlowLogGroup3E25AA51": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "RetentionInDays": 30,
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "Vpc8378EB38": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "CidrBlock": "10.0.0.0/16",
+        "EnableDnsHostnames": true,
+        "EnableDnsSupport": true,
+        "InstanceTenancy": "default",
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc",
+          },
+        ],
+      },
+      "Type": "AWS::EC2::VPC",
+    },
+    "VpcFlowLog8FF33A73": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "DeliverLogsPermissionArn": {
+          "Fn::GetAtt": [
+            "VpcFlowLogIAMRole6A475D41",
+            "Arn",
+          ],
+        },
+        "LogDestinationType": "cloud-watch-logs",
+        "LogGroupName": {
+          "Ref": "FlowLogGroup3E25AA51",
+        },
+        "ResourceId": {
+          "Ref": "Vpc8378EB38",
+        },
+        "ResourceType": "VPC",
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/FlowLog",
+          },
+        ],
+        "TrafficType": "ALL",
+      },
+      "Type": "AWS::EC2::FlowLog",
+    },
+    "VpcFlowLogIAMRole6A475D41": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "vpc-flow-logs.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/FlowLog",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "VpcFlowLogIAMRoleDefaultPolicy406FB995": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+                "logs:DescribeLogStreams",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FlowLogGroup3E25AA51",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "VpcFlowLogIAMRoleDefaultPolicy406FB995",
+        "Roles": [
+          {
+            "Ref": "VpcFlowLogIAMRole6A475D41",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "VpcIGWD7BA715C": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc",
+          },
+        ],
+      },
+      "Type": "AWS::EC2::InternetGateway",
+    },
+    "VpcS3Endpoint4A3DE4B5": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "RouteTableIds": [
+          {
+            "Ref": "VpcpublicSubnet1RouteTable15C15F8E",
+          },
+          {
+            "Ref": "VpcpublicSubnet2RouteTableC5A6DF77",
+          },
+          {
+            "Ref": "VpcisolatedSubnet1RouteTableE442650B",
+          },
+          {
+            "Ref": "VpcisolatedSubnet2RouteTable334F9764",
+          },
+        ],
+        "ServiceName": {
+          "Fn::Join": [
+            "",
+            [
+              "com.amazonaws.",
+              {
+                "Ref": "AWS::Region",
+              },
+              ".s3",
+            ],
+          ],
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc",
+          },
+        ],
+        "VpcEndpointType": "Gateway",
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::VPCEndpoint",
+    },
+    "VpcSecretsManagerEndpoint93E49F69": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PrivateDnsEnabled": true,
+        "SecurityGroupIds": [
+          {
+            "Fn::GetAtt": [
+              "VpcSecretsManagerEndpointSecurityGroup9A5498C7",
+              "GroupId",
+            ],
+          },
+        ],
+        "ServiceName": "com.amazonaws.eu-west-2.secretsmanager",
+        "SubnetIds": [
+          {
+            "Ref": "VpcisolatedSubnet1SubnetE62B1B9B",
+          },
+          {
+            "Ref": "VpcisolatedSubnet2Subnet39217055",
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc",
+          },
+        ],
+        "VpcEndpointType": "Interface",
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::VPCEndpoint",
+    },
+    "VpcSecretsManagerEndpointSecurityGroup9A5498C7": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "GroupDescription": "TestNetwork/Vpc/SecretsManagerEndpoint/SecurityGroup",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic by default",
+            "IpProtocol": "-1",
+          },
+        ],
+        "SecurityGroupIngress": [
+          {
+            "CidrIp": {
+              "Fn::GetAtt": [
+                "Vpc8378EB38",
+                "CidrBlock",
+              ],
+            },
+            "Description": {
+              "Fn::Join": [
+                "",
+                [
+                  "from ",
+                  {
+                    "Fn::GetAtt": [
+                      "Vpc8378EB38",
+                      "CidrBlock",
+                    ],
+                  },
+                  ":443",
+                ],
+              ],
+            },
+            "FromPort": 443,
+            "IpProtocol": "tcp",
+            "ToPort": 443,
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
+    "VpcVPCGWBF912B6E": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "InternetGatewayId": {
+          "Ref": "VpcIGWD7BA715C",
+        },
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+    },
+    "VpcisolatedSubnet1RouteTableAssociationD259E31A": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VpcisolatedSubnet1RouteTableE442650B",
+        },
+        "SubnetId": {
+          "Ref": "VpcisolatedSubnet1SubnetE62B1B9B",
+        },
+      },
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+    },
+    "VpcisolatedSubnet1RouteTableE442650B": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/isolatedSubnet1",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::RouteTable",
+    },
+    "VpcisolatedSubnet1SubnetE62B1B9B": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AvailabilityZone": {
+          "Fn::Select": [
+            0,
+            {
+              "Fn::GetAZs": "",
+            },
+          ],
+        },
+        "CidrBlock": "10.0.2.0/24",
+        "MapPublicIpOnLaunch": false,
+        "Tags": [
+          {
+            "Key": "aws-cdk:subnet-name",
+            "Value": "isolated",
+          },
+          {
+            "Key": "aws-cdk:subnet-type",
+            "Value": "Isolated",
+          },
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/isolatedSubnet1",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::Subnet",
+    },
+    "VpcisolatedSubnet2RouteTable334F9764": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/isolatedSubnet2",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::RouteTable",
+    },
+    "VpcisolatedSubnet2RouteTableAssociation25A4716F": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VpcisolatedSubnet2RouteTable334F9764",
+        },
+        "SubnetId": {
+          "Ref": "VpcisolatedSubnet2Subnet39217055",
+        },
+      },
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+    },
+    "VpcisolatedSubnet2Subnet39217055": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AvailabilityZone": {
+          "Fn::Select": [
+            1,
+            {
+              "Fn::GetAZs": "",
+            },
+          ],
+        },
+        "CidrBlock": "10.0.3.0/24",
+        "MapPublicIpOnLaunch": false,
+        "Tags": [
+          {
+            "Key": "aws-cdk:subnet-name",
+            "Value": "isolated",
+          },
+          {
+            "Key": "aws-cdk:subnet-type",
+            "Value": "Isolated",
+          },
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/isolatedSubnet2",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::Subnet",
+    },
+    "VpcpublicSubnet1DefaultRouteB88F9E93": {
+      "DependsOn": [
+        "VpcVPCGWBF912B6E",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "VpcIGWD7BA715C",
+        },
+        "RouteTableId": {
+          "Ref": "VpcpublicSubnet1RouteTable15C15F8E",
+        },
+      },
+      "Type": "AWS::EC2::Route",
+    },
+    "VpcpublicSubnet1RouteTable15C15F8E": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/publicSubnet1",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::RouteTable",
+    },
+    "VpcpublicSubnet1RouteTableAssociation4E83B6E4": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VpcpublicSubnet1RouteTable15C15F8E",
+        },
+        "SubnetId": {
+          "Ref": "VpcpublicSubnet1Subnet2BB74ED7",
+        },
+      },
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+    },
+    "VpcpublicSubnet1Subnet2BB74ED7": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AvailabilityZone": {
+          "Fn::Select": [
+            0,
+            {
+              "Fn::GetAZs": "",
+            },
+          ],
+        },
+        "CidrBlock": "10.0.0.0/24",
+        "MapPublicIpOnLaunch": true,
+        "Tags": [
+          {
+            "Key": "aws-cdk:subnet-name",
+            "Value": "public",
+          },
+          {
+            "Key": "aws-cdk:subnet-type",
+            "Value": "Public",
+          },
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/publicSubnet1",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::Subnet",
+    },
+    "VpcpublicSubnet2DefaultRoute732F0BEB": {
+      "DependsOn": [
+        "VpcVPCGWBF912B6E",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "VpcIGWD7BA715C",
+        },
+        "RouteTableId": {
+          "Ref": "VpcpublicSubnet2RouteTableC5A6DF77",
+        },
+      },
+      "Type": "AWS::EC2::Route",
+    },
+    "VpcpublicSubnet2RouteTableAssociationCCE257FF": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VpcpublicSubnet2RouteTableC5A6DF77",
+        },
+        "SubnetId": {
+          "Ref": "VpcpublicSubnet2SubnetE34B022A",
+        },
+      },
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+    },
+    "VpcpublicSubnet2RouteTableC5A6DF77": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/publicSubnet2",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::RouteTable",
+    },
+    "VpcpublicSubnet2SubnetE34B022A": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AvailabilityZone": {
+          "Fn::Select": [
+            1,
+            {
+              "Fn::GetAZs": "",
+            },
+          ],
+        },
+        "CidrBlock": "10.0.1.0/24",
+        "MapPublicIpOnLaunch": true,
+        "Tags": [
+          {
+            "Key": "aws-cdk:subnet-name",
+            "Value": "public",
+          },
+          {
+            "Key": "aws-cdk:subnet-type",
+            "Value": "Public",
+          },
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/publicSubnet2",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::Subnet",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;

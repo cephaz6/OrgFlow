@@ -70,6 +70,7 @@ const CONFIG_MODULE_GLOBS = [
   'apps/api/src/config/**/*.ts',
   'apps/web/src/config/**/*.ts',
   'workers/src/config/**/*.ts',
+  'infra/src/config/**/*.ts',
 ];
 
 // A separate concern from ADR-0001: test harness wiring (a Testcontainers
