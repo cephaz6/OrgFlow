@@ -45,3 +45,50 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      # GitHub-hosted ubuntu-latest runners ship Docker, which Testcontainers
+      # needs. packages/db and apps/api each start their own ephemeral
+      # Postgres/Mongo (see src/test/global-setup.ts in each), migrated
+      # before tests run, so this needs nothing else set up here.
+      - name: Integration tests
+        run: pnpm run test:integration
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Dependency audit
+        run: pnpm audit --audit-level high
+
+      - name: Filesystem vulnerability scan (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
+      # Free for public repos, and for private repos owned by an individual
+      # account rather than an organisation (github.com/cephaz6/OrgFlow
+      # qualifies on both counts); an org-owned private repo would need a
+      # Gitleaks licence.
+      - name: Secret scan (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

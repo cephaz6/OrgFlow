@@ -11,16 +11,15 @@ import { createUserWithIdentity } from './repositories/users.js';
 import type { Database } from './schema.js';
 import { generateId } from './uuid.js';
 
-// Local Docker Compose credentials, not a secret (ADR-0007).
-const CONNECTION_STRING = 'postgres://orgflow:orgflow@localhost:5432/orgflow';
-
 describe('findIdentityProviderByEmailDomain', () => {
   let db: Kysely<Database>;
   let organisationId: string;
   let userId: string;
 
   beforeAll(async () => {
-    db = createDb({ connectionString: CONNECTION_STRING });
+    // Provided by src/test/global-setup.ts: an ephemeral, already-migrated
+    // Testcontainers Postgres, not the Docker Compose database.
+    db = createDb({ connectionString: process.env.ORGFLOW_TEST_DATABASE_URL! });
 
     const user = await createUserWithIdentity(db, {
       email: `idp-test-${generateId()}@example.invalid`,

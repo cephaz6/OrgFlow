@@ -10,10 +10,6 @@ import type { Database } from './schema.js';
 import { withTenantTransaction } from './tenant-transaction.js';
 import { generateId } from './uuid.js';
 
-// Local Docker Compose credentials, not a secret (ADR-0007). Requires
-// `docker compose up -d postgres` and the migrations applied.
-const CONNECTION_STRING = 'postgres://orgflow:orgflow@localhost:5432/orgflow';
-
 describe('cross-tenant isolation on organisation_members', () => {
   let db: Kysely<Database>;
   let organisationAId: string;
@@ -21,7 +17,9 @@ describe('cross-tenant isolation on organisation_members', () => {
   let userId: string;
 
   beforeAll(async () => {
-    db = createDb({ connectionString: CONNECTION_STRING });
+    // Provided by src/test/global-setup.ts: an ephemeral, already-migrated
+    // Testcontainers Postgres, not the Docker Compose database.
+    db = createDb({ connectionString: process.env.ORGFLOW_TEST_DATABASE_URL! });
 
     organisationAId = generateId();
     organisationBId = generateId();
