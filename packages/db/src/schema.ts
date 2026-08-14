@@ -118,6 +118,111 @@ export interface IdempotencyKeysTable {
   expires_at: Date;
 }
 
+export interface ProcessDefinitionsTable {
+  definition_id: string;
+  organisation_id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  icon: string | null;
+  status: Generated<string>;
+  current_version_id: string | null;
+  reference_prefix: string;
+  // BIGINT: node-postgres returns it as a string to avoid the precision
+  // loss a JS number would suffer past 2^53. The repository parses it.
+  reference_counter: Generated<string>;
+  retention_days: number | null;
+  created_by_user_id: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface ProcessVersionsTable {
+  version_id: string;
+  organisation_id: string;
+  definition_id: string;
+  version_number: number;
+  document_id: string;
+  document_hash: string;
+  status: Generated<string>;
+  change_note: string | null;
+  published_by_user_id: string | null;
+  published_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export interface CasesTable {
+  case_id: string;
+  organisation_id: string;
+  definition_id: string;
+  version_id: string;
+  reference: string;
+  title: string;
+  status: Generated<string>;
+  outcome: string | null;
+  current_step_key: string | null;
+  values_document_id: string | null;
+  submitted_by_user_id: string;
+  submitted_at: Date | null;
+  completed_at: Date | null;
+  due_at: Date | null;
+  row_version: Generated<number>;
+  redacted_at: Date | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface CaseTasksTable {
+  task_id: string;
+  organisation_id: string;
+  case_id: string;
+  step_key: string;
+  step_name: string;
+  task_type: string;
+  assignment_strategy: string;
+  assignee_user_id: string | null;
+  assignee_group_id: string | null;
+  assignee_role: string | null;
+  delegated_from_user_id: string | null;
+  status: Generated<string>;
+  decision: string | null;
+  comment: string | null;
+  due_at: Date | null;
+  escalation_level: Generated<number>;
+  escalated_at: Date | null;
+  claimed_by_user_id: string | null;
+  claimed_at: Date | null;
+  completed_by_user_id: string | null;
+  completed_at: Date | null;
+  row_version: Generated<number>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface CaseTransitionsTable {
+  transition_id: string;
+  organisation_id: string;
+  case_id: string;
+  from_step_key: string | null;
+  to_step_key: string | null;
+  trigger_type: string;
+  triggered_by_user_id: string | null;
+  task_id: string | null;
+  condition_result: Record<string, unknown> | null;
+  occurred_at: Generated<Date>;
+}
+
+export interface CaseCommentsTable {
+  comment_id: string;
+  organisation_id: string;
+  case_id: string;
+  author_user_id: string;
+  body: string;
+  visibility: Generated<string>;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   organisations: OrganisationsTable;
   users: UsersTable;
@@ -129,4 +234,10 @@ export interface Database {
   group_members: GroupMembersTable;
   audit_events: AuditEventsTable;
   idempotency_keys: IdempotencyKeysTable;
+  process_definitions: ProcessDefinitionsTable;
+  process_versions: ProcessVersionsTable;
+  cases: CasesTable;
+  case_tasks: CaseTasksTable;
+  case_transitions: CaseTransitionsTable;
+  case_comments: CaseCommentsTable;
 }
