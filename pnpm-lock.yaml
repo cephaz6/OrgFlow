@@ -207,7 +207,15 @@ importers:
         specifier: ^4.23.12
         version: 4.23.12
 
-  packages/core: {}
+  packages/core:
+    dependencies:
+      '@orgflow/types':
+        specifier: workspace:^
+        version: link:../types
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^3.2.6
+        version: 3.2.7(vitest@3.2.7(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
 
   packages/db:
     dependencies:
