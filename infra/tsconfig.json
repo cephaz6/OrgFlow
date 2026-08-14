@@ -2,7 +2,14 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": ".",
+    // aws-cdk-lib's own generated types were not written against
+    // exactOptionalPropertyTypes (e.g. Vpc's vpnGatewayId, Environment's
+    // account), so the repo-wide strict default produces false-positive
+    // errors on ordinary, correct CDK usage. Narrow, third-party-specific
+    // override; every other strict flag from tsconfig.base.json still
+    // applies.
+    "exactOptionalPropertyTypes": false
   },
-  "include": ["src"]
+  "include": ["bin", "src", "test"]
 }
