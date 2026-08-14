@@ -330,3 +330,29 @@ The VPC has no path to the public internet from a private subnet; a later phase 
 - **Shared security group in `NetworkStack`, with ingress rules added by whichever downstream stack needs them.** This was the first implementation. Rejected after it produced a real `cdk synth` circular-dependency error from `addRotationSingleUser()`; documented above as the actual failure encountered, not a hypothetical.
 - **Shared KMS key across `DataStack` and `MessagingStack`.** Also the first implementation, also rejected after producing a real circular-dependency error, plus the separate, harder blocker that AWS rejects an SNS-to-SQS subscription onto an AWS-managed-key-encrypted queue outright.
 - **cdk-nag v3**, migrating every suppression to `Validations.of().acknowledge()`. Rejected for now: a one-release-old suppression API is a larger, less-documented surface to build a Phase 0 foundation on than the mature v2 line; nothing in `TECH-STACK.md` requires v3 specifically.
+
+## ADR-0013: Case reference numbers are allocated at submit, by an atomic counter increment
+
+**Date:** 2026-08-14
+**Status:** Accepted
+**Deciders:** Project operator (in absence; flagged for review on return)
+
+**Context**
+`PRD.md` §2.2 and §2.3 specify a human-facing case reference such as `LAP-000123`, built from `process_definitions.reference_prefix` and `reference_counter`, and constrained by `UNIQUE (organisation_id, reference)`. What the specification does not state is the three things an implementation must decide: the zero-padding width, the moment the counter increments, and how concurrent submissions avoid colliding. The uniqueness constraint means getting the last of those wrong is not a cosmetic bug but a failed insert on a user's submission.
+
+**Decision**
+References are `{prefix}-{counter}` with the counter zero-padded to six digits, matching the width of the `LAP-000123` example the specification gives throughout.
+
+The counter increments **at submit**, not at draft creation. A draft that is never submitted therefore consumes no reference, which matters because `PRD.md` §11.5 has `POST /cases` create a draft and a separate `POST /cases/:id/submit` pin the version and start the engine: drafts are expected to be abandoned, and a catalogue of references pointing at cases that never existed would be noise in every subsequent audit and report.
+
+Allocation is a single `UPDATE process_definitions SET reference_counter = reference_counter + 1 ... RETURNING reference_prefix, reference_counter`, executed inside the caller's submit transaction. Postgres holds a row lock for the duration of the statement, so two concurrent submissions against the same definition serialise and receive different numbers.
+
+**Consequences**
+Because allocation joins the submit transaction, a submission that fails after allocating leaves a permanent gap in the sequence rather than returning the number to a pool. That is the correct trade and is deliberate: a reference that once identified an attempted submission must never later identify a different case, or the audit trail becomes ambiguous precisely where it is most load-bearing. References are consequently sequential but not gapless, and nothing downstream may infer a case count from the highest reference issued. Six digits accommodate 999,999 cases per definition; past that the format widens rather than wrapping, and the `UNIQUE` constraint would surface the problem loudly rather than silently reusing a number. The counter lives on `process_definitions`, so it is per definition and per organisation, not global: two organisations both running a laptop request each have their own `LAP-000001`, which the uniqueness constraint being scoped to `(organisation_id, reference)` already anticipates.
+
+**Alternatives rejected**
+
+- **`SELECT` the counter, then `UPDATE` it.** Rejected outright: a textbook read-modify-write race. Two concurrent submissions read the same value and both attempt the same reference, and the `UNIQUE (organisation_id, reference)` constraint turns that race into a user-visible failed submission rather than a silent corruption. That it fails loudly is not a defence of the approach.
+- **A Postgres sequence per definition.** Rejected: sequences are non-transactional by design, so a rolled-back submission still consumes a number (the same gap behaviour, with no benefit), and creating one sequence per definition means DDL at definition-creation time, which makes definitions a schema-migration concern rather than ordinary data.
+- **Allocate at draft creation.** Rejected: every abandoned draft would burn a reference, and `PRD.md`'s flow explicitly separates draft creation from submission.
+- **A random or UUID-derived reference.** Rejected: the reference exists to be quoted by a human in an email or a support call. `PRD.md` §14.2's mandated subject-line format, `LAP-000123 Approval needed: Laptop request`, presumes something short and readable.

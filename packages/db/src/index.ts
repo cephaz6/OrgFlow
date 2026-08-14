@@ -29,3 +29,48 @@ export {
 export type { CreateUserWithIdentityInput } from './repositories/users.js';
 export { ensureDevUser } from './repositories/dev-seed.js';
 export type { DevSeedResult } from './repositories/dev-seed.js';
+export { appendAuditEvent, findAuditEventsForCase } from './repositories/audit-events.js';
+export type { AppendAuditEventInput } from './repositories/audit-events.js';
+export {
+  allocateCaseReference,
+  createProcessDefinition,
+  createProcessVersion,
+  findProcessDefinitionById,
+  findProcessDefinitionByKey,
+  findProcessVersionById,
+  findPublishedProcessDefinitions,
+  publishProcessVersion,
+} from './repositories/process-definitions.js';
+export type {
+  CreateProcessDefinitionInput,
+  CreateProcessVersionInput,
+} from './repositories/process-definitions.js';
+export {
+  CaseConcurrencyError,
+  createCase,
+  findCaseById,
+  findCasesForCurrentTenant,
+  updateCaseState,
+} from './repositories/cases.js';
+export type {
+  CreateCaseInput,
+  FindCasesFilter,
+  UpdateCaseStateInput,
+} from './repositories/cases.js';
+export {
+  cancelOpenTasksForCase,
+  claimCaseTask,
+  createCaseTask,
+  findCaseTaskById,
+  findCaseTasksForCase,
+  findClaimableTasks,
+  findOpenTasksForAssignee,
+  recordTaskDecision,
+  TaskConcurrencyError,
+} from './repositories/case-tasks.js';
+export type { CreateCaseTaskInput, RecordTaskDecisionInput } from './repositories/case-tasks.js';
+export {
+  appendCaseTransition,
+  findCaseTransitionsForCase,
+} from './repositories/case-transitions.js';
+export type { AppendCaseTransitionInput } from './repositories/case-transitions.js';
