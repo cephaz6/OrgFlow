@@ -532,6 +532,162 @@ describe('other lifecycle events', () => {
   });
 });
 
+describe('unassigned is recorded, not silent (PRD.md §6.4)', () => {
+  const noLineManager = context({
+    submitter: {
+      userId: SUBMITTER,
+      department: 'Engineering',
+      roles: ['member'],
+      lineManagerUserId: null,
+    },
+  });
+
+  it('records a transition when a case falls into unassigned', () => {
+    // "Every state change produces a transition record. There are no silent
+    // transitions." Landing in unassigned is a state change, so the
+    // timeline must not simply stop with no explanation.
+    const output = advance(input({ context: noLineManager }));
+
+    expect(output.caseUpdates.status).toBe('unassigned');
+    expect(output.transitions).toHaveLength(1);
+    expect(output.transitions[0]).toMatchObject({
+      fromStepKey: null,
+      toStepKey: 'managerApproval',
+      triggerType: 'submission',
+    });
+    expect(output.transitions[0]?.conditionResult).toMatchObject({
+      unassignedReason: 'assignmentUnresolved',
+    });
+  });
+
+  it('records a transition when a definition points at a step that does not exist', () => {
+    const steps: WorkflowStep[] = [
+      {
+        key: 'start',
+        name: 'Start',
+        type: 'approval',
+        assignment: { strategy: 'submitter' },
+        allowedDecisions: ['approve'],
+        transitions: { approve: [{ when: null, to: 'doesNotExist' }] },
+      },
+    ];
+
+    const output = advance(
+      input({
+        definition: definition(steps),
+        caseState: caseState({ status: 'active', currentStepKey: 'start' }),
+        event: { type: 'taskDecided', taskId: 'task-1', decision: 'approve' },
+      }),
+    );
+
+    const unassignedTransition = output.transitions.find(
+      (transition) => transition.conditionResult?.unassignedReason === 'unknownStep',
+    );
+    expect(unassignedTransition).toBeDefined();
+  });
+
+  it('records a transition when the automatic-step guard trips', () => {
+    const steps: WorkflowStep[] = [
+      {
+        key: 'loopA',
+        name: 'Loop A',
+        type: 'automatic',
+        assignment: { strategy: 'submitter' },
+        allowedDecisions: ['complete'],
+        transitions: { complete: [{ when: null, to: 'loopB' }] },
+      },
+      {
+        key: 'loopB',
+        name: 'Loop B',
+        type: 'automatic',
+        assignment: { strategy: 'submitter' },
+        allowedDecisions: ['complete'],
+        transitions: { complete: [{ when: null, to: 'loopA' }] },
+      },
+    ];
+
+    const output = advance(input({ definition: definition(steps) }));
+
+    const guardTransition = output.transitions.find(
+      (transition) => transition.conditionResult?.unassignedReason === 'automaticStepLimitExceeded',
+    );
+    expect(guardTransition).toBeDefined();
+  });
+
+  it('records a transition when an automatic step cannot route onward', () => {
+    const steps: WorkflowStep[] = [
+      {
+        key: 'autoStuck',
+        name: 'Stuck automatic step',
+        type: 'automatic',
+        assignment: { strategy: 'submitter' },
+        allowedDecisions: ['complete'],
+        // No `complete` key, so the automatic step has nowhere to go.
+        transitions: { somethingElse: [{ when: null, to: '$completed' }] },
+      },
+    ];
+
+    const output = advance(input({ definition: definition(steps) }));
+
+    expect(output.caseUpdates.status).toBe('unassigned');
+    expect(output.errors.map((error) => error.code)).toContain('noTransitionForDecision');
+    expect(output.errors.map((error) => error.code)).toContain('automaticStepStalled');
+  });
+
+  it('records a transition when a decision cannot be routed', () => {
+    const steps: WorkflowStep[] = [
+      {
+        key: 'start',
+        name: 'Start',
+        type: 'approval',
+        assignment: { strategy: 'submitter' },
+        allowedDecisions: ['approve'],
+        transitions: {
+          approve: [{ when: { field: 'never', operator: 'isTrue' }, to: '$completed' }],
+        },
+      },
+    ];
+
+    const output = advance(
+      input({
+        definition: definition(steps),
+        caseState: caseState({ status: 'active', currentStepKey: 'start' }),
+        event: { type: 'taskDecided', taskId: 'task-1', decision: 'approve' },
+      }),
+    );
+
+    expect(output.caseUpdates.status).toBe('unassigned');
+    expect(output.transitions.at(-1)?.conditionResult).toMatchObject({
+      unassignedReason: 'transitionSelectionFailed',
+    });
+  });
+});
+
+describe('resubmission guards', () => {
+  it('refuses to resubmit a case that is sitting on an open step', () => {
+    const output = advance(
+      input({
+        caseState: caseState({ status: 'active', currentStepKey: 'managerApproval' }),
+        event: { type: 'caseResubmitted' },
+      }),
+    );
+
+    expect(output.errors[0]?.code).toBe('caseNotReturned');
+    expect(output.tasksToCreate).toEqual([]);
+  });
+
+  it('refuses to resubmit a draft that was never submitted', () => {
+    const output = advance(
+      input({
+        caseState: caseState({ status: 'draft', currentStepKey: null }),
+        event: { type: 'caseResubmitted' },
+      }),
+    );
+
+    expect(output.errors[0]?.code).toBe('caseNotReturned');
+  });
+});
+
 describe('engine invariants (PRD.md §6.4)', () => {
   it('is deterministic: the same input produces the same output', () => {
     expect(advance(input())).toEqual(advance(input()));

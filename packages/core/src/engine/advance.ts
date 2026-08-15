@@ -7,6 +7,7 @@ import type {
   EngineOutput,
   ProcessDefinitionDocument,
   TaskSpec,
+  TaskType,
   TransitionRecord,
   WorkflowStep,
 } from '@orgflow/types';
@@ -31,6 +32,10 @@ const RETURNED_STEP_KEY = '$returnedToRequester';
 // definition with a cycle would spin forever. The guard is a definition
 // defect surfacing as an engine error, not a crash.
 const MAX_AUTOMATIC_STEPS = 20;
+
+// See the call site in runFromStepKey: an automatic step has no decision,
+// so its transitions are looked up under this fixed key.
+const AUTOMATIC_STEP_TRANSITION_KEY = 'complete';
 
 function isTerminalKey(key: string): key is keyof typeof TERMINAL_OUTCOMES {
   return key in TERMINAL_OUTCOMES;
@@ -58,7 +63,11 @@ function buildEvent(
   return {
     eventId: `${input.caseState.caseId}:${eventType}:${input.context.now}:${index}`,
     eventType,
-    organisationId: payload.organisationId as string,
+    // Taken from the pinned definition rather than the payload: the
+    // envelope's organisationId is what consumers re-assert tenancy on
+    // (PRD.md §10), so it must not depend on a caller remembering to put
+    // it in the payload.
+    organisationId: input.definition.organisationId,
     occurredAt: input.context.now,
     actorUserId: input.context.submitter.userId,
     actorType: 'user',
@@ -79,19 +88,47 @@ function emit(
   eventType: DomainEventType,
   payload: Record<string, unknown>,
 ): void {
-  state.output.eventsToEmit.push(
-    buildEvent(
-      eventType,
-      input,
-      { ...payload, organisationId: input.definition.organisationId },
-      state.eventIndex,
-    ),
-  );
+  state.output.eventsToEmit.push(buildEvent(eventType, input, payload, state.eventIndex));
   state.eventIndex += 1;
 }
 
 function fail(code: string, message: string, stepKey?: string): EngineError {
   return stepKey ? { code, message, stepKey } : { code, message };
+}
+
+// PRD.md §6.4: "Every state change produces a transition record. There are
+// no silent transitions." Moving a case to `unassigned` is a state change
+// like any other, so it records one rather than leaving an unexplained gap
+// in the timeline between the last recorded step and a case that has
+// mysteriously stopped. §7 makes the same point from the other direction:
+// unassigned is explicit and visible, requiring administrative action.
+function enterUnassigned(
+  state: AdvanceState,
+  input: EngineInput,
+  options: {
+    stepKey: string | null;
+    fromStepKey: string | null;
+    triggerType: TransitionRecord['triggerType'];
+    error: EngineError;
+    strategy?: string;
+  },
+): void {
+  state.output.caseUpdates.status = 'unassigned';
+  state.output.caseUpdates.currentStepKey = options.stepKey;
+  state.output.errors.push(options.error);
+
+  state.output.transitions.push({
+    fromStepKey: options.fromStepKey,
+    toStepKey: options.stepKey,
+    triggerType: options.triggerType,
+    conditionResult: { unassignedReason: options.error.code, message: options.error.message },
+  });
+
+  emit(state, input, 'case.unassigned', {
+    caseId: input.caseState.caseId,
+    stepKey: options.stepKey,
+    ...(options.strategy ? { strategy: options.strategy } : {}),
+  });
 }
 
 // Enters a step: resolves assignment, creates the task, records the
@@ -101,6 +138,11 @@ function enterStep(
   state: AdvanceState,
   input: EngineInput,
   step: WorkflowStep,
+  // Passed separately rather than read off the step, because StepType
+  // includes 'automatic' while TaskType does not. The caller has already
+  // narrowed it, so this parameter is what makes "an automatic step never
+  // creates a task" a type-level guarantee rather than a comment.
+  taskType: TaskType,
   fromStepKey: string | null,
   triggerType: TransitionRecord['triggerType'],
   conditionResult: Record<string, unknown> | undefined,
@@ -111,14 +153,15 @@ function enterStep(
     // PRD.md §6.3 step 6 and §7: resolution yielding nobody is an explicit,
     // visible state requiring administrative action, never a silent
     // failure.
-    state.output.caseUpdates.status = 'unassigned';
-    state.output.caseUpdates.currentStepKey = step.key;
-    state.output.errors.push(
-      fail('assignmentUnresolved', assignment.reason ?? 'Assignment resolved to nobody.', step.key),
-    );
-    emit(state, input, 'case.unassigned', {
-      caseId: input.caseState.caseId,
+    enterUnassigned(state, input, {
       stepKey: step.key,
+      fromStepKey,
+      triggerType,
+      error: fail(
+        'assignmentUnresolved',
+        assignment.reason ?? 'Assignment resolved to nobody.',
+        step.key,
+      ),
       strategy: step.assignment.strategy,
     });
     return;
@@ -129,7 +172,7 @@ function enterStep(
   const task: TaskSpec = {
     stepKey: step.key,
     stepName: step.name,
-    taskType: step.type === 'automatic' ? 'action' : step.type,
+    taskType,
     assignmentStrategy: step.assignment.strategy,
     assigneeUserId: assignment.assigneeUserId,
     assigneeGroupId: assignment.assigneeGroupId,
@@ -307,15 +350,23 @@ function runFromStepKey(
 
     const step = findStep(input.definition, currentKey);
     if (!step) {
-      state.output.caseUpdates.status = 'unassigned';
-      state.output.errors.push(
-        fail('unknownStep', `Step '${currentKey}' does not exist in this definition version.`),
-      );
+      enterUnassigned(state, input, {
+        stepKey: currentKey,
+        fromStepKey: previousKey,
+        triggerType,
+        error: fail(
+          'unknownStep',
+          `Step '${currentKey}' does not exist in this definition version.`,
+        ),
+      });
       return;
     }
 
-    if (step.type !== 'automatic') {
-      enterStep(state, input, step, previousKey, triggerType, currentConditionResult);
+    // Extracted so TypeScript narrows it: after this guard the remaining
+    // StepType members are exactly the TaskType members.
+    const stepType = step.type;
+    if (stepType !== 'automatic') {
+      enterStep(state, input, step, stepType, previousKey, triggerType, currentConditionResult);
       return;
     }
 
@@ -328,10 +379,26 @@ function runFromStepKey(
       ...(currentConditionResult ? { conditionResult: currentConditionResult } : {}),
     });
 
-    const selection = selectNextStepKey(state, input, step, 'complete');
+    // An automatic step has no decision, so there is no decision key to
+    // look its transitions up by. PRD.md §6.3 step 7 says to re-enter step
+    // 3 with "the automatic step's transitions" without naming the key, so
+    // the convention here is `complete`, matching the single allowed
+    // decision an automatic step would otherwise carry. A definition using
+    // a different key gets a noTransitionForDecision error naming it,
+    // rather than silently stalling.
+    const selection = selectNextStepKey(state, input, step, AUTOMATIC_STEP_TRANSITION_KEY);
     if (!selection) {
-      state.output.caseUpdates.status = 'unassigned';
-      state.output.caseUpdates.currentStepKey = step.key;
+      enterUnassigned(state, input, {
+        stepKey: step.key,
+        fromStepKey: previousKey,
+        triggerType,
+        // selectNextStepKey has already recorded the specific error.
+        error: fail(
+          'automaticStepStalled',
+          `Automatic step '${step.key}' could not select a next step.`,
+          step.key,
+        ),
+      });
       return;
     }
 
@@ -340,13 +407,15 @@ function runFromStepKey(
     currentConditionResult = selection.conditionResult;
   }
 
-  state.output.caseUpdates.status = 'unassigned';
-  state.output.errors.push(
-    fail(
+  enterUnassigned(state, input, {
+    stepKey: previousKey,
+    fromStepKey: previousKey,
+    triggerType,
+    error: fail(
       'automaticStepLimitExceeded',
       `More than ${MAX_AUTOMATIC_STEPS} automatic steps ran in a single advance; the definition probably contains a loop.`,
     ),
-  );
+  });
 }
 
 function emptyOutput(): EngineOutput {
@@ -402,6 +471,20 @@ export function advance(input: EngineInput): EngineOutput {
     }
 
     case 'caseResubmitted': {
+      // Only a returned case can be resubmitted. PRD.md §6.3 step 5 leaves
+      // a returned case active with no current step, which is exactly the
+      // shape checked here; an active case sitting on a step has an open
+      // task and must be decided, not resubmitted.
+      if (caseState.status !== 'active' || caseState.currentStepKey !== null) {
+        state.output.errors.push(
+          fail(
+            'caseNotReturned',
+            'Only a case that was returned to its requester can be resubmitted.',
+          ),
+        );
+        return state.output;
+      }
+
       emit(state, input, 'case.resubmitted', { caseId: caseState.caseId });
       runFromStepKey(state, input, definition.workflow.startStepKey, null, 'submission', undefined);
       return state.output;
@@ -463,8 +546,18 @@ export function advance(input: EngineInput): EngineOutput {
 
       const selection = selectNextStepKey(state, input, step, event.decision);
       if (!selection) {
-        state.output.caseUpdates.status = 'unassigned';
-        state.output.caseUpdates.currentStepKey = step.key;
+        enterUnassigned(state, input, {
+          stepKey: step.key,
+          fromStepKey: step.key,
+          triggerType: 'decision',
+          // selectNextStepKey has already recorded which of the two
+          // possible faults it was.
+          error: fail(
+            'transitionSelectionFailed',
+            `Step '${step.key}' could not route the decision '${event.decision}'.`,
+            step.key,
+          ),
+        });
         return state.output;
       }
 
