@@ -4,8 +4,10 @@ import {
   findCaseById,
   findCaseTaskById,
   findClaimableTaskQueue,
+  findOrganisationMemberByUserId,
   findProcessVersionById,
   findTaskQueueForAssignee,
+  findUserById,
   recordTaskDecision,
   TaskConcurrencyError,
   withTenantTransaction,
@@ -98,6 +100,9 @@ function toQueueResponse(entry: TaskQueueEntry) {
     caseReference: entry.caseReference,
     caseTitle: entry.caseTitle,
     definitionId: entry.definitionId,
+    // PRD.md §13.2 puts the requester on every approval queue row.
+    requesterUserId: entry.requesterUserId,
+    requesterName: entry.requesterName,
   };
 }
 
@@ -218,7 +223,15 @@ export function createTasksRouter(deps: TasksDeps): Router {
         const step = document.workflow.steps.find((candidate) => candidate.key === task.stepKey);
         const actionability = await canActOnTask(trx, session, task);
 
-        return { task, found, step, actionability };
+        // PRD.md §13.2: the decision screen must carry requester context, so
+        // an approver has everything needed to decide on one screen without
+        // navigating away.
+        const [requesterUser, requesterMember] = await Promise.all([
+          findUserById(deps.db, found.submittedByUserId),
+          findOrganisationMemberByUserId(trx, found.submittedByUserId),
+        ]);
+
+        return { task, found, step, actionability, requesterUser, requesterMember };
       });
 
       const values = await readCaseValues(
@@ -238,6 +251,17 @@ export function createTasksRouter(deps: TasksDeps): Router {
           submittedByUserId: result.found.submittedByUserId,
           submittedAt: result.found.submittedAt,
         },
+        // PRD.md §13.2 requires requester name, department and line manager
+        // on the decision screen.
+        requester: result.requesterUser
+          ? {
+              userId: result.requesterUser.userId,
+              displayName: result.requesterUser.displayName,
+              email: result.requesterUser.email,
+              department: result.requesterMember?.department ?? null,
+              lineManagerUserId: result.requesterMember?.lineManagerUserId ?? null,
+            }
+          : null,
         values,
         // What the approver is being asked to do, read from the version the
         // case is pinned to rather than the definition's current one.

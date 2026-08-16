@@ -23,6 +23,12 @@ export interface PersistEngineOutputInput {
   valuesDocumentId?: string | null;
   submittedAt?: Date;
   auditAction: string;
+  // A cancellation reason. PRD.md §10 puts it on the case.cancelled
+  // payload, but the engine's terminal handling has no reason to pass it
+  // through: EngineEvent carries it, and nothing in the state machine acts
+  // on it. So the caller supplies it here, alongside the reference and task
+  // ids it already fills in for the same class of reason.
+  reason?: string;
 }
 
 export interface PersistedEngineOutput {
@@ -126,6 +132,7 @@ export async function persistEngineOutput(
         triggerType: transition.triggerType,
       })),
       tasksCreated: tasks.map((task) => task.taskId),
+      ...(input.reason ? { reason: input.reason } : {}),
       // Engine errors are part of the audit record, not a side channel: a
       // case sitting in `unassigned` needs the reason on the trail an
       // administrator reads.
@@ -137,7 +144,13 @@ export async function persistEngineOutput(
   return {
     updatedCase,
     tasks,
-    events: enrichEvents(output.eventsToEmit, updatedCase, taskIdByStepKey, actorUserId),
+    events: enrichEvents(
+      output.eventsToEmit,
+      updatedCase,
+      taskIdByStepKey,
+      actorUserId,
+      input.reason,
+    ),
   };
 }
 
@@ -161,6 +174,7 @@ function enrichEvents(
   updatedCase: Case,
   taskIdByStepKey: Map<string, string>,
   actorUserId: string,
+  reason: string | undefined,
 ): DomainEvent[] {
   return events.map((event) => {
     const payload: Record<string, unknown> = { ...event.payload, reference: updatedCase.reference };
@@ -171,6 +185,13 @@ function enrichEvents(
       if (taskId) {
         payload.taskId = taskId;
       }
+    }
+
+    // PRD.md §10 gives case.cancelled a `reason`. Applied only to that type
+    // rather than to every event in the advance, so a reason cannot leak
+    // onto an unrelated event that happens to be emitted alongside it.
+    if (event.eventType === 'case.cancelled' && reason) {
+      payload.reason = reason;
     }
 
     return { ...event, actorUserId, payload };

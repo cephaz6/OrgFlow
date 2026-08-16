@@ -54,6 +54,17 @@ export async function canViewCase(
   return hasUserHeldTaskOnCase(trx, found.caseId, session.userId);
 }
 
+// Holds a role that governs the whole organisation. Read from the database
+// for the same reason canViewCase is: a session's roles claim is a snapshot
+// taken at sign-in and can be up to twelve hours stale (ADR-0010).
+export async function isAdministrator(
+  trx: Transaction<Database>,
+  session: RequestSession,
+): Promise<boolean> {
+  const member = await findOrganisationMemberByUserId(trx, session.userId);
+  return member ? member.roles.includes('admin') || member.roles.includes('owner') : false;
+}
+
 export interface ActionabilityResult {
   allowed: boolean;
   reason?: string;

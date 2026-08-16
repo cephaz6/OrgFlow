@@ -126,18 +126,26 @@ export interface TaskQueueEntry {
   caseReference: string;
   caseTitle: string;
   definitionId: string;
+  // PRD.md §13.2 puts the requester on every row of the approval queue, so
+  // an approver can triage without opening each one.
+  requesterUserId: string;
+  requesterName: string;
 }
 
 const QUEUE_COLUMNS = [
   'cases.reference as case_reference',
   'cases.title as case_title',
   'cases.definition_id as case_definition_id',
+  'cases.submitted_by_user_id as case_submitted_by_user_id',
+  'requester.display_name as requester_display_name',
 ] as const;
 
 interface QueueRow extends Selectable<CaseTasksTable> {
   case_reference: string;
   case_title: string;
   case_definition_id: string;
+  case_submitted_by_user_id: string;
+  requester_display_name: string;
 }
 
 function toQueueEntry(row: QueueRow): TaskQueueEntry {
@@ -146,6 +154,8 @@ function toQueueEntry(row: QueueRow): TaskQueueEntry {
     caseReference: row.case_reference,
     caseTitle: row.case_title,
     definitionId: row.case_definition_id,
+    requesterUserId: row.case_submitted_by_user_id,
+    requesterName: row.requester_display_name,
   };
 }
 
@@ -167,6 +177,10 @@ export async function findTaskQueueForAssignee(
   let query = trx
     .selectFrom('case_tasks')
     .innerJoin('cases', 'cases.case_id', 'case_tasks.case_id')
+    // users is not tenant-scoped (a person may belong to several
+    // organisations), but the join is reached only through cases, which
+    // RLS has already restricted to this tenant.
+    .innerJoin('users as requester', 'requester.user_id', 'cases.submitted_by_user_id')
     .selectAll('case_tasks')
     .select(QUEUE_COLUMNS)
     .where('case_tasks.assignee_user_id', '=', assigneeUserId);
@@ -233,6 +247,10 @@ export async function findClaimableTaskQueue(
   let query = trx
     .selectFrom('case_tasks')
     .innerJoin('cases', 'cases.case_id', 'case_tasks.case_id')
+    // users is not tenant-scoped (a person may belong to several
+    // organisations), but the join is reached only through cases, which
+    // RLS has already restricted to this tenant.
+    .innerJoin('users as requester', 'requester.user_id', 'cases.submitted_by_user_id')
     .selectAll('case_tasks')
     .select(QUEUE_COLUMNS)
     .where('case_tasks.status', '=', 'pending')
