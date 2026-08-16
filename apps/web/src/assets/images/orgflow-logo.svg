@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="184" viewBox="0 38 640 184" fill="none" role="img" aria-label="OrgFlow">
+  <title>OrgFlow</title>
+  <g color="#101418">
+    <circle cx="110" cy="130" r="55" fill="none" stroke="currentColor" stroke-opacity="0.18" stroke-width="1" stroke-dasharray="2 8"></circle>
+    <circle cx="110" cy="130" r="76" fill="none" stroke="currentColor" stroke-opacity="0.15" stroke-width="6"></circle>
+    <circle cx="110" cy="130" r="76" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-dasharray="318.3 159.2" transform="rotate(-90 110 130)"></circle>
+    <circle cx="110" cy="54" r="10" fill="none" stroke="currentColor" stroke-width="4"></circle>
+    <circle cx="175.8" cy="168" r="10" fill="none" stroke="currentColor" stroke-width="4"></circle>
+    <circle cx="44.2" cy="168" r="10" fill="currentColor"></circle>
+    <path d="M 198 130 H 230" stroke="currentColor" stroke-opacity="0.35" stroke-width="2"></path>
+    <circle cx="236" cy="130" r="3" fill="currentColor" fill-opacity="0.35"></circle>
+    <text x="262" y="130" fill="currentColor" dominant-baseline="middle" font-family="&#39;Space Grotesk&#39;, &#39;Helvetica Neue&#39;, Helvetica, Arial, sans-serif" font-size="84" letter-spacing="-2.1"><tspan font-weight="600">Org</tspan><tspan font-weight="300">Flow</tspan></text>
+    <rect x="264" y="186" width="337" height="3.5" fill="currentColor" fill-opacity="0.14"></rect>
+    <rect x="264" y="186" width="105" height="3.5" fill="currentColor" fill-opacity="0.75"></rect>
+  </g>
+</svg>

@@ -4,5 +4,7 @@ export * from './components/card.js';
 export * from './components/empty-state.js';
 export * from './components/input.js';
 export * from './components/label.js';
+export * from './components/select.js';
 export * from './components/skip-link.js';
+export * from './components/textarea.js';
 export * from './lib/cn.js';

@@ -493,3 +493,67 @@ The exact greys of the reference are not reproduced. The muted secondary text ti
 - **Colour-matching the reference screenshots.** Rejected: several of its greys fail 4.5:1, and `axe-core` passing with zero violations is a completion criterion. The look was adopted, the values were recomputed.
 - **Reusing `--primary` as the brand colour.** Rejected: it makes "this is OrgFlow" and "this does something" the same colour, which is the one structural claim the reference design makes about its own palette.
 - **Deriving subtle tints with opacity utilities such as `bg-success/10`.** Rejected: the colour that actually renders depends on whatever sits behind it, so no ratio can be measured. The previous `Alert` did this, and it is why the tints are now real tokens.
+
+## ADR-0018: apps/web may import packages/core
+
+**Date:** 2026-08-16
+**Status:** Accepted
+**Deciders:** Project operator (asked and answered during the catalogue build)
+
+**Context**
+`CLAUDE.md` §3 and `TECH-STACK.md` §2 fix the dependency direction as
+`types → core → db/documents/events → api/workers`, with `web` importing only `types` and
+`ui`, enforced by `eslint.config.mjs`. The stated purpose of the web restriction is that
+the browser bundle never contains server code.
+
+The form runtime broke the assumption behind the rule rather than the rule's purpose. A
+`FormField` carries an optional `visibleWhen` condition, and the seeded Laptop Request uses
+two of them: `otherModelDetail` appears only when the chosen model is `other`, and `quote`
+only above £1,000. That visibility has to be recomputed as the requester types, so it
+cannot be a round trip to the API, and it is evaluated by `evaluateCondition` in
+`packages/core`, which the browser could not reach.
+
+**Decision**
+The rule becomes `web → types, core, ui`.
+
+`packages/core` is not server code. `CLAUDE.md` §3 requires it to perform no I/O at all:
+no database, no HTTP, no AWS SDK, not even `Date.now()`, with time injected through the
+evaluation context. Its only dependency is `@orgflow/types`. It is therefore isomorphic by
+construction, and the restriction's purpose survives intact: the browser still contains no
+database client, no AWS SDK and no HTTP handler.
+
+The form runtime supplies the browser's own `EvaluationContext` and calls the same
+function the engine calls.
+
+**Consequences**
+There is one condition evaluator, so the browser and the server cannot disagree about
+whether a field was visible. That disagreement is the failure this avoids, and it is not
+cosmetic: a field the browser hides but the server treats as visible and required produces
+a case missing an answer the requester was never asked for.
+
+`packages/core` now has a second consumer with different constraints, so it acquires a
+bundle-size and browser-compatibility obligation it did not have before. That is a real
+cost. It is bounded by the no-I/O rule already in force, which is what keeps the package
+small and dependency-free in the first place.
+
+One context reference cannot be resolved in the browser. `PRD.md` §5.2 defines five, and
+four are available client-side: `$submitter.roles` from the session, `$case.daysOpen` and
+`$step.escalationLevel` are both zero on a new draft by definition, and `$now` is the
+clock. `$submitter.department` is not on the session. Rather than evaluate it against a
+wrong value, `apps/web/src/features/cases/visibility.ts` walks the condition tree and shows
+any field that mentions it. The direction of that failure is deliberate: showing a field
+that turns out to be hidden costs one unnecessary question, whereas hiding one the server
+requires produces an incomplete case. The server remains authoritative either way.
+
+**Alternatives rejected**
+
+- **Reimplement condition evaluation inside `apps/web`.** Rejected: two implementations of
+  a tenant-authored expression language will diverge, and the divergence is silent until a
+  case is submitted with the wrong fields. It would also need its own conformance suite to
+  stay honest, which is more work than the dependency edge costs.
+- **Ask the API which fields are visible.** Rejected: visibility changes on keystrokes, so
+  every answer becomes a network round trip and fields flicker behind latency.
+- **Extend the session to carry `department`, and evaluate everything locally.** Not
+  rejected outright, but not needed: it changes a shipped API contract to remove a
+  fail-open path that is already safe. Worth revisiting if a real definition depends on a
+  department condition in a form.

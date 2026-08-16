@@ -72,6 +72,7 @@
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
 }
 
 /* Overrides the generic fallbacks from tokens.css with the actual
@@ -80,6 +81,7 @@
 :root {
   --font-sans: var(--font-sans-app), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-app), ui-monospace, monospace;
+  --font-display: var(--font-display-app), ui-sans-serif, system-ui, sans-serif;
 
   /* Tells the browser to render its own furniture (scrollbars, date
      pickers, autofill, the caret) against a dark surface. Without it the

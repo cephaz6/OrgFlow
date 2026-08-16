@@ -18,7 +18,12 @@ const ALLOWED_ORGFLOW_IMPORTS = {
   ui: ['types'],
   api: ['types', 'core', 'db', 'documents', 'events'],
   workers: ['types', 'core', 'db', 'documents', 'events'],
-  web: ['types', 'ui'],
+  // ADR-0018: core is included deliberately. The rule's purpose is that web
+  // never imports server code, and packages/core is not server code: it
+  // performs no I/O by mandate (CLAUDE.md §3), so it is isomorphic. The form
+  // runtime evaluates the same visibleWhen conditions the engine does, and a
+  // second implementation in the browser could disagree with it.
+  web: ['types', 'core', 'ui'],
   infra: [],
 };
 

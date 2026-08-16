@@ -120,4 +120,7 @@
 
   --font-sans: ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, monospace;
+  /* The wordmark's typeface. A token rather than a name in the logo,
+     because a theme swap replaces the brand as well as the palette. */
+  --font-display: ui-sans-serif, system-ui, sans-serif;
 }

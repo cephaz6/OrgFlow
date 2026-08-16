@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { type Session, SignOutButton } from '../auth';
-import { BrandMark } from './brand-mark';
+import { OrgFlowMark } from './orgflow-logo';
 import { MobileNav } from './mobile-nav';
 import { SidebarNav } from './sidebar-nav';
 import { UserSummary } from './user-summary';
@@ -20,7 +20,7 @@ export function AppShell({ session, children }: AppShellProps) {
     <div className="flex min-h-screen">
       <aside className="hidden w-70 shrink-0 flex-col gap-6 border-r border-sidebar-border bg-sidebar p-4 text-sidebar-foreground lg:flex">
         <span className="flex items-center gap-2 px-1">
-          <BrandMark />
+          <OrgFlowMark className="h-7 w-7 text-foreground" />
           <span className="text-sm font-semibold">OrgFlow</span>
         </span>
         <SidebarNav />

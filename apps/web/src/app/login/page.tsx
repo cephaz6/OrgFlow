@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { getSession, LoginForm } from '../../features/auth';
+import { OrgFlowLogo } from '../../features/shell';
 
 export const metadata: Metadata = {
   title: 'Sign in — OrgFlow',
@@ -17,6 +18,10 @@ export default async function LoginPage() {
     <div className="flex min-h-screen">
       <main id="main-content" className="flex flex-1 items-center justify-center p-6">
         <div className="flex w-full max-w-sm flex-col gap-8">
+          {/* Inherits text-foreground, so the one asset serves both themes
+              without a second file to keep in step. Decorative here: the
+              heading below already names the product. */}
+          <OrgFlowLogo decorative className="h-9 w-auto text-foreground" />
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">Sign in to OrgFlow</h1>
             <p className="text-sm text-muted-foreground">
@@ -40,7 +45,9 @@ export default async function LoginPage() {
           also why nothing here is dimmed with an opacity utility, as that
           would put visible text below the contrast the tokens guarantee. */}
       <aside className="hidden flex-1 flex-col justify-between bg-brand p-12 text-brand-foreground lg:flex">
-        <span className="text-sm font-semibold">OrgFlow</span>
+        {/* On the brand panel the same asset inherits text-brand-foreground
+            instead, which is the whole argument for currentColor. */}
+        <OrgFlowLogo className="h-8 w-auto" />
         <p className="max-w-md text-3xl font-semibold leading-tight tracking-tight">
           Build the processes your organisation runs on, without writing code.
         </p>

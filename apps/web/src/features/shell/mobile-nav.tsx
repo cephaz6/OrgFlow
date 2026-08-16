@@ -4,7 +4,7 @@ import { Button } from '@orgflow/ui';
 import { Menu, X } from 'lucide-react';
 import { useCallback, useRef } from 'react';
 
-import { BrandMark } from './brand-mark';
+import { OrgFlowMark } from './orgflow-logo';
 import { SidebarNav } from './sidebar-nav';
 
 // Uses the native <dialog> with showModal() rather than a hand-rolled
@@ -31,7 +31,7 @@ export function MobileNav() {
       >
         <div className="flex items-center justify-between pb-6">
           <span className="flex items-center gap-2">
-            <BrandMark />
+            <OrgFlowMark className="h-7 w-7 text-foreground" />
             <span className="text-sm font-semibold">OrgFlow</span>
           </span>
           <Button type="button" variant="ghost" size="sm" onClick={close}>
