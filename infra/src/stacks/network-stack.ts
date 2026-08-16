@@ -20,19 +20,37 @@ export class NetworkStack extends Stack {
   constructor(scope: Construct, id: string, props: NetworkStackProps) {
     super(scope, id, props);
 
-    // No NAT gateway: nothing in this skeleton needs outbound internet
-    // access from a private subnet. RDS lives in the isolated subnets;
-    // AWS service access from within the VPC goes through the endpoints
-    // below instead of a NAT gateway's recurring hourly cost. A later
-    // phase adding Lambda workers that need outbound internet access adds
-    // a NAT gateway (or more endpoints) then, not speculatively now.
+    // This is the "later phase" the previous comment here anticipated:
+    // ApiStack's Fargate tasks and WorkersStack's Lambda both need outbound
+    // internet access that RDS never did. MongoDB Atlas is the definition
+    // store's actual deployment target (TECH-STACK.md §5.2: "DocumentDB is
+    // an option... but is not API-complete. That is noted as a constraint,
+    // not a plan."), meaning it lives outside the VPC entirely, and the
+    // Google OIDC discovery endpoint apps/api calls at boot is likewise
+    // reached over the public internet. Neither has a VPC endpoint, so a
+    // NAT gateway is the only route to either that keeps compute out of a
+    // public subnet.
+    //
+    // One NAT gateway rather than one per AZ: this skeleton is not
+    // deployed, and a single NAT is the standard non-production cost
+    // tradeoff. A production environment reads this same line; revisit
+    // alongside WebStack, when real traffic makes AZ-level NAT redundancy
+    // (surviving one AZ's NAT gateway failing) worth its second hourly
+    // charge.
     this.vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
-      natGateways: 0,
+      natGateways: 1,
       subnetConfiguration: [
         {
           name: 'public',
           subnetType: ec2.SubnetType.PUBLIC,
+          cidrMask: 24,
+        },
+        // Fargate tasks and the notification Lambda: outbound internet via
+        // the NAT gateway above, no direct inbound route from the internet.
+        {
+          name: 'app',
+          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
           cidrMask: 24,
         },
         {

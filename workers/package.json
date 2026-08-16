@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^12.1.0",
+    "@types/aws-lambda": "^8.10.162",
     "@types/node": "^22",
     "testcontainers": "^12.1.0",
     "tsx": "^4.23.12",
