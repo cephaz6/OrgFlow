@@ -77,6 +77,21 @@ export async function ensureGroupMember(
     .execute();
 }
 
+// Who is in a group: the recipients of a claimable-task notification for a
+// group-assigned step (PRD.md §14.1, `taskClaimable`).
+export async function findGroupMemberUserIds(
+  trx: Transaction<Database>,
+  groupId: string,
+): Promise<string[]> {
+  const rows = await trx
+    .selectFrom('group_members')
+    .select('user_id')
+    .where('group_id', '=', groupId)
+    .execute();
+
+  return rows.map((row) => row.user_id);
+}
+
 // The claimable pool for a group-assigned task: who may act on it.
 export async function findGroupIdsForUser(
   trx: Transaction<Database>,

@@ -415,3 +415,35 @@ Two membership queries per request are added to the hot path. That is the price 
 - **Treat tenant membership as sufficient to view any case, as the Cases API first did.** Rejected: it makes every expense claim, grievance and access request in the workspace readable by every member, and §12.3 exists specifically to prevent that.
 - **Let any `processOwner` see every case.** Rejected: collapses the distinction between `processOwner` and `admin` that §12.2 draws.
 - **Trust the session's `roles` claim instead of querying membership.** Rejected: a revoked role would keep working until the session expired, up to twelve hours later, which is the wrong failure direction for an authorisation check. Sessions are not revocable under ADR-0010, so the claim cannot be corrected mid-life.
+
+## ADR-0016: Notification delivery is claimed with a leased row, not a bare uniqueness check
+
+**Date:** 2026-08-16
+**Status:** Accepted
+**Deciders:** Project operator (in absence; flagged for review on return)
+
+**Context**
+`PRD.md` §14.2 requires delivery to be idempotent, keyed on `eventId` plus `recipientUserId` plus `templateKey`, and `PRD.md` §10 requires every consumer to be idempotent on `eventId`. SQS is at-least-once by design, so the worker will see the same message again, and the build order asks for that property to be proven by a test that delivers the same message twice.
+
+The obvious implementation, an `INSERT ... ON CONFLICT DO NOTHING` on the unique idempotency key treating any conflict as "already handled", is wrong in a way that only shows up in failure. It conflates three different situations: the notification was delivered, another delivery is working on it right now, and a previous attempt claimed the row and then failed to send. Treating the third as "already handled" means a single transient email outage loses that notification permanently, because no later redelivery will ever try again. Treating it as "retry it" instead reintroduces duplicates, since the first caller has inserted its row but not yet marked it sent, so a concurrent second caller reads `queued` and sends a second copy.
+
+**Decision**
+Claiming a notification returns one of three outcomes: `claimed`, `alreadyDelivered`, or `inFlight`, and only `claimed` sends.
+
+The claim is attempted as an insert first. On conflict, a second statement tries to reclaim the existing row, matching only a row whose status is `failed`, or one that is still `queued` but was created more than a five-minute lease ago. An in-flight attempt is therefore invisible to the reclaim while an abandoned one is not. If neither statement yields a row, the existing row is read and its status decides between `alreadyDelivered` and `inFlight`.
+
+Separately, the handler decides which template applies from the **event payload**, never from the current task row. The row is mutable: somebody claims a pool task and `assignee_user_id` stops being null.
+
+**Consequences**
+A failed send is retried by the next redelivery rather than lost, and two concurrent redeliveries still produce exactly one email, which the integration suite asserts directly rather than by inspection.
+
+The lease is the part to be honest about. A worker killed between claiming a row and sending its email strands that notification for up to five minutes, and if the queue has already exhausted its redelivery attempts by then, it is stranded permanently at `queued`. That is a narrower window than the alternative designs leave open, but it is not zero, and a `queued` row older than the lease with no message left on the queue is the shape of that failure. Making it zero needs a sweeper over stale `queued` rows, which is worth adding when there is an operational reason to, not before.
+
+Resolving the template from the payload also means the notification describes the event as it happened rather than the world as it now is. A pool task claimed before the notification goes out still notifies the whole pool. That is the correct trade: the alternative silently breaks idempotency, and it is what was actually observed running the worker against the real queue.
+
+**Alternatives rejected**
+
+- **Treat any conflict on the idempotency key as "already handled".** Rejected: loses a notification permanently on any transient send failure. This was the first implementation, and the flaw was not hypothetical.
+- **Retry anything not yet marked sent.** Rejected: duplicates under concurrency, caught by the three-way concurrent delivery test rather than by review.
+- **A dedicated `claimed_at` or lock column.** Rejected for now: `created_at` plus `status` already carries enough to express the lease, and a column that exists only to hold a lock invites the assumption that a distributed lock is being maintained, which it is not.
+- **Resolve the recipient and template from the task row at delivery time.** Rejected: the row is mutable, so a redelivery after a claim computes a different template key, which is a different idempotency key, which sends a duplicate. Observed in the live run before it was fixed.
