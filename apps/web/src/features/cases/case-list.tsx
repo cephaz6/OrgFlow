@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import type { CaseResponse } from './types';
 import { CaseStatusBadge } from './case-status';
+import { isReturnedToRequester } from './case-state';
 import { formatDate } from './format';
 
 export interface CaseListProps {
@@ -64,11 +65,4 @@ export function CaseList({ cases, processNames }: CaseListProps) {
       </table>
     </div>
   );
-}
-
-// A returned case is `active` with no current step: the engine parks it on
-// the requester rather than on a workflow step. Nothing in the status field
-// says so, which is why it is computed here (PRD.md §8.4).
-export function isReturnedToRequester(entry: CaseResponse): boolean {
-  return entry.status === 'active' && entry.currentStepKey === null && entry.submittedAt !== null;
 }

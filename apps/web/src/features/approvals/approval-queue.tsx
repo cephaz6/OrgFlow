@@ -1,10 +1,11 @@
-import { StatusBadge, type StatusTone } from '@orgflow/ui';
-import { AlertTriangle, CalendarClock, CircleDot, Infinity as InfinityIcon } from 'lucide-react';
+import { StatusBadge } from '@orgflow/ui';
 import Link from 'next/link';
 
 import { formatDate } from '../cases';
 import type { TaskQueueEntry } from './types';
-import { byUrgency, urgencyOf, type Urgency } from './urgency';
+import { byUrgency, urgencyOf } from './urgency';
+import { taskDestination } from './task-destination';
+import { URGENCY_PRESENTATION } from './urgency-presentation';
 
 export interface ApprovalQueueProps {
   entries: TaskQueueEntry[];
@@ -13,13 +14,6 @@ export interface ApprovalQueueProps {
   // rather than work assigned to you.
   claimable?: boolean;
 }
-
-const URGENCY_PRESENTATION: Record<Urgency, { tone: StatusTone; icon: typeof AlertTriangle }> = {
-  overdue: { tone: 'danger', icon: AlertTriangle },
-  dueSoon: { tone: 'warning', icon: CalendarClock },
-  onTrack: { tone: 'neutral', icon: CircleDot },
-  noDeadline: { tone: 'neutral', icon: InfinityIcon },
-};
 
 export function ApprovalQueue({ entries, now, claimable = false }: ApprovalQueueProps) {
   const sorted = byUrgency(entries);
@@ -60,7 +54,7 @@ export function ApprovalQueue({ entries, now, claimable = false }: ApprovalQueue
               <tr key={entry.taskId} className="border-b border-divider last:border-b-0">
                 <th scope="row" className="px-4 py-3 text-left font-normal">
                   <Link
-                    href={`/approvals/${entry.taskId}`}
+                    href={taskDestination(entry)}
                     className="font-mono text-link underline-offset-4 hover:text-link-hover hover:underline"
                   >
                     {entry.caseReference}
