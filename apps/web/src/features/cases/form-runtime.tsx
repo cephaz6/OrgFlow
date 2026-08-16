@@ -4,17 +4,28 @@ import type { OrganisationRole, ProcessDefinitionDocument } from '@orgflow/types
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle } from '@orgflow/ui';
 import { CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { submitNewCase, type CaseResponse } from './api';
+import { resubmitCase, submitNewCase } from './api-client';
+import type { CaseResponse } from './types';
 import { FieldInput } from './field-input';
 import { isStaticField, UNSUPPORTED_TYPES, validateFields } from './validate';
 import { visibleFields, visibleSections, type VisibilityInput } from './visibility';
 
+// The two ways a form is filled in. Amending a returned case runs the same
+// runtime as a new request because it is the same form, evaluated against
+// the same pinned document, with the same conditional visibility. The
+// difference is only where the answers go, so it is a discriminator rather
+// than a second component.
+export type FormRuntimeMode =
+  | { kind: 'new'; definitionId: string; definitionKey: string }
+  | { kind: 'resubmit'; caseId: string; reference: string };
+
 export interface FormRuntimeProps {
-  definitionId: string;
-  definitionKey: string;
+  mode: FormRuntimeMode;
   document: ProcessDefinitionDocument;
+  initialValues?: Record<string, unknown>;
   userId: string;
   roles: OrganisationRole[];
 }
@@ -25,14 +36,9 @@ type Status =
   | { kind: 'submitted'; result: CaseResponse }
   | { kind: 'failed'; message: string };
 
-export function FormRuntime({
-  definitionId,
-  definitionKey,
-  document,
-  userId,
-  roles,
-}: FormRuntimeProps) {
-  const [values, setValues] = useState<Record<string, unknown>>({});
+export function FormRuntime({ mode, document, initialValues, userId, roles }: FormRuntimeProps) {
+  const router = useRouter();
+  const [values, setValues] = useState<Record<string, unknown>>(initialValues ?? {});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<Status>({ kind: 'editing' });
   const summaryRef = useRef<HTMLDivElement>(null);
@@ -115,8 +121,18 @@ export function FormRuntime({
         Object.entries(values).filter(([key]) => visibleKeys.has(key)),
       );
 
-      const result = await submitNewCase(definitionId, payload);
-      setStatus({ kind: 'submitted', result });
+      if (mode.kind === 'new') {
+        const result = await submitNewCase(mode.definitionId, payload);
+        setStatus({ kind: 'submitted', result });
+        return;
+      }
+
+      await resubmitCase(mode.caseId, payload);
+      // Back to the case, refreshed from the server rather than patched
+      // locally, so the status, the timeline and the actions all come from
+      // one render and cannot disagree with each other.
+      router.push(`/cases/${mode.caseId}`);
+      router.refresh();
     } catch (err) {
       setStatus({
         kind: 'failed',
@@ -140,11 +156,11 @@ export function FormRuntime({
           </p>
           <p className="font-mono text-2xl">{status.result.reference}</p>
           <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link href="/catalogue">Back to the catalogue</Link>
+            <Button asChild>
+              <Link href={`/cases/${status.result.caseId}`}>Track this request</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href={`/cases/new/${definitionKey}`}>Start another</Link>
+              <Link href="/cases">All my requests</Link>
             </Button>
           </div>
         </CardContent>
@@ -213,10 +229,20 @@ export function FormRuntime({
 
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={status.kind === 'submitting' || blockedBy.length > 0}>
-          {status.kind === 'submitting' ? 'Submitting...' : 'Submit request'}
+          {status.kind === 'submitting'
+            ? 'Submitting...'
+            : mode.kind === 'new'
+              ? 'Submit request'
+              : 'Resubmit request'}
         </Button>
         <Button asChild variant="ghost">
-          <Link href={`/catalogue/${definitionKey}`}>Cancel</Link>
+          <Link
+            href={
+              mode.kind === 'new' ? `/catalogue/${mode.definitionKey}` : `/cases/${mode.caseId}`
+            }
+          >
+            Cancel
+          </Link>
         </Button>
       </div>
     </form>
