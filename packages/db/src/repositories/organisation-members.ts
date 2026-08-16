@@ -52,3 +52,32 @@ export async function findOrganisationMembersForCurrentTenant(
   const rows = await trx.selectFrom('organisation_members').selectAll().execute();
   return rows.map(toDomain);
 }
+
+// The submitter's directory facts, which the engine cannot look up itself:
+// EvaluationContext carries department, roles and lineManagerUserId, and
+// all three come from here. Tenant-scoped by RLS like every other query in
+// this file, so a member of another organisation reads as absent.
+export async function findOrganisationMemberByUserId(
+  trx: Transaction<Database>,
+  userId: string,
+): Promise<OrganisationMember | null> {
+  const row = await trx
+    .selectFrom('organisation_members')
+    .selectAll()
+    .where('user_id', '=', userId)
+    .executeTakeFirst();
+
+  return row ? toDomain(row) : null;
+}
+
+export async function setLineManager(
+  trx: Transaction<Database>,
+  userId: string,
+  lineManagerUserId: string | null,
+): Promise<void> {
+  await trx
+    .updateTable('organisation_members')
+    .set({ line_manager_user_id: lineManagerUserId, updated_at: new Date() })
+    .where('user_id', '=', userId)
+    .execute();
+}

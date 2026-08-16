@@ -81,6 +81,9 @@ export interface IdentityProvidersTable {
 export interface GroupsTable {
   group_id: string;
   organisation_id: string;
+  // ADR-0014: the stable identifier a definition document's `groupKey`
+  // resolves against, so renaming a group cannot break a pinned version.
+  key: string;
   name: string;
   description: string | null;
   created_at: Generated<Date>;

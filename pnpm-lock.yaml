@@ -56,12 +56,18 @@ importers:
 
   apps/api:
     dependencies:
+      '@orgflow/core':
+        specifier: workspace:^
+        version: link:../../packages/core
       '@orgflow/db':
         specifier: workspace:^
         version: link:../../packages/db
       '@orgflow/documents':
         specifier: workspace:^
         version: link:../../packages/documents
+      '@orgflow/events':
+        specifier: workspace:^
+        version: link:../../packages/events
       '@orgflow/types':
         specifier: workspace:^
         version: link:../../packages/types

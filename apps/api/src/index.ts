@@ -1,9 +1,35 @@
 import { createDb } from '@orgflow/db';
-import { createMongoClient } from '@orgflow/documents';
+import { createMongoClient, ensureIndexes } from '@orgflow/documents';
+import { createDummyPublisher, createSnsPublisher } from '@orgflow/events';
+import type { DomainEventPublisher } from '@orgflow/events';
 
 import { createApp } from './app.js';
 import { loadConfig } from './config/env.js';
 import { createLogger } from './logger.js';
+import type { Logger } from './logger.js';
+
+// ADR-0008 and the 3pservice pattern: the transport is a construction-time
+// choice behind one interface. Which one was chosen is logged rather than
+// left implicit, because "no notifications arrived" and "events went to a
+// dummy" look identical from the outside otherwise.
+function createPublisher(
+  config: ReturnType<typeof loadConfig>,
+  logger: Logger,
+): DomainEventPublisher {
+  if (!config.ORGFLOW_EVENTS_TOPIC_ARN) {
+    logger.warn(
+      'ORGFLOW_EVENTS_TOPIC_ARN is not set; domain events go to the dummy publisher and reach no consumer',
+    );
+    return createDummyPublisher();
+  }
+
+  logger.info({ topicArn: config.ORGFLOW_EVENTS_TOPIC_ARN }, 'publishing domain events to SNS');
+  return createSnsPublisher({
+    topicArn: config.ORGFLOW_EVENTS_TOPIC_ARN,
+    region: config.ORGFLOW_AWS_REGION,
+    endpoint: config.ORGFLOW_AWS_ENDPOINT,
+  });
+}
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -12,10 +38,12 @@ async function main(): Promise<void> {
   try {
     const db = createDb({ connectionString: config.ORGFLOW_DATABASE_URL });
     const mongoClient = await createMongoClient({ uri: config.ORGFLOW_MONGODB_URI });
+    await ensureIndexes(mongoClient);
 
     const app = createApp({
       db,
       mongoClient,
+      publisher: createPublisher(config, logger),
       corsOrigin: config.ORGFLOW_WEB_URL,
       logger,
       sessionSecret: config.ORGFLOW_SESSION_SECRET,

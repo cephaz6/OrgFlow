@@ -10,7 +10,9 @@ import {
 } from '@orgflow/db';
 import { Router } from 'express';
 import type { Kysely } from 'kysely';
+import type { MongoClient } from 'mongodb';
 
+import { ensureLaptopRequestSeeded } from '../seed/laptop-request.js';
 import { HttpProblemError } from '../middleware/error-handler.js';
 import {
   buildAuthorizationRequestUrl,
@@ -28,6 +30,7 @@ import {
 
 export interface AuthDeps {
   db: Kysely<Database>;
+  mongoClient: MongoClient;
   sessionSecret: string;
   isLocal: boolean;
   webUrl: string;
@@ -263,6 +266,15 @@ export function createAuthRouter(deps: AuthDeps): Router {
 
       const { user, membership } = await ensureDevUser(deps.db);
       await touchLastLogin(deps.db, user.userId);
+
+      // Seeds the Laptop Request definition, its IT Support group and a
+      // line manager for the dev user, so the local environment has a real
+      // process to run end to end. Idempotent, and local-only by virtue of
+      // sitting behind the same guard as the rest of this route.
+      await ensureLaptopRequestSeeded(deps.db, deps.mongoClient, {
+        organisationId: membership.organisationId,
+        ownerUserId: user.userId,
+      });
 
       const sessionClaims = buildSessionClaims(
         user.userId,

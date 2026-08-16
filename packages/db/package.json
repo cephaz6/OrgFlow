@@ -21,8 +21,8 @@
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "migrate:up": "node-pg-migrate up -d ORGFLOW_DATABASE_URL -m migrations --envPath ../../.env",
-    "migrate:down": "node-pg-migrate down -d ORGFLOW_DATABASE_URL -m migrations --envPath ../../.env",
+    "migrate:up": "node --env-file=../../.env ./node_modules/node-pg-migrate/bin/node-pg-migrate.js up -d ORGFLOW_DATABASE_URL -m migrations",
+    "migrate:down": "node --env-file=../../.env ./node_modules/node-pg-migrate/bin/node-pg-migrate.js down -d ORGFLOW_DATABASE_URL -m migrations",
     "migrate:create": "node-pg-migrate create -j sql -m migrations"
   },
   "dependencies": {

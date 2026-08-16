@@ -356,3 +356,26 @@ Because allocation joins the submit transaction, a submission that fails after a
 - **A Postgres sequence per definition.** Rejected: sequences are non-transactional by design, so a rolled-back submission still consumes a number (the same gap behaviour, with no benefit), and creating one sequence per definition means DDL at definition-creation time, which makes definitions a schema-migration concern rather than ordinary data.
 - **Allocate at draft creation.** Rejected: every abandoned draft would burn a reference, and `PRD.md`'s flow explicitly separates draft creation from submission.
 - **A random or UUID-derived reference.** Rejected: the reference exists to be quoted by a human in an email or a support call. `PRD.md` §14.2's mandated subject-line format, `LAP-000123 Approval needed: Laptop request`, presumes something short and readable.
+
+## ADR-0014: Groups carry a stable key, separate from their display name
+
+**Date:** 2026-08-16
+**Status:** Accepted
+**Deciders:** Project operator (in absence; flagged for review on return)
+
+**Context**
+`PRD.md` §4's definition document assigns a workflow step with `{ strategy: 'group', groupKey: 'itSupport' }`, and §7 resolves that strategy to the group's active members. But §2's `groups` table has no key at all: `group_id`, `organisation_id`, `name`, `description`, with `UNIQUE (organisation_id, name)`. There was therefore nothing for `groupKey` to resolve against except the display name. This surfaced building the Cases API, where `EvaluationContext.directory.groupIdsByKey` has to be populated before the engine can resolve any group assignment, because `packages/core` performs no I/O and cannot make the lookup itself.
+
+Resolving against the name works until somebody renames a group. A published definition version is immutable and a case executes the version it was submitted against forever (§8), so the pinned document keeps naming the old value while the group answers to a new one, and every future case on that definition falls into `unassigned` for a reason nobody would connect to a rename weeks earlier. The same schema already distinguishes the two concepts: `process_definitions` carries both a `key`, commented "stable slug", and a separate `name`.
+
+**Decision**
+`groups` gains `key TEXT NOT NULL` with `UNIQUE (organisation_id, key)`, added by the `group-keys` migration, which backfills existing rows from `name` before applying the constraint. A definition document's `groupKey` resolves against `groups.key`, never against `groups.name`, and `name` becomes purely a display concern that may change freely. `findGroupIdsByKeyForCurrentTenant` in `packages/db` is the single place that builds the mapping, and it is tenant-scoped like every other repository function, so two organisations may both hold a group keyed `itSupport` and each resolves to its own.
+
+**Consequences**
+Renaming a group can no longer break a pinned definition version, which is the property §8 calls the most important correctness property in the product. The cost is that group creation now supplies two values instead of one, and the group management endpoints in §11.2, which are not built yet, must expose `key` as write-once rather than editable, since making it editable would reintroduce exactly the breakage this removes. This is a deviation from `PRD.md` §2's table as literally written, recorded here rather than made quietly: the specification's own document format in §4 requires a key, so the table was incomplete rather than the requirement being new.
+
+**Alternatives rejected**
+
+- **Resolve `groupKey` against `groups.name`, as the schema as written forces.** Rejected for the rename problem above. It was the option that required no migration, and it would have worked indefinitely right up to the first rename, at which point the failure appears far from its cause and looks like an engine defect rather than a data one.
+- **Name the seeded group `itSupport` so name and key coincide.** Rejected: it does not solve anything, it only postpones the collision by making the display name unusable in the interface, and the first person to correct "itSupport" to "IT Support" in a group settings screen would break every laptop request.
+- **Keep a separate mapping table from group key to group id.** Rejected on the same grounds ADR-0011 rejected its equivalent: a second source of truth that must be kept in step with every insert and delete on the table it mirrors, for a column's worth of information.

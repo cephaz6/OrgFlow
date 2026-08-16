@@ -17,6 +17,7 @@ import {
   createCase,
   findCaseById,
   findCasesForCurrentTenant,
+  isDraftReference,
   updateCaseState,
 } from './repositories/cases.js';
 import { createOrganisation } from './repositories/organisations.js';
@@ -92,19 +93,63 @@ describe('process and case schema', () => {
     await db.destroy();
   });
 
+  // Mirrors what apps/api's submit path does: the draft is created with a
+  // placeholder reference, and the real one is allocated and written in the
+  // same transaction that submits it (ADR-0013).
   async function createSubmittedCase(tenant: typeof tenantA, title = 'A laptop') {
     return withTenantTransaction(db, tenant.organisation.organisationId, async (trx) => {
-      const reference = await allocateCaseReference(trx, tenant.definition.definitionId);
-      return createCase(trx, {
+      const draft = await createCase(trx, {
         organisationId: tenant.organisation.organisationId,
         definitionId: tenant.definition.definitionId,
         versionId: tenant.version.versionId,
-        reference,
         title,
         submittedByUserId: tenant.user.userId,
       });
+
+      const reference = await allocateCaseReference(trx, tenant.definition.definitionId);
+
+      return updateCaseState(trx, {
+        caseId: draft.caseId,
+        expectedRowVersion: draft.rowVersion,
+        reference,
+        submittedAt: new Date(),
+      });
     });
   }
+
+  it('gives a draft a placeholder reference and replaces it at submit', async () => {
+    const draft = await withTenantTransaction(
+      db,
+      tenantA.organisation.organisationId,
+      async (trx) =>
+        createCase(trx, {
+          organisationId: tenantA.organisation.organisationId,
+          definitionId: tenantA.definition.definitionId,
+          versionId: tenantA.version.versionId,
+          title: 'Still a draft',
+          submittedByUserId: tenantA.user.userId,
+        }),
+    );
+
+    expect(isDraftReference(draft.reference)).toBe(true);
+    expect(draft.reference).toBe(`DRAFT-${draft.caseId}`);
+
+    const submitted = await withTenantTransaction(
+      db,
+      tenantA.organisation.organisationId,
+      async (trx) => {
+        const reference = await allocateCaseReference(trx, tenantA.definition.definitionId);
+        return updateCaseState(trx, {
+          caseId: draft.caseId,
+          expectedRowVersion: draft.rowVersion,
+          reference,
+        });
+      },
+    );
+
+    expect(isDraftReference(submitted.reference)).toBe(false);
+    expect(submitted.reference).toMatch(/^LAP-\d{6}$/);
+  });
 
   it('allocates zero-padded, sequential case references per definition', async () => {
     const first = await createSubmittedCase(tenantA);
@@ -153,10 +198,33 @@ describe('process and case schema', () => {
       findCasesForCurrentTenant(trx),
     );
 
-    expect(listedForB.length).toBeGreaterThan(0);
-    for (const found of listedForB) {
+    expect(listedForB.cases.length).toBeGreaterThan(0);
+    for (const found of listedForB.cases) {
       expect(found.organisationId).toBe(tenantB.organisation.organisationId);
     }
+  });
+
+  it('pages case listings by cursor without repeating or skipping a row', async () => {
+    for (let index = 0; index < 3; index += 1) {
+      await createSubmittedCase(tenantB, `Paged laptop ${index}`);
+    }
+
+    const firstPage = await withTenantTransaction(db, tenantB.organisation.organisationId, (trx) =>
+      findCasesForCurrentTenant(trx, { limit: 2 }),
+    );
+
+    expect(firstPage.cases).toHaveLength(2);
+    expect(firstPage.hasMore).toBe(true);
+    expect(firstPage.nextCursor).toBe(firstPage.cases[1]?.caseId);
+
+    const secondPage = await withTenantTransaction(db, tenantB.organisation.organisationId, (trx) =>
+      findCasesForCurrentTenant(trx, { limit: 2, cursor: firstPage.nextCursor! }),
+    );
+
+    const firstIds = firstPage.cases.map((found) => found.caseId);
+    const secondIds = secondPage.cases.map((found) => found.caseId);
+    expect(secondIds.some((id) => firstIds.includes(id))).toBe(false);
+    expect(secondPage.cases.length).toBeGreaterThan(0);
   });
 
   it('scopes published definitions to the current tenant', async () => {

@@ -1,0 +1,494 @@
+import { advance } from '@orgflow/core';
+import {
+  allocateCaseReference,
+  createCase,
+  findCaseById,
+  findCasesForCurrentTenant,
+  findCaseTasksForCase,
+  findProcessDefinitionById,
+  findProcessVersionById,
+  updateCaseState,
+  withTenantTransaction,
+} from '@orgflow/db';
+import type { Database } from '@orgflow/db';
+import {
+  findProcessDefinitionDocumentById,
+  readCaseValues,
+  upsertCaseValues,
+  verifyDocumentIntegrity,
+} from '@orgflow/documents';
+import type { DomainEventPublisher } from '@orgflow/events';
+import type { Case, CaseStatus, ProcessDefinitionDocument } from '@orgflow/types';
+import { Router } from 'express';
+import type { Kysely, Transaction } from 'kysely';
+import type { MongoClient } from 'mongodb';
+import { z } from 'zod';
+
+import { buildEvaluationContext } from '../cases/evaluation-context.js';
+import { persistEngineOutput } from '../cases/persist-engine-output.js';
+import { buildCaseTimeline } from '../cases/timeline.js';
+import type { Logger } from '../logger.js';
+import { HttpProblemError } from '../middleware/error-handler.js';
+import { requireSession, sessionOf } from '../middleware/require-session.js';
+
+export interface CasesDeps {
+  db: Kysely<Database>;
+  mongoClient: MongoClient;
+  publisher: DomainEventPublisher;
+  sessionSecret: string;
+  logger: Logger;
+}
+
+const CASE_STATUSES: CaseStatus[] = [
+  'draft',
+  'active',
+  'completed',
+  'rejected',
+  'cancelled',
+  'unassigned',
+];
+
+const createCaseSchema = z.object({
+  definitionId: z.string().uuid(),
+  values: z.record(z.unknown()).optional(),
+});
+
+const patchCaseSchema = z
+  .object({
+    values: z.record(z.unknown()).optional(),
+    title: z.string().min(1).max(500).optional(),
+  })
+  .refine((body) => body.values !== undefined || body.title !== undefined, {
+    message: 'Provide at least one of values or title.',
+  });
+
+// Turns a Zod failure into the RFC 7807 shape PRD.md §11.10 specifies,
+// including the errors[] array with a field path per problem.
+function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    const detail = parsed.error.issues
+      .map((issue) => `${issue.path.join('.') || 'body'}: ${issue.message}`)
+      .join('; ');
+    throw new HttpProblemError(400, 'Bad Request', detail);
+  }
+  return parsed.data;
+}
+
+function toCaseResponse(found: Case) {
+  return {
+    caseId: found.caseId,
+    definitionId: found.definitionId,
+    versionId: found.versionId,
+    reference: found.reference,
+    title: found.title,
+    status: found.status,
+    outcome: found.outcome,
+    currentStepKey: found.currentStepKey,
+    submittedByUserId: found.submittedByUserId,
+    submittedAt: found.submittedAt,
+    completedAt: found.completedAt,
+    dueAt: found.dueAt,
+    rowVersion: found.rowVersion,
+    createdAt: found.createdAt,
+    updatedAt: found.updatedAt,
+  };
+}
+
+// Loads the definition document a case is pinned to. PRD.md §8.2: the
+// engine loads by version_id, never by definition_id, and this is the only
+// path a case execution takes to reach its document.
+async function loadPinnedDocument(
+  trx: Transaction<Database>,
+  mongoClient: MongoClient,
+  organisationId: string,
+  versionId: string,
+): Promise<ProcessDefinitionDocument> {
+  const version = await findProcessVersionById(trx, versionId);
+  if (!version) {
+    throw new HttpProblemError(
+      500,
+      'Internal Server Error',
+      'The case is pinned to a version that does not exist.',
+    );
+  }
+
+  const document = await findProcessDefinitionDocumentById(
+    mongoClient,
+    organisationId,
+    version.documentId,
+  );
+
+  if (!document) {
+    throw new HttpProblemError(
+      500,
+      'Internal Server Error',
+      'The pinned version references a definition document that does not exist.',
+    );
+  }
+
+  if (!verifyDocumentIntegrity(document, version.documentHash)) {
+    throw new HttpProblemError(
+      500,
+      'Internal Server Error',
+      'The pinned definition document does not match the hash recorded when it was published.',
+    );
+  }
+
+  return document;
+}
+
+// A case the requester may see. Cross-tenant rows never arrive here: RLS
+// hides them, so findCaseById returns null and this raises a 404, which is
+// what PRD.md §11.10 requires instead of a 403.
+async function requireCase(trx: Transaction<Database>, caseId: string): Promise<Case> {
+  const found = await findCaseById(trx, caseId);
+  if (!found) {
+    throw new HttpProblemError(404, 'Not Found', 'No such case.');
+  }
+  return found;
+}
+
+function titleFromValues(
+  document: ProcessDefinitionDocument,
+  values: Record<string, unknown>,
+  fallback: string,
+): string {
+  const key = document.form.titleFieldKey;
+  const value = key ? values[key] : undefined;
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim().slice(0, 500)
+    : fallback;
+}
+
+export function createCasesRouter(deps: CasesDeps): Router {
+  const router = Router();
+
+  router.use('/cases', requireSession(deps.sessionSecret));
+
+  // PRD.md §11.5: create a draft against a definition. No reference is
+  // allocated and no version is pinned yet; both happen at submit
+  // (ADR-0013, PRD.md §8.2).
+  router.post('/cases', async (req, res, next) => {
+    try {
+      const session = sessionOf(req);
+      const body = parseBody(createCaseSchema, req.body);
+
+      const created = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
+        const definition = await findProcessDefinitionById(trx, body.definitionId);
+        if (!definition?.currentVersionId) {
+          throw new HttpProblemError(404, 'Not Found', 'No such published process definition.');
+        }
+
+        // cases.version_id is NOT NULL, so a draft has to reference
+        // something. It holds the version current at draft creation as a
+        // provisional value, which submit overwrites with whatever is
+        // current at that moment: PRD.md §8.2 pins at submission, not at
+        // draft creation, because a version published in between must be
+        // the one the case actually executes.
+        const draft = await createCase(trx, {
+          organisationId: session.organisationId,
+          definitionId: definition.definitionId,
+          versionId: definition.currentVersionId,
+          title: definition.name,
+          submittedByUserId: session.userId,
+        });
+
+        if (body.values) {
+          const valuesDocumentId = await upsertCaseValues(deps.mongoClient, {
+            organisationId: session.organisationId,
+            caseId: draft.caseId,
+            values: body.values,
+            now: new Date().toISOString(),
+          });
+
+          return updateCaseState(trx, {
+            caseId: draft.caseId,
+            expectedRowVersion: draft.rowVersion,
+            valuesDocumentId,
+          });
+        }
+
+        return draft;
+      });
+
+      res.status(201).json({ case: toCaseResponse(created) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PRD.md §11.5: list, filterable by status, definitionId, submittedBy and
+  // view. Cursor pagination per §11.10.
+  router.get('/cases', async (req, res, next) => {
+    try {
+      const session = sessionOf(req);
+
+      const statusParam = typeof req.query.status === 'string' ? req.query.status : undefined;
+      if (statusParam && !CASE_STATUSES.includes(statusParam as CaseStatus)) {
+        throw new HttpProblemError(400, 'Bad Request', `Unknown status '${statusParam}'.`);
+      }
+
+      const view = req.query.view === 'mine' ? 'mine' : 'all';
+      const submittedBy =
+        view === 'mine'
+          ? session.userId
+          : typeof req.query.submittedBy === 'string'
+            ? req.query.submittedBy
+            : undefined;
+
+      const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined;
+      if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
+        throw new HttpProblemError(400, 'Bad Request', 'limit must be a positive integer.');
+      }
+
+      const page = await withTenantTransaction(deps.db, session.organisationId, (trx) =>
+        findCasesForCurrentTenant(trx, {
+          ...(submittedBy ? { submittedByUserId: submittedBy } : {}),
+          ...(statusParam ? { status: statusParam as CaseStatus } : {}),
+          ...(typeof req.query.definitionId === 'string'
+            ? { definitionId: req.query.definitionId }
+            : {}),
+          ...(limit !== undefined ? { limit } : {}),
+          ...(typeof req.query.cursor === 'string' ? { cursor: req.query.cursor } : {}),
+        }),
+      );
+
+      res.status(200).json({
+        data: page.cases.map(toCaseResponse),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PRD.md §11.5: the full case. Attachments are Phase 7 and absent.
+  router.get('/cases/:caseId', async (req, res, next) => {
+    try {
+      const session = sessionOf(req);
+      const caseId = req.params.caseId!;
+
+      const result = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
+        const found = await requireCase(trx, caseId);
+        const [tasks, timeline] = await Promise.all([
+          findCaseTasksForCase(trx, found.caseId),
+          buildCaseTimeline(trx, found.caseId),
+        ]);
+        return { found, tasks, timeline };
+      });
+
+      const values = await readCaseValues(deps.mongoClient, session.organisationId, caseId);
+
+      res.status(200).json({
+        case: toCaseResponse(result.found),
+        values,
+        tasks: result.tasks,
+        timeline: result.timeline,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PRD.md §11.5: update draft values. Drafts only; once submitted, a case
+  // changes through decisions, not edits.
+  router.patch('/cases/:caseId', async (req, res, next) => {
+    try {
+      const session = sessionOf(req);
+      const caseId = req.params.caseId!;
+      const body = parseBody(patchCaseSchema, req.body);
+
+      const updated = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
+        const found = await requireCase(trx, caseId);
+
+        if (found.status !== 'draft') {
+          throw new HttpProblemError(
+            409,
+            'Conflict',
+            `Only a draft can be edited; this case is ${found.status}.`,
+          );
+        }
+
+        // Within the tenant, so 403 rather than 404: the case's existence
+        // is not a cross-tenant disclosure, and the requester needs to
+        // know the refusal is about permission, not a bad id.
+        if (found.submittedByUserId !== session.userId) {
+          throw new HttpProblemError(403, 'Forbidden', 'Only the requester can edit this draft.');
+        }
+
+        const valuesDocumentId = body.values
+          ? await upsertCaseValues(deps.mongoClient, {
+              organisationId: session.organisationId,
+              caseId: found.caseId,
+              values: body.values,
+              now: new Date().toISOString(),
+            })
+          : undefined;
+
+        return updateCaseState(trx, {
+          caseId: found.caseId,
+          expectedRowVersion: found.rowVersion,
+          ...(body.title !== undefined ? { title: body.title } : {}),
+          ...(valuesDocumentId !== undefined ? { valuesDocumentId } : {}),
+        });
+      });
+
+      res.status(200).json({ case: toCaseResponse(updated) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PRD.md §11.5 and §6: the important one. Pins the version, allocates the
+  // reference, runs the engine, and persists case, tasks, transitions and
+  // audit in one transaction. Events publish only after that commits.
+  router.post('/cases/:caseId/submit', async (req, res, next) => {
+    try {
+      const session = sessionOf(req);
+      const caseId = req.params.caseId!;
+      const now = new Date();
+
+      const result = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
+        const found = await requireCase(trx, caseId);
+
+        if (found.status !== 'draft') {
+          throw new HttpProblemError(
+            409,
+            'Conflict',
+            `Only a draft can be submitted; this case is ${found.status}.`,
+          );
+        }
+
+        if (found.submittedByUserId !== session.userId) {
+          throw new HttpProblemError(403, 'Forbidden', 'Only the requester can submit this draft.');
+        }
+
+        const definition = await findProcessDefinitionById(trx, found.definitionId);
+        if (!definition?.currentVersionId) {
+          throw new HttpProblemError(
+            409,
+            'Conflict',
+            'This process has no published version to submit against.',
+          );
+        }
+
+        // PRD.md §8.2: the pin is taken here, at submission, from whatever
+        // is current now, and never changes afterwards.
+        const versionId = definition.currentVersionId;
+        const document = await loadPinnedDocument(
+          trx,
+          deps.mongoClient,
+          session.organisationId,
+          versionId,
+        );
+
+        const values = await readCaseValues(deps.mongoClient, session.organisationId, found.caseId);
+
+        const context = await buildEvaluationContext(trx, {
+          submitterUserId: session.userId,
+          correlationId: req.correlationId,
+          now,
+          existingCase: found,
+        });
+
+        // Allocated last among the reads, so the row lock it takes on
+        // process_definitions (ADR-0013) is held for as little of the
+        // transaction as possible.
+        const reference = await allocateCaseReference(trx, found.definitionId);
+
+        const output = advance({
+          definition: document,
+          caseState: {
+            caseId: found.caseId,
+            definitionId: found.definitionId,
+            versionId,
+            status: 'draft',
+            outcome: null,
+            currentStepKey: null,
+          },
+          values,
+          event: { type: 'caseSubmitted' },
+          context,
+        });
+
+        // The engine refuses an event it cannot act on by returning errors
+        // and no case update. That is a client problem, so it becomes a
+        // 409 and the transaction rolls back, which also returns the
+        // reference counter to where it was.
+        if (output.caseUpdates.status === undefined) {
+          throw new HttpProblemError(
+            409,
+            'Conflict',
+            output.errors[0]?.message ?? 'The workflow engine refused this submission.',
+          );
+        }
+
+        return persistEngineOutput(trx, {
+          organisationId: session.organisationId,
+          actorUserId: session.userId,
+          correlationId: req.correlationId,
+          existingCase: found,
+          output,
+          reference,
+          versionId,
+          title: titleFromValues(document, values, definition.name),
+          submittedAt: now,
+          auditAction: 'case.submitted',
+        });
+      });
+
+      // TECH-STACK.md §6: publish after the transaction commits, never
+      // inside it. A crash between the two loses the event; consumers are
+      // idempotent on eventId, and closing the gap properly needs the
+      // transactional outbox that is not built yet.
+      await publishOrLog(deps, result.events, caseId);
+
+      res.status(200).json({
+        case: toCaseResponse(result.updatedCase),
+        tasks: result.tasks,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PRD.md §11.5: transitions, decisions and audit, merged.
+  router.get('/cases/:caseId/timeline', async (req, res, next) => {
+    try {
+      const session = sessionOf(req);
+      const caseId = req.params.caseId!;
+
+      const timeline = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
+        await requireCase(trx, caseId);
+        return buildCaseTimeline(trx, caseId);
+      });
+
+      res.status(200).json({ data: timeline });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  return router;
+}
+
+// A publish failure after a successful commit must not turn a completed
+// submission into a 500: the case is submitted, the tasks exist, and the
+// audit row is written. It is logged loudly instead, because a silently
+// dropped event is a notification a person never receives.
+async function publishOrLog(
+  deps: CasesDeps,
+  events: Parameters<DomainEventPublisher['publish']>[0],
+  caseId: string,
+): Promise<void> {
+  try {
+    await deps.publisher.publish(events);
+  } catch (err) {
+    deps.logger.error(
+      { err, caseId, eventIds: events.map((event) => event.eventId) },
+      'domain events were not published after the transaction committed',
+    );
+  }
+}
