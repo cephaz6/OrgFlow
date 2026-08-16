@@ -43,8 +43,11 @@ export default async function NewCasePage({ params }: PageProps) {
           through the catalogue, so nothing crosses a boundary here that the
           API does not already expose. */}
       <FormRuntime
-        definitionId={detail.definition.definitionId}
-        definitionKey={detail.definition.key}
+        mode={{
+          kind: 'new',
+          definitionId: detail.definition.definitionId,
+          definitionKey: detail.definition.key,
+        }}
         document={detail.document}
         userId={session.user.userId}
         roles={session.roles}

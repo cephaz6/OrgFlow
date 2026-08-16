@@ -443,6 +443,79 @@ describe('cases API against real Postgres and Mongo', () => {
     expect(laterSubmitted.body.case.versionId).toBe(newVersionId);
   });
 
+  it('returns the pinned definition document, not the current one', async () => {
+    // The case detail labels its answers from this document. Serving the
+    // current version instead would describe a case using questions it was
+    // never asked, the moment somebody publishes a new version.
+    const agent = await signInAsDevUser();
+    const session = await agent.get('/api/v1/auth/session');
+    const organisationId = session.body.organisationId as string;
+    const definition = await definitionId(agent);
+
+    // Read the current version number rather than assuming 1: these files
+    // share one database, and an earlier test in this file already
+    // publishes a second version of this same definition.
+    const before = await agent.get(`/api/v1/process-definitions/${definition}`);
+    const nextVersionNumber = (before.body.version.versionNumber as number) + 1;
+
+    // Identity is asserted through the document's *content*, not its
+    // versionNumber field. buildLaptopRequestDefinition always stamps 1, so
+    // in this shared database that field does not reliably match the
+    // process_versions row it is attached to. The form is what a reader of
+    // the case detail actually sees, which makes it the right thing to
+    // assert on regardless.
+    const fieldKeysOf = (document: { form: { sections: { fields: { key: string }[] }[] } }) =>
+      document.form.sections.flatMap((section) => section.fields.map((field) => field.key));
+
+    const draft = await createDraft(agent, laptopValues(850));
+    const submitted = await agent.post(`/api/v1/cases/${draft.caseId}/submit`);
+    const pinnedVersionId = submitted.body.case.versionId as string;
+
+    const beforePublish = await agent.get(`/api/v1/cases/${draft.caseId}`);
+    expect(beforePublish.status).toBe(200);
+    expect(fieldKeysOf(beforePublish.body.document)).not.toContain('costCentre');
+
+    // The next version carries a field the pinned one does not, so the two
+    // documents are distinguishable by content and not only by number.
+    const nextDocument = buildLaptopRequestDefinition({
+      organisationId,
+      definitionId: definition,
+      createdByUserId: session.body.user.userId as string,
+      createdAt: new Date().toISOString(),
+    });
+    nextDocument.versionNumber = nextVersionNumber;
+    nextDocument.form.sections[0]!.fields.push({
+      key: 'costCentre',
+      type: 'text',
+      label: 'Cost centre',
+      required: true,
+    });
+    const stored = await insertProcessDefinitionDocument(mongoClient, nextDocument);
+
+    await withTenantTransaction(db, organisationId, async (trx) => {
+      const version = await createProcessVersion(trx, {
+        organisationId,
+        definitionId: definition,
+        versionNumber: nextVersionNumber,
+        documentId: stored.documentId,
+        documentHash: stored.documentHash,
+      });
+      await publishProcessVersion(trx, version.versionId, session.body.user.userId as string);
+    });
+
+    const afterPublish = await agent.get(`/api/v1/cases/${draft.caseId}`);
+    expect(afterPublish.status).toBe(200);
+    expect(afterPublish.body.case.versionId).toBe(pinnedVersionId);
+    expect(fieldKeysOf(afterPublish.body.document)).not.toContain('costCentre');
+
+    // A case submitted now does get the new document, which is what stops
+    // the assertion above passing for the wrong reason.
+    const laterDraft = await createDraft(agent, laptopValues(300));
+    await agent.post(`/api/v1/cases/${laterDraft.caseId}/submit`);
+    const laterDetail = await agent.get(`/api/v1/cases/${laterDraft.caseId}`);
+    expect(fieldKeysOf(laterDetail.body.document)).toContain('costCentre');
+  });
+
   it('refuses to resubmit a case that was never returned', async () => {
     const agent = await signInAsDevUser();
     const draft = await createDraft(agent, laptopValues(850));
