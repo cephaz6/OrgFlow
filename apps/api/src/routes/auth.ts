@@ -4,10 +4,13 @@ import {
   findMembershipsForUser,
   findUserByIdentity,
   findUserById,
+  findOrganisationMemberByUserId,
   createUserWithIdentity,
   touchLastLogin,
+  withTenantTransaction,
   type Database,
 } from '@orgflow/db';
+import type { OrganisationRole } from '@orgflow/types';
 import { Router } from 'express';
 import type { Kysely } from 'kysely';
 import type { MongoClient } from 'mongodb';
@@ -271,15 +274,34 @@ export function createAuthRouter(deps: AuthDeps): Router {
       // line manager for the dev user, so the local environment has a real
       // process to run end to end. Idempotent, and local-only by virtue of
       // sitting behind the same guard as the rest of this route.
-      await ensureLaptopRequestSeeded(deps.db, deps.mongoClient, {
+      const seeded = await ensureLaptopRequestSeeded(deps.db, deps.mongoClient, {
         organisationId: membership.organisationId,
         ownerUserId: user.userId,
       });
 
+      // The approval journey needs two people, because the whole point of an
+      // approval is that somebody other than the requester makes it. The
+      // seed already creates the line manager the Laptop Request assigns to;
+      // without a way to sign in as them, the approve, reject and return
+      // paths cannot be exercised in a browser at all, only through forged
+      // session tokens in the API tests.
+      //
+      // This is not a way to become an arbitrary user: the only alternative
+      // is the seeded manager, and the whole route is already dead outside
+      // ORGFLOW_ENV=local.
+      const wantsManager =
+        typeof req.body === 'object' &&
+        req.body !== null &&
+        (req.body as { as?: unknown }).as === 'manager';
+
+      const signedIn = wantsManager
+        ? await resolveSeededManager(deps.db, membership.organisationId, seeded.lineManagerUserId)
+        : { user, roles: membership.roles };
+
       const sessionClaims = buildSessionClaims(
-        user.userId,
+        signedIn.user.userId,
         membership.organisationId,
-        membership.roles,
+        signedIn.roles,
       );
       const token = await createSessionToken(deps.sessionSecret, sessionClaims);
 
@@ -291,9 +313,13 @@ export function createAuthRouter(deps: AuthDeps): Router {
         expires: new Date(sessionClaims.expiresAt),
       });
 
-      res
-        .status(200)
-        .json({ user: { userId: user.userId, email: user.email, displayName: user.displayName } });
+      res.status(200).json({
+        user: {
+          userId: signedIn.user.userId,
+          email: signedIn.user.email,
+          displayName: signedIn.user.displayName,
+        },
+      });
     } catch (err) {
       next(err);
     }
@@ -329,4 +355,44 @@ export function createAuthRouter(deps: AuthDeps): Router {
   });
 
   return router;
+}
+
+// The seeded line manager, resolved for the local-only dev login above.
+// Their roles come from organisation_members rather than being assumed,
+// for the same reason every other authorisation decision reads membership
+// from the database: a role the seed happens to grant today is not a role
+// this route should hardcode.
+async function resolveSeededManager(
+  db: Kysely<Database>,
+  organisationId: string,
+  managerUserId: string,
+): Promise<{
+  user: { userId: string; email: string; displayName: string };
+  roles: OrganisationRole[];
+}> {
+  const manager = await findUserById(db, managerUserId);
+  if (!manager) {
+    throw new HttpProblemError(
+      500,
+      'Internal Server Error',
+      'The seeded line manager does not exist.',
+    );
+  }
+
+  const membership = await withTenantTransaction(db, organisationId, (trx) =>
+    findOrganisationMemberByUserId(trx, managerUserId),
+  );
+
+  if (!membership) {
+    throw new HttpProblemError(
+      500,
+      'Internal Server Error',
+      'The seeded line manager is not a member of the development organisation.',
+    );
+  }
+
+  return {
+    user: { userId: manager.userId, email: manager.email, displayName: manager.displayName },
+    roles: membership.roles,
+  };
 }

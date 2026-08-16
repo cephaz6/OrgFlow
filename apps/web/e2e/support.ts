@@ -49,3 +49,14 @@ export async function signIn(page: Page): Promise<void> {
   const response = await page.request.post(`${API_URL}/auth/dev-login`);
   expect(response.ok(), 'the seeded development login must be available').toBe(true);
 }
+
+// The seeded line manager, who is who the Laptop Request's first step
+// assigns to. An approval needs two people by definition, so without this
+// the approve, reject and return paths could only ever be exercised through
+// forged session tokens in the API tests, never through the screens.
+export async function signInAsManager(page: Page): Promise<void> {
+  const response = await page.request.post(`${API_URL}/auth/dev-login`, {
+    data: { as: 'manager' },
+  });
+  expect(response.ok(), 'the seeded manager login must be available').toBe(true);
+}
