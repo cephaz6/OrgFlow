@@ -1,7 +1,15 @@
+import 'server-only';
+
 import type { OrganisationRole } from '@orgflow/types';
 import { cookies } from 'next/headers';
 
 import { config } from '../../config/env';
+
+// The `server-only` import is a guard, not a runtime dependency: next/headers
+// cannot exist in a browser bundle, and without this a client component that
+// reaches for this module (directly or through the feature barrel, which also
+// re-exports client-safe things like signOut) fails deep inside an import
+// trace instead of naming this file. Same reasoning as lib/api-server.ts.
 
 export interface SessionUser {
   userId: string;

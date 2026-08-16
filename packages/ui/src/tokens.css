@@ -9,26 +9,45 @@
  * (see apps/web/src/app/fonts.ts), so no component ever names a typeface.
  *
  * ---------------------------------------------------------------------
- * Dark-first, by design decision, not by preference detection. This is a
- * single committed palette rather than a light set plus a dark override:
- * the product has one look, and a theme swap replaces this file wholly.
- * There is deliberately no prefers-color-scheme block, because a second
- * palette would double the contrast surface that tokens.test.ts has to
- * hold, for a light theme nothing has asked for.
+ * ADR-0020 supersedes ADR-0017: a light palette now exists alongside the
+ * dark one. The product's identity stays dark-first, so the bare :root
+ * below carries the dark values, unguarded; the light palette is the one
+ * behind a guard, applied when the system prefers it or the user asks for
+ * it explicitly. That is the same technique a light-first design would
+ * use with the two palettes' roles swapped, not a different one.
+ *
+ * Three states, not two:
+ *   1. No explicit choice, system prefers dark, or reports nothing usable
+ *      -> the bare :root values below (dark).
+ *   2. No explicit choice, system prefers light
+ *      -> the @media (prefers-color-scheme: light) block.
+ *   3. An explicit choice, via a `data-theme="light"` or `data-theme=
+ *      "dark"` attribute a theme provider sets on <html> -> the matching
+ *      [data-theme] block, which wins over system preference in both
+ *      directions. apps/web/src/features/theme/ is what sets it and
+ *      persists the choice; this file has no opinion on how.
  *
  * Every value is written as a literal oklch() triple rather than as a
  * var() alias of another token. Aliases would read more tersely, but
  * tokens.test.ts parses this file and asserts the real contrast ratio of
- * each foreground-against-surface pair, so each value has to stand alone
- * to be checkable. That test is what stops a later palette tweak from
- * quietly failing WCAG 2.2 AA, which CLAUDE.md §3 makes a completion
- * criterion rather than a follow-up.
+ * each foreground-against-surface pair, in both palettes, so each value
+ * has to stand alone to be checkable. That test is what stops a later
+ * palette tweak from quietly failing WCAG 2.2 AA, which CLAUDE.md §3
+ * makes a completion criterion rather than a follow-up. It is also what
+ * caught several light-palette candidates landing outside the sRGB gamut
+ * before any of them shipped: a clamped token is not the colour the ratio
+ * was computed from.
  *
  * Why some hues appear twice, in a solid tier and a "subtle" tier: on a
  * near-black background the two jobs pull in opposite directions. A red
  * dark enough to carry white button text is too dark to read as error
  * text against a dark card, and a red light enough to read as text is too
- * light to carry white. So each semantic hue has:
+ * light to carry white. The light palette does not have the same
+ * constraint (a saturated red at the right lightness serves both jobs
+ * more easily against a near-white surface), but the token *shape* is
+ * kept identical across both palettes regardless, because a component
+ * reaching for `--destructive-subtle-foreground` cannot know which theme
+ * is active, and both must supply it. So each semantic hue has:
  *
  *   --x                      solid fill
  *   --x-foreground           text on that fill
@@ -37,6 +56,10 @@
  *
  * Reaching for the wrong tier is what produces the failures the reference
  * screenshots contain and this palette does not.
+ *
+ * Brand and the interactive blue keep the same hue in both palettes (295
+ * and 255 respectively), only lightness and chroma change: OrgFlow reads
+ * as the same product switching themes, not a different one.
  */
 
 :root {
@@ -123,4 +146,197 @@
   /* The wordmark's typeface. A token rather than a name in the logo,
      because a theme swap replaces the brand as well as the palette. */
   --font-display: ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * The light palette. Applied when the system prefers light and the user
+ * has not explicitly forced dark (the :not() guard is what makes an
+ * explicit choice win over system preference here); the identical
+ * [data-theme="light"] block below covers the case where the system
+ * prefers dark but the user explicitly chose light anyway, since a media
+ * query's own condition cannot be affected by an attribute selector
+ * nested inside it.
+ */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --background: oklch(0.97 0.003 285);
+    --foreground: oklch(0.18 0.006 285);
+
+    --card: oklch(0.995 0.002 285);
+    --card-foreground: oklch(0.18 0.006 285);
+
+    --popover: oklch(0.995 0.002 285);
+    --popover-foreground: oklch(0.18 0.006 285);
+
+    --muted: oklch(0.93 0.006 285);
+    --muted-foreground: oklch(0.42 0.012 285);
+
+    --accent: oklch(0.91 0.008 285);
+    --accent-foreground: oklch(0.18 0.006 285);
+
+    --secondary: oklch(0.91 0.008 285);
+    --secondary-foreground: oklch(0.18 0.006 285);
+
+    --sidebar: oklch(0.95 0.004 285);
+    --sidebar-foreground: oklch(0.18 0.006 285);
+    --sidebar-accent: oklch(0.89 0.01 285);
+    --sidebar-accent-foreground: oklch(0.18 0.006 285);
+    --sidebar-border: oklch(0.85 0.006 285);
+
+    --divider: oklch(0.9 0.004 285);
+    --border: oklch(0.85 0.006 285);
+    --input: oklch(0.6 0.012 285);
+    --ring: oklch(0.52 0.17 255);
+
+    --brand: oklch(0.52 0.19 295);
+    --brand-foreground: oklch(0.99 0 0);
+    --brand-subtle-foreground: oklch(0.42 0.15 295);
+
+    --primary: oklch(0.48 0.155 255);
+    --primary-foreground: oklch(0.99 0 0);
+    --primary-subtle: oklch(0.93 0.03 255);
+    --primary-subtle-foreground: oklch(0.4 0.11 250);
+
+    --link: oklch(0.44 0.12 250);
+    --link-hover: oklch(0.34 0.09 250);
+
+    --destructive: oklch(0.5 0.2 25);
+    --destructive-foreground: oklch(0.99 0 0);
+    --destructive-subtle: oklch(0.94 0.028 25);
+    --destructive-subtle-foreground: oklch(0.42 0.165 25);
+
+    --success: oklch(0.42 0.1 155);
+    --success-foreground: oklch(0.99 0 0);
+    --success-subtle: oklch(0.92 0.045 155);
+    --success-subtle-foreground: oklch(0.34 0.08 155);
+
+    --warning: oklch(0.62 0.125 78);
+    --warning-foreground: oklch(0.18 0.02 78);
+    --warning-subtle: oklch(0.9 0.06 78);
+    --warning-subtle-foreground: oklch(0.4 0.08 78);
+  }
+}
+
+:root[data-theme='light'] {
+  --background: oklch(0.97 0.003 285);
+  --foreground: oklch(0.18 0.006 285);
+
+  --card: oklch(0.995 0.002 285);
+  --card-foreground: oklch(0.18 0.006 285);
+
+  --popover: oklch(0.995 0.002 285);
+  --popover-foreground: oklch(0.18 0.006 285);
+
+  --muted: oklch(0.93 0.006 285);
+  --muted-foreground: oklch(0.42 0.012 285);
+
+  --accent: oklch(0.91 0.008 285);
+  --accent-foreground: oklch(0.18 0.006 285);
+
+  --secondary: oklch(0.91 0.008 285);
+  --secondary-foreground: oklch(0.18 0.006 285);
+
+  --sidebar: oklch(0.95 0.004 285);
+  --sidebar-foreground: oklch(0.18 0.006 285);
+  --sidebar-accent: oklch(0.89 0.01 285);
+  --sidebar-accent-foreground: oklch(0.18 0.006 285);
+  --sidebar-border: oklch(0.85 0.006 285);
+
+  --divider: oklch(0.9 0.004 285);
+  --border: oklch(0.85 0.006 285);
+  --input: oklch(0.6 0.012 285);
+  --ring: oklch(0.52 0.17 255);
+
+  --brand: oklch(0.52 0.19 295);
+  --brand-foreground: oklch(0.99 0 0);
+  --brand-subtle-foreground: oklch(0.42 0.15 295);
+
+  --primary: oklch(0.48 0.155 255);
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-subtle: oklch(0.93 0.03 255);
+  --primary-subtle-foreground: oklch(0.4 0.11 250);
+
+  --link: oklch(0.44 0.12 250);
+  --link-hover: oklch(0.34 0.09 250);
+
+  --destructive: oklch(0.5 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --destructive-subtle: oklch(0.94 0.028 25);
+  --destructive-subtle-foreground: oklch(0.42 0.165 25);
+
+  --success: oklch(0.42 0.1 155);
+  --success-foreground: oklch(0.99 0 0);
+  --success-subtle: oklch(0.92 0.045 155);
+  --success-subtle-foreground: oklch(0.34 0.08 155);
+
+  --warning: oklch(0.62 0.125 78);
+  --warning-foreground: oklch(0.18 0.02 78);
+  --warning-subtle: oklch(0.9 0.06 78);
+  --warning-subtle-foreground: oklch(0.4 0.08 78);
+}
+
+/*
+ * Explicit dark reasserts the bare :root values above. Technically
+ * redundant today, since the unguarded default already is dark, but kept
+ * so the toggle wins in both directions symmetrically with the light
+ * block, and so the bare :root values could later change for a reason
+ * unrelated to "which theme is active" without silently breaking an
+ * explicit dark selection.
+ */
+:root[data-theme='dark'] {
+  --background: oklch(0.16 0.006 285);
+  --foreground: oklch(0.97 0.002 285);
+
+  --card: oklch(0.2 0.007 285);
+  --card-foreground: oklch(0.97 0.002 285);
+
+  --popover: oklch(0.2 0.007 285);
+  --popover-foreground: oklch(0.97 0.002 285);
+
+  --muted: oklch(0.24 0.008 285);
+  --muted-foreground: oklch(0.7 0.012 285);
+
+  --accent: oklch(0.26 0.012 285);
+  --accent-foreground: oklch(0.97 0.002 285);
+
+  --secondary: oklch(0.26 0.012 285);
+  --secondary-foreground: oklch(0.97 0.002 285);
+
+  --sidebar: oklch(0.18 0.007 285);
+  --sidebar-foreground: oklch(0.97 0.002 285);
+  --sidebar-accent: oklch(0.26 0.012 285);
+  --sidebar-accent-foreground: oklch(0.97 0.002 285);
+  --sidebar-border: oklch(0.28 0.008 285);
+
+  --divider: oklch(0.24 0.008 285);
+  --border: oklch(0.28 0.008 285);
+  --input: oklch(0.5 0.01 285);
+  --ring: oklch(0.72 0.14 250);
+
+  --brand: oklch(0.52 0.19 295);
+  --brand-foreground: oklch(0.99 0 0);
+  --brand-subtle-foreground: oklch(0.78 0.12 295);
+
+  --primary: oklch(0.52 0.17 255);
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-subtle: oklch(0.26 0.06 255);
+  --primary-subtle-foreground: oklch(0.75 0.13 250);
+
+  --link: oklch(0.75 0.13 250);
+  --link-hover: oklch(0.85 0.07 250);
+
+  --destructive: oklch(0.52 0.19 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --destructive-subtle: oklch(0.26 0.07 25);
+  --destructive-subtle-foreground: oklch(0.75 0.15 25);
+
+  --success: oklch(0.52 0.11 155);
+  --success-foreground: oklch(0.99 0 0);
+  --success-subtle: oklch(0.25 0.05 155);
+  --success-subtle-foreground: oklch(0.78 0.15 155);
+
+  --warning: oklch(0.75 0.15 78);
+  --warning-foreground: oklch(0.18 0.02 78);
+  --warning-subtle: oklch(0.27 0.06 78);
+  --warning-subtle-foreground: oklch(0.82 0.13 80);
 }

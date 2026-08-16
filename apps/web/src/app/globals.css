@@ -83,10 +83,26 @@
   --font-mono: var(--font-mono-app), ui-monospace, monospace;
   --font-display: var(--font-display-app), ui-sans-serif, system-ui, sans-serif;
 
-  /* Tells the browser to render its own furniture (scrollbars, date
-     pickers, autofill, the caret) against a dark surface. Without it the
-     controls the user agent draws stay light, which is both ugly and a
-     genuine contrast failure on inputs the palette never gets to touch. */
+  /* Tells the browser which palette to draw its own furniture in
+     (scrollbars, date pickers, autofill, the caret): dark by default,
+     matching tokens.css's bare :root, and overridden below in lockstep
+     with every place that file switches palette. Getting this wrong in
+     either direction is a real contrast failure on controls the token
+     system never gets to touch, not merely a visual mismatch. */
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
   color-scheme: dark;
 }
 
@@ -103,4 +119,21 @@ body {
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* WCAG 2.2 SC 2.3.3 (Animation from Interactions): honour a stated
+   preference for reduced motion globally, rather than hoping each
+   component that adds a transition remembers to. Not disabled outright,
+   which can break behaviour that depends on a transitionend event;
+   reduced to effectively instant instead, which is what the success
+   criterion actually asks for. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
