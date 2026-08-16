@@ -7,36 +7,114 @@
  * --font-sans and --font-mono are declared here as generic fallbacks; the
  * consuming app overrides them with the actual next/font variable names
  * (see apps/web/src/app/fonts.ts), so no component ever names a typeface.
+ *
+ * ---------------------------------------------------------------------
+ * Dark-first, by design decision, not by preference detection. This is a
+ * single committed palette rather than a light set plus a dark override:
+ * the product has one look, and a theme swap replaces this file wholly.
+ * There is deliberately no prefers-color-scheme block, because a second
+ * palette would double the contrast surface that tokens.test.ts has to
+ * hold, for a light theme nothing has asked for.
+ *
+ * Every value is written as a literal oklch() triple rather than as a
+ * var() alias of another token. Aliases would read more tersely, but
+ * tokens.test.ts parses this file and asserts the real contrast ratio of
+ * each foreground-against-surface pair, so each value has to stand alone
+ * to be checkable. That test is what stops a later palette tweak from
+ * quietly failing WCAG 2.2 AA, which CLAUDE.md §3 makes a completion
+ * criterion rather than a follow-up.
+ *
+ * Why some hues appear twice, in a solid tier and a "subtle" tier: on a
+ * near-black background the two jobs pull in opposite directions. A red
+ * dark enough to carry white button text is too dark to read as error
+ * text against a dark card, and a red light enough to read as text is too
+ * light to carry white. So each semantic hue has:
+ *
+ *   --x                      solid fill
+ *   --x-foreground           text on that fill
+ *   --x-subtle               tinted surface (alert and badge backgrounds)
+ *   --x-subtle-foreground    text on that tint, and on background or card
+ *
+ * Reaching for the wrong tier is what produces the failures the reference
+ * screenshots contain and this palette does not.
  */
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Surfaces. Depth comes from lightness and a hairline border, never
+     from a shadow; the whole shell sits within a 0.16 to 0.26 band. */
+  --background: oklch(0.16 0.006 285);
+  --foreground: oklch(0.97 0.002 285);
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card: oklch(0.2 0.007 285);
+  --card-foreground: oklch(0.97 0.002 285);
 
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.2 0.007 285);
+  --popover-foreground: oklch(0.97 0.002 285);
 
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.24 0.008 285);
+  --muted-foreground: oklch(0.7 0.012 285);
 
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.26 0.012 285);
+  --accent-foreground: oklch(0.97 0.002 285);
 
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.26 0.012 285);
+  --secondary-foreground: oklch(0.97 0.002 285);
 
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
+  /* The fixed left navigation column, one step lighter than the page so
+     the boundary reads without a divider carrying the whole job. */
+  --sidebar: oklch(0.18 0.007 285);
+  --sidebar-foreground: oklch(0.97 0.002 285);
+  --sidebar-accent: oklch(0.26 0.012 285);
+  --sidebar-accent-foreground: oklch(0.97 0.002 285);
+  --sidebar-border: oklch(0.28 0.008 285);
 
-  --success: oklch(0.52 0.15 150);
-  --success-foreground: oklch(0.985 0 0);
+  /* Lines. Three weights, because they answer different questions.
+     --divider separates rows inside one surface; --border outlines a
+     surface; --input is the boundary of an interactive control, which
+     WCAG 2.2 SC 1.4.11 requires to reach 3:1 so the control can be
+     identified at all. Only the last of those is a contrast obligation,
+     which is why it is markedly lighter than it looks like it should be. */
+  --divider: oklch(0.24 0.008 285);
+  --border: oklch(0.28 0.008 285);
+  --input: oklch(0.5 0.01 285);
+  --ring: oklch(0.72 0.14 250);
 
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Brand is identity: the mark, and the panel beside the sign-in form.
+     It is deliberately not the interactive colour, so that "this is
+     OrgFlow" and "this does something" never say the same thing. */
+  --brand: oklch(0.52 0.19 295);
+  --brand-foreground: oklch(0.99 0 0);
+  --brand-subtle-foreground: oklch(0.78 0.12 295);
+
+  /* Blue is the interactive colour: primary buttons, active navigation,
+     checked controls. */
+  --primary: oklch(0.52 0.17 255);
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-subtle: oklch(0.26 0.06 255);
+  --primary-subtle-foreground: oklch(0.75 0.13 250);
+
+  --link: oklch(0.75 0.13 250);
+  /* Chroma drops on hover rather than holding: at this lightness a blue
+     of the link's chroma falls outside the sRGB gamut, and a clamped
+     token is not the colour the contrast test measured. */
+  --link-hover: oklch(0.85 0.07 250);
+
+  --destructive: oklch(0.52 0.19 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --destructive-subtle: oklch(0.26 0.07 25);
+  --destructive-subtle-foreground: oklch(0.75 0.15 25);
+
+  --success: oklch(0.52 0.11 155);
+  --success-foreground: oklch(0.99 0 0);
+  --success-subtle: oklch(0.25 0.05 155);
+  --success-subtle-foreground: oklch(0.78 0.15 155);
+
+  /* The one hue whose solid tier takes dark text rather than light: a
+     yellow dark enough for white text has stopped being a yellow. */
+  --warning: oklch(0.75 0.15 78);
+  --warning-foreground: oklch(0.18 0.02 78);
+  --warning-subtle: oklch(0.27 0.06 78);
+  --warning-subtle-foreground: oklch(0.82 0.13 80);
 
   --radius: 0.5rem;
 

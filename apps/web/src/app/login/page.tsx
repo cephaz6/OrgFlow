@@ -1,4 +1,3 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@orgflow/ui';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
@@ -15,16 +14,40 @@ export default async function LoginPage() {
   }
 
   return (
-    <main id="main-content" className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Sign in to OrgFlow</CardTitle>
-          <CardDescription>Enter your work email to continue.</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="flex min-h-screen">
+      <main id="main-content" className="flex flex-1 items-center justify-center p-6">
+        <div className="flex w-full max-w-sm flex-col gap-8">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Sign in to OrgFlow</h1>
+            <p className="text-sm text-muted-foreground">
+              Enter your work email to continue. We will send you to your organisation&apos;s
+              identity provider.
+            </p>
+          </div>
           <LoginForm />
-        </CardContent>
-      </Card>
-    </main>
+        </div>
+      </main>
+
+      {/* Identity, not interaction: this panel is the only large use of the
+          brand colour in the product, and it carries no controls. It comes
+          after the form in the DOM so that reaching the form never means
+          passing through it, and it is dropped on narrow viewports rather
+          than stacked above the form.
+
+          Not aria-hidden, despite being decorative in intent: the words are
+          real, sighted users read them, and hiding them would hand screen
+          reader users less of the page rather than a tidier one. Which is
+          also why nothing here is dimmed with an opacity utility, as that
+          would put visible text below the contrast the tokens guarantee. */}
+      <aside className="hidden flex-1 flex-col justify-between bg-brand p-12 text-brand-foreground lg:flex">
+        <span className="text-sm font-semibold">OrgFlow</span>
+        <p className="max-w-md text-3xl font-semibold leading-tight tracking-tight">
+          Build the processes your organisation runs on, without writing code.
+        </p>
+        <span className="text-sm">
+          Requests, approvals and audit, in one place your team already understands.
+        </span>
+      </aside>
+    </div>
   );
 }

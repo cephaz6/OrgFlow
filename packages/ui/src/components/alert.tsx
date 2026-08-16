@@ -9,10 +9,14 @@ export interface AlertProps extends HTMLAttributes<HTMLDivElement> {
   variant?: AlertVariant;
 }
 
+// Each variant pairs a tinted surface with the foreground token proved
+// against that exact surface in tokens.test.ts. The previous opacity-based
+// tints (bg-success/10) could not be checked, because the colour that
+// actually renders depends on whatever happens to sit behind them.
 const VARIANT_STYLES: Record<AlertVariant, string> = {
-  info: 'border-border bg-background text-foreground',
-  success: 'border-success/40 bg-success/10 text-success',
-  destructive: 'border-destructive/40 bg-destructive/10 text-destructive',
+  info: 'border-border bg-muted text-foreground',
+  success: 'border-success bg-success-subtle text-success-subtle-foreground',
+  destructive: 'border-destructive bg-destructive-subtle text-destructive-subtle-foreground',
 };
 
 const VARIANT_ICONS: Record<AlertVariant, typeof Info> = {

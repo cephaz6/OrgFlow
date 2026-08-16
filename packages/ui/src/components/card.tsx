@@ -5,10 +5,11 @@ import { cn } from '../lib/cn.js';
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn(
-        'rounded-lg border border-border bg-card text-card-foreground shadow-sm',
-        className,
-      )}
+      // No shadow: depth in this palette comes from the surface being a
+      // step lighter than the page plus a hairline border, which is what
+      // the reference design does and what keeps cards legible when they
+      // sit on top of one another.
+      className={cn('rounded-lg border border-border bg-card text-card-foreground', className)}
       {...props}
     />
   );
