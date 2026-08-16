@@ -805,3 +805,103 @@ silently do nothing or be overwritten at the next sign-in, and the page says so.
 - **Keeping the dark-only palette and declining the request.** Rejected for the obvious
   reason, and recorded only because ADR-0017 argued the opposite case and the register
   should show why that argument no longer holds.
+
+## ADR-0021: Three type roles, one loaded from Google's CDN, and a true-black dark theme
+
+**Date:** 2026-08-16
+**Status:** Accepted
+**Deciders:** Project operator (specified both typefaces and "dark theme should be 100% dark")
+
+**Context**
+
+The operator asked for Bricolage Grotesque on titles, Google Sans Flex on body text, and a
+dark theme that is fully dark rather than the lifted near-black ADR-0017 chose.
+
+`CLAUDE.md` §5.2 requires interface typefaces to come from Google Fonts "loaded through
+`next/font/google`. Self-hosted and subset at build time, so no runtime request to Google
+and no layout shift." Bricolage Grotesque satisfies that directly. Google Sans Flex does
+not, and the reason is worth recording rather than discovering again later: it is absent
+from `next/font/google`'s catalogue (checked against the bundled `font-data.json`: 1,862
+families, no match; the only near hit is "Google Sans Code", a monospace face), and it is
+absent from the `google/fonts` repository under `ofl/`, `apache/` and `ufl/` alike, all
+three returning 404. Google's CSS API does serve it, as a variable font with weight 1-1000
+and an optical-size axis. So it is distributed, but not under an open licence.
+
+That combination rules out the obvious approach. Self-hosting it means committing font
+files with no licence permitting redistribution into the repository, which is a legal
+exposure this project should not take on silently.
+
+**Decision**
+
+Three type roles, deliberately distinct, all consumed as tokens so no component names a
+typeface:
+
+    --font-sans     body and UI text        Google Sans Flex   CDN
+    --font-display  headings, h1-h4         Bricolage Grotesque next/font/google
+    --font-mono     references, identifiers JetBrains Mono      next/font/google
+    --font-brand    the logo wordmark only  Space Grotesk       next/font/google
+
+Google Sans Flex is loaded with a plain `<link>` to `fonts.googleapis.com`, with
+`preconnect` to both `fonts.googleapis.com` and `fonts.gstatic.com` (the second needs
+`crossOrigin`, because font files are fetched in CORS mode and a preconnect whose mode does
+not match opens a second useless connection). Nothing is committed to the repository, so
+there is no redistribution and no licensing exposure. The operator chose this over
+self-hosting after being shown the licensing position.
+
+`--font-brand` exists separately from `--font-display` for a specific reason: the operator
+drew the OrgFlow logo in Space Grotesk, and it would be wrong for a decision about the
+heading typeface to silently redraw their brand mark. The full lockup only appears on the
+sign-in page, so that face is fetched only where the wordmark actually renders.
+
+Headings take the display face through an `h1, h2, h3, h4` rule in `globals.css` rather
+than a class on each heading component, so a heading rendered anywhere (`CardTitle`,
+`PageHeader`, `EmptyState`, a page's own `h1`) picks it up without every author
+remembering. Same reasoning as the global `:focus-visible` rule beside it.
+
+The dark theme's page background becomes `oklch(0 0 0)`, true black. The surface ramp above
+it is compressed downward to keep elevation legible: sidebar 0.11, card and popover 0.14,
+muted 0.18, accent and secondary 0.22, border 0.24. The four subtle tints come down with
+them, and `--warning-subtle` lost chroma (0.06 to 0.05) because at the new lightness the
+old value fell outside the sRGB gamut. Both dark blocks in `tokens.css`, the bare `:root`
+and the explicit `[data-theme="dark"]`, were changed together; the cross-check test added
+in ADR-0020 is what guarantees they stayed identical.
+
+**Consequences**
+
+All 96 token contrast tests pass unchanged, and every one of the 42 pairs was re-verified
+against the new dark values before the file was edited. Contrast against the page
+background only improves on true black; the pairs that needed attention were the subtle
+tints, which sit on `--card` rather than on the page.
+
+The cost of the CDN is real and is the thing to remember. Every visitor makes a runtime
+request to Google before body text can render in its intended face, `display=swap` means a
+visible swap rather than a blocked paint, and both are exactly what `next/font` exists to
+prevent. The `preconnect` pair reduces the latency but does not remove the dependency: if
+`fonts.googleapis.com` is unreachable, body text falls back to the system sans and the
+product still works. Headings, monospace and the wordmark are unaffected, because those
+three are self-hosted.
+
+Elevation on true black is subtler than on the old lifted background: `--card` against
+`--background` is a 1.05:1 luminance step, where before it was a comparison between two
+greys. That is inherent to the request and is why the border weights were kept while the
+surfaces moved. Depth now comes mostly from the hairline border, as `tokens.css` already
+described it doing.
+
+The E2E theme suite asserts the rendered background is `oklch(0 0 0)`, so a later drift
+back to a lifted grey fails a test rather than passing unnoticed.
+
+**Alternatives rejected**
+
+- **Self-host Google Sans Flex via `next/font/local`.** This is the technically superior
+  option and would have kept §5.2 fully intact. Rejected because it requires redistributing
+  a font with no open licence, which is the operator's call and not a default worth
+  assuming.
+- **Substitute an OFL lookalike (DM Sans, Figtree).** Offered as the recommendation, since
+  it would have kept every §5.2 guarantee at no licensing or performance cost. The operator
+  chose the real typeface over the compromise; recorded so the trade is visible.
+- **Use `--font-display` for the logo wordmark too.** Rejected: it would reduce the system
+  to three families, but at the cost of silently changing a brand asset the operator drew,
+  which is not a side effect a typography decision should have.
+- **A near-black background rather than true black.** That is what ADR-0017 chose and what
+  this reverses, on request. Recorded because the older ADR argues for the lifted value on
+  elevation grounds, and the trade-off it describes is genuine.

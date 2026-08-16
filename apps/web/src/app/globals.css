@@ -73,15 +73,21 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-display: var(--font-display);
+  --font-brand: var(--font-brand);
 }
 
 /* Overrides the generic fallbacks from tokens.css with the actual
    next/font variable names (see fonts.ts), applied via a className on
    <html> in the root layout. */
 :root {
-  --font-sans: var(--font-sans-app), ui-sans-serif, system-ui, sans-serif;
+  /* Google Sans Flex has no next/font variable to reference because it is
+     loaded from Google's CDN rather than self-hosted (ADR-0021), so it is
+     named literally here. This is the one typeface in the system whose
+     name appears as a string rather than a build-generated variable. */
+  --font-sans: 'Google Sans Flex', ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-app), ui-monospace, monospace;
   --font-display: var(--font-display-app), ui-sans-serif, system-ui, sans-serif;
+  --font-brand: var(--font-brand-app), ui-sans-serif, system-ui, sans-serif;
 
   /* Tells the browser which palette to draw its own furniture in
      (scrollbars, date pickers, autofill, the caret): dark by default,
@@ -110,6 +116,21 @@ body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+}
+
+/* Titles carry the display face, set once here rather than as a class on
+   every heading component. Applied by element so that a heading rendered
+   anywhere (CardTitle, PageHeader, EmptyState, a page's own h1) picks it up
+   without each one having to remember, which is the same reasoning behind
+   the global :focus-visible rule below. */
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  /* A display face at heading sizes needs its tracking pulled in; the
+     default spacing is drawn for text set much smaller. */
+  letter-spacing: -0.02em;
 }
 
 /* The reference design surfaces keyboard affordances rather than hiding

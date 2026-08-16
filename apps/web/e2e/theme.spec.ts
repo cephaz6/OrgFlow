@@ -6,7 +6,10 @@ import { expectNoAccessibilityViolations, signIn } from './support';
 // declares it. Asserted as a rendered computed value rather than by the
 // data-theme attribute alone: the attribute proves what was requested,
 // this proves the palette actually applied.
-const DARK_BACKGROUND = 'oklch(0.16 0.006 285)';
+//
+// Dark is true black (ADR-0021), not a near-black: if this ever silently
+// drifts back to a lifted grey, these assertions are what catches it.
+const DARK_BACKGROUND = 'oklch(0 0 0)';
 const LIGHT_BACKGROUND = 'oklch(0.97 0.003 285)';
 
 function bodyBackground(page: Page): Promise<string> {
