@@ -153,11 +153,9 @@ describe('cases API against real Postgres and Mongo', () => {
     const agent = await signInAsDevUser();
     const draft = await createDraft(agent, laptopValues(850));
 
-    const patched = await agent
-      .patch(`/api/v1/cases/${draft.caseId}`)
-      .send({
-        values: { ...laptopValues(920), justification: 'Updated justification text here.' },
-      });
+    const patched = await agent.patch(`/api/v1/cases/${draft.caseId}`).send({
+      values: { ...laptopValues(920), justification: 'Updated justification text here.' },
+    });
     expect(patched.status).toBe(200);
 
     const detail = await agent.get(`/api/v1/cases/${draft.caseId}`);

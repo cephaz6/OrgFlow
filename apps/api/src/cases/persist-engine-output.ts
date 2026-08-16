@@ -137,18 +137,30 @@ export async function persistEngineOutput(
   return {
     updatedCase,
     tasks,
-    events: enrichEvents(output.eventsToEmit, updatedCase, taskIdByStepKey),
+    events: enrichEvents(output.eventsToEmit, updatedCase, taskIdByStepKey, actorUserId),
   };
 }
 
-// The engine cannot know a task id or a case reference: both are assigned
-// by the database inside the transaction it has no access to. PRD.md §10
-// requires them in the payloads, so they are filled in here rather than
-// published incomplete.
+// The engine cannot know three things, all of them assigned outside its
+// reach, so they are filled in here rather than published incomplete.
+//
+// The task id and the case reference come from the database, inside the
+// transaction the engine has no access to, and PRD.md §10 requires both in
+// the payloads.
+//
+// The actor is subtler. EngineEvent carries no acting user, so `advance`
+// falls back to `context.submitter.userId` when stamping an event. That is
+// right for a submission, where the requester is the actor, and wrong for
+// every decision after it: the context's submitter must stay the case's
+// requester, or `lineManager` would resolve the approver's manager and
+// `submitter` would return the case to the wrong person. The caller is the
+// only party that knows who actually acted, so it stamps that here. The
+// audit row written above already records the same actor.
 function enrichEvents(
   events: DomainEvent[],
   updatedCase: Case,
   taskIdByStepKey: Map<string, string>,
+  actorUserId: string,
 ): DomainEvent[] {
   return events.map((event) => {
     const payload: Record<string, unknown> = { ...event.payload, reference: updatedCase.reference };
@@ -161,6 +173,6 @@ function enrichEvents(
       }
     }
 
-    return { ...event, payload };
+    return { ...event, actorUserId, payload };
   });
 }

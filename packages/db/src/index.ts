@@ -74,12 +74,20 @@ export {
   createCaseTask,
   findCaseTaskById,
   findCaseTasksForCase,
+  findClaimableTaskQueue,
   findClaimableTasks,
   findOpenTasksForAssignee,
+  findTaskQueueForAssignee,
+  hasUserHeldTaskOnCase,
   recordTaskDecision,
   TaskConcurrencyError,
 } from './repositories/case-tasks.js';
-export type { CreateCaseTaskInput, RecordTaskDecisionInput } from './repositories/case-tasks.js';
+export type {
+  CreateCaseTaskInput,
+  RecordTaskDecisionInput,
+  TaskQueueEntry,
+  TaskQueueFilter,
+} from './repositories/case-tasks.js';
 export {
   appendCaseTransition,
   findCaseTransitionsForCase,

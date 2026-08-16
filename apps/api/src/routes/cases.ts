@@ -25,11 +25,12 @@ import type { MongoClient } from 'mongodb';
 import { z } from 'zod';
 
 import { buildEvaluationContext } from '../cases/evaluation-context.js';
+import { canViewCase } from '../cases/permissions.js';
 import { persistEngineOutput } from '../cases/persist-engine-output.js';
 import { buildCaseTimeline } from '../cases/timeline.js';
 import type { Logger } from '../logger.js';
 import { HttpProblemError } from '../middleware/error-handler.js';
-import { requireSession, sessionOf } from '../middleware/require-session.js';
+import { requireSession, sessionOf, type RequestSession } from '../middleware/require-session.js';
 
 export interface CasesDeps {
   db: Kysely<Database>;
@@ -138,12 +139,29 @@ async function loadPinnedDocument(
   return document;
 }
 
-// A case the requester may see. Cross-tenant rows never arrive here: RLS
-// hides them, so findCaseById returns null and this raises a 404, which is
-// what PRD.md §11.10 requires instead of a 403.
+// A case that exists for this tenant. Cross-tenant rows never arrive here:
+// RLS hides them, so findCaseById returns null and this raises a 404, which
+// is what PRD.md §11.10 requires instead of a 403.
 async function requireCase(trx: Transaction<Database>, caseId: string): Promise<Case> {
   const found = await findCaseById(trx, caseId);
   if (!found) {
+    throw new HttpProblemError(404, 'Not Found', 'No such case.');
+  }
+  return found;
+}
+
+// A case this user is permitted to read, per PRD.md §12.3's visibility
+// rule. Being in the right organisation is necessary but not sufficient:
+// an ordinary member cannot read a colleague's expense claim just because
+// they share a workspace. The refusal is a 404 rather than a 403 for the
+// same reason cross-tenant reads are, since a 403 confirms the case exists.
+async function requireVisibleCase(
+  trx: Transaction<Database>,
+  session: RequestSession,
+  caseId: string,
+): Promise<Case> {
+  const found = await requireCase(trx, caseId);
+  if (!(await canViewCase(trx, session, found))) {
     throw new HttpProblemError(404, 'Not Found', 'No such case.');
   }
   return found;
@@ -271,7 +289,7 @@ export function createCasesRouter(deps: CasesDeps): Router {
       const caseId = req.params.caseId!;
 
       const result = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
-        const found = await requireCase(trx, caseId);
+        const found = await requireVisibleCase(trx, session, caseId);
         const [tasks, timeline] = await Promise.all([
           findCaseTasksForCase(trx, found.caseId),
           buildCaseTimeline(trx, found.caseId),
@@ -301,7 +319,7 @@ export function createCasesRouter(deps: CasesDeps): Router {
       const body = parseBody(patchCaseSchema, req.body);
 
       const updated = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
-        const found = await requireCase(trx, caseId);
+        const found = await requireVisibleCase(trx, session, caseId);
 
         if (found.status !== 'draft') {
           throw new HttpProblemError(
@@ -351,7 +369,7 @@ export function createCasesRouter(deps: CasesDeps): Router {
       const now = new Date();
 
       const result = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
-        const found = await requireCase(trx, caseId);
+        const found = await requireVisibleCase(trx, session, caseId);
 
         if (found.status !== 'draft') {
           throw new HttpProblemError(
@@ -461,7 +479,7 @@ export function createCasesRouter(deps: CasesDeps): Router {
       const caseId = req.params.caseId!;
 
       const timeline = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
-        await requireCase(trx, caseId);
+        await requireVisibleCase(trx, session, caseId);
         return buildCaseTimeline(trx, caseId);
       });
 

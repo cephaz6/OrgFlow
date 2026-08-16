@@ -16,6 +16,7 @@ import { createAuthRouter } from './routes/auth.js';
 import { createCasesRouter } from './routes/cases.js';
 import { createHealthRouter } from './routes/health.js';
 import { createProcessDefinitionsRouter } from './routes/process-definitions.js';
+import { createTasksRouter } from './routes/tasks.js';
 
 export interface CreateAppDeps {
   db: Kysely<Database>;
@@ -74,6 +75,17 @@ export function createApp(deps: CreateAppDeps): Express {
   app.use(
     '/api/v1',
     createCasesRouter({
+      db: deps.db,
+      mongoClient: deps.mongoClient,
+      publisher: deps.publisher,
+      sessionSecret: deps.sessionSecret,
+      logger: deps.logger,
+    }),
+  );
+
+  app.use(
+    '/api/v1',
+    createTasksRouter({
       db: deps.db,
       mongoClient: deps.mongoClient,
       publisher: deps.publisher,

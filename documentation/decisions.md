@@ -379,3 +379,39 @@ Renaming a group can no longer break a pinned definition version, which is the p
 - **Resolve `groupKey` against `groups.name`, as the schema as written forces.** Rejected for the rename problem above. It was the option that required no migration, and it would have worked indefinitely right up to the first rename, at which point the failure appears far from its cause and looks like an engine defect rather than a data one.
 - **Name the seeded group `itSupport` so name and key coincide.** Rejected: it does not solve anything, it only postpones the collision by making the display name unusable in the interface, and the first person to correct "itSupport" to "IT Support" in a group settings screen would break every laptop request.
 - **Keep a separate mapping table from group key to group id.** Rejected on the same grounds ADR-0011 rejected its equivalent: a second source of truth that must be kept in step with every insert and delete on the table it mirrors, for a column's worth of information.
+
+## ADR-0015: Case visibility refuses with 404, and "owned process" means the definition's creator
+
+**Date:** 2026-08-16
+**Status:** Accepted
+**Deciders:** Project operator (in absence; flagged for review on return)
+
+**Context**
+`PRD.md` §12.3 defines two permissions and insists they are always evaluated separately. Actionability is precise and needed no interpretation: the resolved assignee, an active delegate, or a member of the assigned role or group for an unclaimed task. Visibility is looser: "submitter, current or past assignee, process owner of the definition, or admin". Building the Tasks API forced two questions the specification does not answer.
+
+First, what a refusal looks like. §11.10 mandates `404, never 403` for cross-tenant access, and gives the reason: a `403` confirms the resource exists. It says nothing about a case inside your own organisation that you are simply not entitled to see, and the Cases API as first built did not enforce visibility at all, treating tenant membership as sufficient.
+
+Second, what "process owner of the definition" means. There is no ownership table and no owner column. `process_definitions.created_by_user_id` is the only thing in the schema that associates a person with a definition, and `processOwner` is a role in §12.2 held per organisation rather than per definition.
+
+**Decision**
+A case the requester may not see returns `404` with the same body as a case that does not exist, exactly as a cross-tenant read does. The reasoning §11.10 gives for the cross-tenant case applies unchanged within a tenant: an ordinary member probing case identifiers learns nothing from a uniform `404`, whereas a `403` would confirm that a colleague has an open disciplinary case even though its contents stay hidden.
+
+"Process owner of the definition" resolves to holding the `processOwner` role **and** having created that definition (`created_by_user_id`). Holding the role alone is not enough.
+
+Actionability keeps its own refusal code. A `403` there is correct and deliberate, because it is only ever reached once visibility has already been granted, so the task's existence is not news to the caller.
+
+Both checks read membership from the database on every request rather than from the session's `roles` claim, which is a snapshot taken at sign-in and can be up to twelve hours stale under ADR-0010.
+
+**Consequences**
+Visibility is enforced in one place, `requireVisibleCase`, which every case read passes through, so a new endpoint that forgets it is a visible omission rather than a silent leak. The `404`-for-invisible choice means a legitimate user who loses access mid-session sees "no such case" rather than a clearer explanation, which is a real usability cost accepted for the disclosure property.
+
+Reading `processOwner` as role-plus-creator is the narrow interpretation. If it proves too narrow, for example once definitions can be transferred between owners, the fix is a proper ownership column or table, and this ADR is superseded rather than the check quietly widened. Widening it to "any processOwner sees every case" would make the role equivalent to `admin`, which §12.2 clearly does not intend, since it lists them as separate rows with escalating capability.
+
+Two membership queries per request are added to the hot path. That is the price of not trusting a twelve-hour-old claim for an authorisation decision, and both are single-row lookups on an indexed, tenant-scoped table.
+
+**Alternatives rejected**
+
+- **Return `403` for an in-tenant case the user may not see.** Rejected: it confirms the case exists to anyone who can guess or enumerate an identifier, which is precisely the disclosure §11.10 rules out one boundary further out. The argument does not weaken just because the boundary moved from between organisations to within one.
+- **Treat tenant membership as sufficient to view any case, as the Cases API first did.** Rejected: it makes every expense claim, grievance and access request in the workspace readable by every member, and §12.3 exists specifically to prevent that.
+- **Let any `processOwner` see every case.** Rejected: collapses the distinction between `processOwner` and `admin` that §12.2 draws.
+- **Trust the session's `roles` claim instead of querying membership.** Rejected: a revoked role would keep working until the session expired, up to twelve hours later, which is the wrong failure direction for an authorisation check. Sessions are not revocable under ADR-0010, so the claim cannot be corrected mid-life.

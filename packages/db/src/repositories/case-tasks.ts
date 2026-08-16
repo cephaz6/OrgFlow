@@ -116,6 +116,76 @@ export async function findOpenTasksForAssignee(
   return rows.map(toDomain);
 }
 
+// A task plus the case columns any queue screen needs to render a row.
+// Deliberately a query projection rather than a domain entity, so it lives
+// here instead of in @orgflow/types: nothing owns a "task with a case
+// reference stapled on" as a concept, and the alternative is the caller
+// issuing a second query per task purely to print a heading.
+export interface TaskQueueEntry {
+  task: CaseTask;
+  caseReference: string;
+  caseTitle: string;
+  definitionId: string;
+}
+
+const QUEUE_COLUMNS = [
+  'cases.reference as case_reference',
+  'cases.title as case_title',
+  'cases.definition_id as case_definition_id',
+] as const;
+
+interface QueueRow extends Selectable<CaseTasksTable> {
+  case_reference: string;
+  case_title: string;
+  case_definition_id: string;
+}
+
+function toQueueEntry(row: QueueRow): TaskQueueEntry {
+  return {
+    task: toDomain(row),
+    caseReference: row.case_reference,
+    caseTitle: row.case_title,
+    definitionId: row.case_definition_id,
+  };
+}
+
+export interface TaskQueueFilter {
+  status?: TaskStatus;
+  definitionId?: string;
+  // PRD.md §11.6 offers an `overdue` filter. Comparing against a caller-
+  // supplied instant rather than now() keeps the query as deterministic as
+  // the rest of the stack, and lets a test pin the clock.
+  overdueAt?: Date;
+}
+
+// PRD.md §11.6 GET /tasks: everything assigned to this user and still open.
+export async function findTaskQueueForAssignee(
+  trx: Transaction<Database>,
+  assigneeUserId: string,
+  filter: TaskQueueFilter = {},
+): Promise<TaskQueueEntry[]> {
+  let query = trx
+    .selectFrom('case_tasks')
+    .innerJoin('cases', 'cases.case_id', 'case_tasks.case_id')
+    .selectAll('case_tasks')
+    .select(QUEUE_COLUMNS)
+    .where('case_tasks.assignee_user_id', '=', assigneeUserId);
+
+  query = filter.status
+    ? query.where('case_tasks.status', '=', filter.status)
+    : query.where('case_tasks.status', 'in', ['pending', 'claimed']);
+
+  if (filter.definitionId) {
+    query = query.where('cases.definition_id', '=', filter.definitionId);
+  }
+  if (filter.overdueAt) {
+    query = query.where('case_tasks.due_at', '<', filter.overdueAt);
+  }
+
+  const rows = await query.orderBy('case_tasks.due_at', 'asc').execute();
+  return rows.map(toQueueEntry);
+}
+
 // Claimable pool: role- or group-assigned tasks nobody has claimed yet.
 // PRD.md §7 models these with assignee_user_id null until someone claims.
 export async function findClaimableTasks(
@@ -146,6 +216,71 @@ export async function findClaimableTasks(
     .execute();
 
   return rows.map(toDomain);
+}
+
+// PRD.md §11.6 GET /tasks/available: the same pool, with the case columns a
+// queue screen needs.
+export async function findClaimableTaskQueue(
+  trx: Transaction<Database>,
+  roles: string[],
+  groupIds: string[],
+  filter: TaskQueueFilter = {},
+): Promise<TaskQueueEntry[]> {
+  if (roles.length === 0 && groupIds.length === 0) {
+    return [];
+  }
+
+  let query = trx
+    .selectFrom('case_tasks')
+    .innerJoin('cases', 'cases.case_id', 'case_tasks.case_id')
+    .selectAll('case_tasks')
+    .select(QUEUE_COLUMNS)
+    .where('case_tasks.status', '=', 'pending')
+    .where('case_tasks.assignee_user_id', 'is', null)
+    .where((eb) => {
+      const clauses = [];
+      if (roles.length > 0) {
+        clauses.push(eb('case_tasks.assignee_role', 'in', roles));
+      }
+      if (groupIds.length > 0) {
+        clauses.push(eb('case_tasks.assignee_group_id', 'in', groupIds));
+      }
+      return eb.or(clauses);
+    });
+
+  if (filter.definitionId) {
+    query = query.where('cases.definition_id', '=', filter.definitionId);
+  }
+  if (filter.overdueAt) {
+    query = query.where('case_tasks.due_at', '<', filter.overdueAt);
+  }
+
+  const rows = await query.orderBy('case_tasks.due_at', 'asc').execute();
+  return rows.map(toQueueEntry);
+}
+
+// Has this user ever held this case's work? PRD.md §12.3 makes a past
+// assignee a permitted viewer, so a rejected approver can still see what
+// they acted on after the case moves on.
+export async function hasUserHeldTaskOnCase(
+  trx: Transaction<Database>,
+  caseId: string,
+  userId: string,
+): Promise<boolean> {
+  const row = await trx
+    .selectFrom('case_tasks')
+    .select('task_id')
+    .where('case_id', '=', caseId)
+    .where((eb) =>
+      eb.or([
+        eb('assignee_user_id', '=', userId),
+        eb('claimed_by_user_id', '=', userId),
+        eb('completed_by_user_id', '=', userId),
+      ]),
+    )
+    .executeTakeFirst();
+
+  return row !== undefined;
 }
 
 export class TaskConcurrencyError extends Error {
