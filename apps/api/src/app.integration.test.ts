@@ -72,6 +72,45 @@ describe('apps/api against real Postgres and Mongo', () => {
     expect(afterLogout.status).toBe(401);
   });
 
+  it('signs in as the seeded line manager, with the roles membership records', async () => {
+    // An approval needs two people, so the local journey needs a second
+    // identity or the approve, reject and return paths can only be reached
+    // by forging a session token.
+    const agent = request.agent(buildApp());
+
+    const login = await agent.post('/api/v1/auth/dev-login').send({ as: 'manager' });
+    expect(login.status).toBe(200);
+    expect(login.body.user.email).toBe('manager@orgflow.local');
+
+    const session = await agent.get('/api/v1/auth/session');
+    expect(session.status).toBe(200);
+    expect(session.body.user.email).toBe('manager@orgflow.local');
+    // Read from organisation_members rather than assumed by the route: the
+    // manager approves, so they hold `approver` and specifically not the
+    // `owner` the requester holds.
+    expect(session.body.roles).toContain('approver');
+    expect(session.body.roles).not.toContain('owner');
+
+    // The same organisation as the requester, or the manager could never be
+    // assigned their tasks in the first place.
+    const requester = request.agent(buildApp());
+    await requester.post('/api/v1/auth/dev-login');
+    const requesterSession = await requester.get('/api/v1/auth/session');
+    expect(session.body.organisationId).toBe(requesterSession.body.organisationId);
+    expect(session.body.user.userId).not.toBe(requesterSession.body.user.userId);
+  });
+
+  it('signs in as the requester when no identity is asked for', async () => {
+    // The manager path is opt-in. An unrecognised value must not silently
+    // grant a different identity, so anything other than 'manager' is the
+    // requester.
+    const agent = request.agent(buildApp());
+
+    const login = await agent.post('/api/v1/auth/dev-login').send({ as: 'somebody-else' });
+    expect(login.status).toBe(200);
+    expect(login.body.user.email).toBe('dev@orgflow.local');
+  });
+
   it("discovers Google's real OIDC configuration", async () => {
     const { discoverOidc } = await import('./auth/oidc-client.js');
 
