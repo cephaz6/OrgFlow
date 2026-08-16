@@ -451,8 +451,13 @@ Resolving the template from the payload also means the notification describes th
 ## ADR-0017: One dark palette, with each semantic hue in a solid and a subtle tier
 
 **Date:** 2026-08-16
-**Status:** Accepted
+**Status:** Superseded in part by ADR-0020
 **Deciders:** Project operator (design direction supplied as Cloudflare dashboard screenshots)
+
+> ADR-0020 reverses this ADR's "single palette, no `prefers-color-scheme` block" decision
+> only. Everything else here still holds and is not restated there: the four-token solid
+> and subtle tiers, brand kept distinct from primary, literal `oklch()` values so
+> `tokens.test.ts` can parse and check them, and the lint rule banning raw colours.
 
 **Context**
 `CLAUDE.md` §5.3 already required every colour to be a design token consumed through the Tailwind theme, and the token file that existed was the light neutral shadcn default declared solely on `:root`. The operator then supplied a visual direction: the Cloudflare dashboard, dark-first, and asked that `apps/web` follow it while taking OrgFlow's own brand hue rather than Cloudflare's orange.
@@ -699,3 +704,104 @@ placeholder move once `WebStack` exists.
   one draft did exactly this and got several wrong; every suppression in
   `infra/src/nag-suppressions.ts` for the two new stacks was written after seeing the
   actual `AwsSolutions-*` id and resource path in real output.
+
+## ADR-0020: A light palette and a three-state theme choice
+
+**Date:** 2026-08-16
+**Status:** Accepted
+**Deciders:** Project operator (asked for a light/dark switch, and for the account menu)
+
+**Context**
+
+ADR-0017 committed to a single dark palette with no `prefers-color-scheme` block, on the
+explicit reasoning that "a second palette would double the contrast surface that
+`tokens.test.ts` has to hold, for a light theme nothing has asked for." Something has now
+asked for it. That ADR's own stated condition for revisiting is met, so this supersedes
+that one decision and leaves the rest of it standing.
+
+**Decision**
+
+`packages/ui/src/tokens.css` carries both palettes. The product stays dark-first, so the
+bare `:root` holds the dark values unguarded and the light palette is the one behind a
+guard; a light-first product would use the identical technique with the roles swapped.
+
+The choice has three states, not two. "Match device" is a real state meaning "keep
+following the system as it changes", distinct from having picked whichever theme the system
+happens to resolve to today, and it is the default. It is represented by the **absence** of
+a `data-theme` attribute and the absence of a stored key, which is what lets the
+`prefers-color-scheme` media query apply at all. An explicit choice sets
+`data-theme="light"` or `"dark"` on `<html>`, which wins over system preference in both
+directions.
+
+The light palette's values were computed, not chosen. Every one of the 42 contrast pairs
+`tokens.test.ts` checks was run against candidate values before any of them shipped, and
+ten of the first candidates were outside the sRGB gamut, which matters because a clamped
+token is not the colour whose ratio was measured. `tokens.test.ts` now parses all four
+blocks in the file and checks both palettes against the identical pair list, plus two
+cross-checks that the duplicated dark and light blocks never drift from each other. Brand
+and the interactive blue keep the same hue in both palettes so OrgFlow reads as one product
+across themes; only lightness and chroma move.
+
+An inline script in `<head>` applies a stored choice before first paint. This is the one
+place a blocking synchronous script is the right tool, because nothing else runs early
+enough to prevent a flash of the wrong palette. `globals.css`'s `color-scheme` follows the
+same four selectors in lockstep, so browser-drawn furniture (scrollbars, date pickers,
+autofill, the caret) matches; getting that wrong is a real contrast failure on controls the
+token system never touches.
+
+`ThemeProvider` reads the DOM attribute through `useSyncExternalStore` rather than
+`useState` plus `useEffect`. The effect version is what the `react-hooks` lint rule rejects
+as a cascading render, and it is genuinely the wrong shape: the attribute is external state
+being read, not React state needing a correction pass.
+
+The application shell's top bar was rebuilt around this: an icon theme control and an
+avatar that opens an account menu, both built on Radix (which is what shadcn/ui itself is
+built on, so within `CLAUDE.md` §5.3's mandated system rather than a substitution). A menu
+owes the user roving arrow-key movement, type-ahead, Escape, click-outside, focus returning
+to the trigger, and correct `menu`/`menuitemradio` roles; every one is something a
+hand-rolled dropdown gets subtly wrong.
+
+**Consequences**
+
+Both palettes are verified rather than asserted, and the light one is checked on a
+data-heavy page (the approvals queue, which exercises the status badges and urgency tones)
+rather than only on the mostly-empty dashboard.
+
+The no-flash claim is tested in a way that could actually fail: the spec blocks Next's
+client bundles so React never hydrates, then asserts the theme is still correct. Without
+that, asserting the attribute after a normal reload would pass even with the head script
+deleted, because the provider would reach the same end state a moment later and the test
+would never see the flash. An earlier attempt to measure this with `page.addInitScript`
+was abandoned once it proved to be observing Playwright's initial empty document rather
+than the real one, which made it structurally incapable of failing correctly.
+
+One flash is unavoidable and is not papered over. The server cannot read `localStorage`, so
+it always renders "Match device" as selected, and hydration corrects that a frame later for
+anyone with a stored choice. The correction cannot be removed; the `transition-colors` that
+turned it from an imperceptible snap into a visible fade was, and the reason is recorded at
+the call site. It was found by looking at a screenshot, not by reasoning about the code.
+
+`/settings` and `/settings/profile` exist because the account menu links to them, and a menu
+item pointing at a page that is not built is worse than no item. Both carry real content
+from the session rather than being placeholders. Profile is explicitly read-only: name and
+email come from the identity provider (ADR-0002), so an edit form there would either
+silently do nothing or be overwritten at the next sign-in, and the page says so.
+
+**Alternatives rejected**
+
+- **A two-way sun/moon switch.** Rejected: it cannot express "match device", which becomes
+  unreachable the moment a user touches either side of a binary control. The trigger icon
+  shows the _setting_ rather than the resolved appearance for the same reason: which theme
+  you are looking at is already visible, whether it will follow the device tomorrow is not.
+- **`useState` plus `useEffect` in the provider.** Rejected: flagged by
+  `react-hooks/set-state-in-effect`, and the rule is right that reading external state is
+  what `useSyncExternalStore` is for.
+- **Colour-matching the dark palette's values by inverting lightness.** Rejected: ten
+  candidate values landed outside the sRGB gamut, and several pairs that pass on dark do
+  not pass on light. Both palettes were computed against the real pair list independently.
+- **A hand-rolled dropdown to avoid a dependency.** Rejected: Radix is what shadcn/ui is
+  built on and `@radix-ui/react-label` and `@radix-ui/react-slot` are already in use, so
+  this is the existing component system rather than a new one.
+- **Keeping the dark-only palette and declining the request.** Rejected for the obvious
+  reason, and recorded only because ADR-0017 argued the opposite case and the register
+  should show why that argument no longer holds.
