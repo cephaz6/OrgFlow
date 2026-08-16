@@ -15,9 +15,12 @@ import { cn } from '@orgflow/ui';
 //      then gives a light logo on the dark theme and a dark one on a light
 //      theme, from one asset, with nothing to switch. This is what makes
 //      the logo ready for the light/dark toggle before that toggle exists.
-//   2. The wordmark's font-family becomes the --font-display token instead
+//   2. The wordmark's font-family becomes the --font-brand token instead
 //      of naming Space Grotesk, so no component names a typeface
-//      (CLAUDE.md §5.2) and a theme swap can replace it.
+//      (CLAUDE.md §5.2) and a theme swap can replace it. --font-brand is
+//      deliberately separate from --font-display, which headings use: the
+//      operator drew this mark in Space Grotesk, and changing the heading
+//      typeface should not silently redraw their logo.
 //
 // If the .svg is redrawn, this file has to be redrawn with it.
 
@@ -112,7 +115,7 @@ export function OrgFlowLogo({ className, decorative = false }: LogoProps) {
         y="130"
         fill="currentColor"
         dominantBaseline="middle"
-        fontFamily="var(--font-display)"
+        fontFamily="var(--font-brand)"
         fontSize="84"
         letterSpacing="-2.1"
       >

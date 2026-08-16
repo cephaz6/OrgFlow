@@ -65,31 +65,31 @@
 :root {
   /* Surfaces. Depth comes from lightness and a hairline border, never
      from a shadow; the whole shell sits within a 0.16 to 0.26 band. */
-  --background: oklch(0.16 0.006 285);
+  --background: oklch(0 0 0);
   --foreground: oklch(0.97 0.002 285);
 
-  --card: oklch(0.2 0.007 285);
+  --card: oklch(0.14 0.006 285);
   --card-foreground: oklch(0.97 0.002 285);
 
-  --popover: oklch(0.2 0.007 285);
+  --popover: oklch(0.14 0.006 285);
   --popover-foreground: oklch(0.97 0.002 285);
 
-  --muted: oklch(0.24 0.008 285);
+  --muted: oklch(0.18 0.007 285);
   --muted-foreground: oklch(0.7 0.012 285);
 
-  --accent: oklch(0.26 0.012 285);
+  --accent: oklch(0.22 0.01 285);
   --accent-foreground: oklch(0.97 0.002 285);
 
-  --secondary: oklch(0.26 0.012 285);
+  --secondary: oklch(0.22 0.01 285);
   --secondary-foreground: oklch(0.97 0.002 285);
 
   /* The fixed left navigation column, one step lighter than the page so
      the boundary reads without a divider carrying the whole job. */
-  --sidebar: oklch(0.18 0.007 285);
+  --sidebar: oklch(0.11 0.005 285);
   --sidebar-foreground: oklch(0.97 0.002 285);
-  --sidebar-accent: oklch(0.26 0.012 285);
+  --sidebar-accent: oklch(0.22 0.01 285);
   --sidebar-accent-foreground: oklch(0.97 0.002 285);
-  --sidebar-border: oklch(0.28 0.008 285);
+  --sidebar-border: oklch(0.24 0.008 285);
 
   /* Lines. Three weights, because they answer different questions.
      --divider separates rows inside one surface; --border outlines a
@@ -97,8 +97,8 @@
      WCAG 2.2 SC 1.4.11 requires to reach 3:1 so the control can be
      identified at all. Only the last of those is a contrast obligation,
      which is why it is markedly lighter than it looks like it should be. */
-  --divider: oklch(0.24 0.008 285);
-  --border: oklch(0.28 0.008 285);
+  --divider: oklch(0.18 0.007 285);
+  --border: oklch(0.24 0.008 285);
   --input: oklch(0.5 0.01 285);
   --ring: oklch(0.72 0.14 250);
 
@@ -113,7 +113,7 @@
      checked controls. */
   --primary: oklch(0.52 0.17 255);
   --primary-foreground: oklch(0.99 0 0);
-  --primary-subtle: oklch(0.26 0.06 255);
+  --primary-subtle: oklch(0.22 0.06 255);
   --primary-subtle-foreground: oklch(0.75 0.13 250);
 
   --link: oklch(0.75 0.13 250);
@@ -124,28 +124,37 @@
 
   --destructive: oklch(0.52 0.19 25);
   --destructive-foreground: oklch(0.99 0 0);
-  --destructive-subtle: oklch(0.26 0.07 25);
+  --destructive-subtle: oklch(0.22 0.07 25);
   --destructive-subtle-foreground: oklch(0.75 0.15 25);
 
   --success: oklch(0.52 0.11 155);
   --success-foreground: oklch(0.99 0 0);
-  --success-subtle: oklch(0.25 0.05 155);
+  --success-subtle: oklch(0.21 0.05 155);
   --success-subtle-foreground: oklch(0.78 0.15 155);
 
   /* The one hue whose solid tier takes dark text rather than light: a
      yellow dark enough for white text has stopped being a yellow. */
   --warning: oklch(0.75 0.15 78);
   --warning-foreground: oklch(0.18 0.02 78);
-  --warning-subtle: oklch(0.27 0.06 78);
+  --warning-subtle: oklch(0.23 0.05 78);
   --warning-subtle-foreground: oklch(0.82 0.13 80);
 
   --radius: 0.5rem;
 
+  /* Generic fallbacks only; the consuming app overrides each of these with
+     a real family (see apps/web/src/app/fonts.ts and globals.css), so no
+     component ever names a typeface and a theme swap replaces the type as
+     well as the palette.
+
+     Three roles, deliberately distinct:
+       --font-sans     body and UI text
+       --font-display  headings, applied to h1-h4 in globals.css
+       --font-brand    the logo wordmark only, so changing the heading font
+                       never silently redraws the brand mark */
   --font-sans: ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, monospace;
-  /* The wordmark's typeface. A token rather than a name in the logo,
-     because a theme swap replaces the brand as well as the palette. */
   --font-display: ui-sans-serif, system-ui, sans-serif;
+  --font-brand: ui-sans-serif, system-ui, sans-serif;
 }
 
 /*
@@ -284,32 +293,32 @@
  * explicit dark selection.
  */
 :root[data-theme='dark'] {
-  --background: oklch(0.16 0.006 285);
+  --background: oklch(0 0 0);
   --foreground: oklch(0.97 0.002 285);
 
-  --card: oklch(0.2 0.007 285);
+  --card: oklch(0.14 0.006 285);
   --card-foreground: oklch(0.97 0.002 285);
 
-  --popover: oklch(0.2 0.007 285);
+  --popover: oklch(0.14 0.006 285);
   --popover-foreground: oklch(0.97 0.002 285);
 
-  --muted: oklch(0.24 0.008 285);
+  --muted: oklch(0.18 0.007 285);
   --muted-foreground: oklch(0.7 0.012 285);
 
-  --accent: oklch(0.26 0.012 285);
+  --accent: oklch(0.22 0.01 285);
   --accent-foreground: oklch(0.97 0.002 285);
 
-  --secondary: oklch(0.26 0.012 285);
+  --secondary: oklch(0.22 0.01 285);
   --secondary-foreground: oklch(0.97 0.002 285);
 
-  --sidebar: oklch(0.18 0.007 285);
+  --sidebar: oklch(0.11 0.005 285);
   --sidebar-foreground: oklch(0.97 0.002 285);
-  --sidebar-accent: oklch(0.26 0.012 285);
+  --sidebar-accent: oklch(0.22 0.01 285);
   --sidebar-accent-foreground: oklch(0.97 0.002 285);
-  --sidebar-border: oklch(0.28 0.008 285);
+  --sidebar-border: oklch(0.24 0.008 285);
 
-  --divider: oklch(0.24 0.008 285);
-  --border: oklch(0.28 0.008 285);
+  --divider: oklch(0.18 0.007 285);
+  --border: oklch(0.24 0.008 285);
   --input: oklch(0.5 0.01 285);
   --ring: oklch(0.72 0.14 250);
 
@@ -319,7 +328,7 @@
 
   --primary: oklch(0.52 0.17 255);
   --primary-foreground: oklch(0.99 0 0);
-  --primary-subtle: oklch(0.26 0.06 255);
+  --primary-subtle: oklch(0.22 0.06 255);
   --primary-subtle-foreground: oklch(0.75 0.13 250);
 
   --link: oklch(0.75 0.13 250);
@@ -327,16 +336,16 @@
 
   --destructive: oklch(0.52 0.19 25);
   --destructive-foreground: oklch(0.99 0 0);
-  --destructive-subtle: oklch(0.26 0.07 25);
+  --destructive-subtle: oklch(0.22 0.07 25);
   --destructive-subtle-foreground: oklch(0.75 0.15 25);
 
   --success: oklch(0.52 0.11 155);
   --success-foreground: oklch(0.99 0 0);
-  --success-subtle: oklch(0.25 0.05 155);
+  --success-subtle: oklch(0.21 0.05 155);
   --success-subtle-foreground: oklch(0.78 0.15 155);
 
   --warning: oklch(0.75 0.15 78);
   --warning-foreground: oklch(0.18 0.02 78);
-  --warning-subtle: oklch(0.27 0.06 78);
+  --warning-subtle: oklch(0.23 0.05 78);
   --warning-subtle-foreground: oklch(0.82 0.13 80);
 }
