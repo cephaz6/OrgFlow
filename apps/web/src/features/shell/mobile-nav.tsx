@@ -1,5 +1,6 @@
 'use client';
 
+import type { OrganisationRole } from '@orgflow/types';
 import { Button } from '@orgflow/ui';
 import { Menu, X } from 'lucide-react';
 import { useCallback, useRef } from 'react';
@@ -7,11 +8,15 @@ import { useCallback, useRef } from 'react';
 import { OrgFlowMark } from './orgflow-logo';
 import { SidebarNav } from './sidebar-nav';
 
+export interface MobileNavProps {
+  roles: readonly OrganisationRole[];
+}
+
 // Uses the native <dialog> with showModal() rather than a hand-rolled
 // overlay. The element gives a real focus trap, Escape to dismiss, inertness
 // for the rest of the page and top-layer stacking, all of which a div would
 // have to reimplement and most hand-rolled drawers get wrong.
-export function MobileNav() {
+export function MobileNav({ roles }: MobileNavProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   const open = useCallback(() => dialogRef.current?.showModal(), []);
@@ -39,7 +44,7 @@ export function MobileNav() {
             Close
           </Button>
         </div>
-        <SidebarNav onNavigate={close} />
+        <SidebarNav roles={roles} onNavigate={close} />
       </dialog>
     </>
   );

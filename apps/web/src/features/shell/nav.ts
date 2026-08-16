@@ -1,9 +1,24 @@
-import { Inbox, LayoutDashboard, LibraryBig, ScrollText, type LucideIcon } from 'lucide-react';
+import {
+  Inbox,
+  LayoutDashboard,
+  LibraryBig,
+  ScrollText,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
+
+import type { OrganisationRole } from '@orgflow/types';
 
 export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  // Absent means everybody in the organisation sees the item, which is the
+  // existing behaviour every item before this one relies on. Present means
+  // the item only appears for a session holding at least one of these
+  // roles, so a member without process-owning access is not sent to a page
+  // that would only 404 or empty-list on them.
+  requiresAnyRole?: OrganisationRole[];
 }
 
 export interface NavGroup {
@@ -28,7 +43,30 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { href: '/catalogue', label: 'Catalogue', icon: LibraryBig },
     ],
   },
+  {
+    label: 'Manage',
+    items: [
+      {
+        href: '/processes',
+        label: 'Processes',
+        icon: Wrench,
+        requiresAnyRole: ['processOwner', 'admin', 'owner'],
+      },
+    ],
+  },
 ];
+
+// Filters both the groups and, within a group, the items, so a group whose
+// only item is role-gated disappears entirely rather than rendering an
+// empty heading.
+export function visibleNavGroups(roles: readonly OrganisationRole[]): NavGroup[] {
+  return NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter(
+      (item) => !item.requiresAnyRole || item.requiresAnyRole.some((role) => roles.includes(role)),
+    ),
+  })).filter((group) => group.items.length > 0);
+}
 
 // The dashboard would otherwise match every path, since every path starts
 // with a slash.

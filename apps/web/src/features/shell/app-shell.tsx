@@ -24,7 +24,7 @@ export function AppShell({ session, children }: AppShellProps) {
           <OrgFlowMark className="h-7 w-7 text-foreground" />
           <span className="text-sm font-semibold">OrgFlow</span>
         </span>
-        <SidebarNav />
+        <SidebarNav roles={session.roles} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -34,7 +34,7 @@ export function AppShell({ session, children }: AppShellProps) {
             blurred bar over a scrolling table is where text-behind-text
             contrast failures come from. */}
         <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-4">
-          <MobileNav />
+          <MobileNav roles={session.roles} />
 
           {/* The product name, shown only where the sidebar is not: on a
               narrow viewport the shell would otherwise carry no OrgFlow

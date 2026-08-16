@@ -13,6 +13,9 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6",
+    "@dnd-kit/sortable": "^10",
+    "@dnd-kit/utilities": "^3",
     "@hookform/resolvers": "^5.7.1",
     "@orgflow/core": "workspace:^",
     "@orgflow/types": "workspace:^",

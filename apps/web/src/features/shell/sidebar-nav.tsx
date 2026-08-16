@@ -1,24 +1,27 @@
 'use client';
 
+import type { OrganisationRole } from '@orgflow/types';
 import { cn } from '@orgflow/ui';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import { isActiveNavItem, NAV_GROUPS } from './nav';
+import { isActiveNavItem, visibleNavGroups } from './nav';
 
 export interface SidebarNavProps {
+  roles: readonly OrganisationRole[];
   // Set when the nav is rendered inside the mobile dialog, so that
   // following a link closes the dialog rather than leaving it covering the
   // page it just navigated to.
   onNavigate?: () => void;
 }
 
-export function SidebarNav({ onNavigate }: SidebarNavProps) {
+export function SidebarNav({ roles, onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
+  const groups = visibleNavGroups(roles);
 
   return (
     <nav aria-label="Main" className="flex flex-col gap-6">
-      {NAV_GROUPS.map((group) => (
+      {groups.map((group) => (
         <div key={group.label} className="flex flex-col gap-1">
           {/* The group label names the list for a screen reader as well as
               captioning it visually, so the two are the same element
