@@ -55,15 +55,21 @@ export {
   allocateCaseReference,
   createProcessDefinition,
   createProcessVersion,
+  findDraftProcessVersion,
+  findLatestVersionNumber,
   findProcessDefinitionById,
   findProcessDefinitionByKey,
+  findProcessDefinitionsForOrganisation,
   findProcessVersionById,
   findPublishedProcessDefinitions,
   publishProcessVersion,
+  updateProcessDefinitionMetadata,
+  updateProcessVersionDocumentHash,
 } from './repositories/process-definitions.js';
 export type {
   CreateProcessDefinitionInput,
   CreateProcessVersionInput,
+  UpdateProcessDefinitionMetadataInput,
 } from './repositories/process-definitions.js';
 export {
   CaseConcurrencyError,

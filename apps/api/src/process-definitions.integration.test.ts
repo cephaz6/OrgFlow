@@ -1,0 +1,282 @@
+import {
+  createDb,
+  createOrganisation,
+  createUserWithIdentity,
+  generateId,
+  insertOrganisationMember,
+  withTenantTransaction,
+  type Database,
+} from '@orgflow/db';
+import { createMongoClient, ensureIndexes } from '@orgflow/documents';
+import { createDummyPublisher } from '@orgflow/events';
+import type { OrganisationRole } from '@orgflow/types';
+import type { Kysely } from 'kysely';
+import type { MongoClient } from 'mongodb';
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { createApp } from './app.js';
+import { buildSessionClaims, createSessionToken, SESSION_COOKIE_NAME } from './auth/session.js';
+import { createLogger } from './logger.js';
+
+const SESSION_SECRET = '55'.repeat(32);
+
+// PRD.md §13.2's form builder: create, load, edit and publish a process
+// definition's draft. Exercised against real Postgres and Mongo, per
+// CLAUDE.md's rule against mocking the database in integration tests.
+describe('process definitions write API against real Postgres and Mongo', () => {
+  let db: Kysely<Database>;
+  let mongoClient: MongoClient;
+
+  beforeAll(async () => {
+    db = createDb({ connectionString: process.env.ORGFLOW_TEST_DATABASE_URL! });
+    mongoClient = await createMongoClient({ uri: process.env.ORGFLOW_TEST_MONGODB_URI! });
+    await ensureIndexes(mongoClient);
+  });
+
+  afterAll(async () => {
+    await db.destroy();
+    await mongoClient.close();
+  });
+
+  function buildApp() {
+    return createApp({
+      db,
+      mongoClient,
+      publisher: createDummyPublisher(),
+      corsOrigin: 'http://localhost:3000',
+      logger: createLogger('silent'),
+      sessionSecret: SESSION_SECRET,
+      isLocal: true,
+      apiBaseUrl: 'http://localhost:4000',
+    });
+  }
+
+  // A fresh organisation with one member holding the given roles, signed
+  // in. Each test gets its own organisation so definition keys and
+  // ownership checks never collide between tests.
+  async function buildMember(roles: OrganisationRole[], organisationId?: string) {
+    const user = await createUserWithIdentity(db, {
+      email: `${generateId()}@example.invalid`,
+      displayName: 'Test member',
+      issuer: 'urn:orgflow:test',
+      subject: generateId(),
+    });
+
+    const orgId =
+      organisationId ??
+      (
+        await createOrganisation(db, {
+          name: `org-${generateId()}`,
+          slug: `org-${generateId()}`,
+          createdByUserId: user.userId,
+        })
+      ).organisationId;
+
+    await withTenantTransaction(db, orgId, (trx) =>
+      insertOrganisationMember(trx, { organisationId: orgId, userId: user.userId, roles }),
+    );
+
+    const token = await createSessionToken(
+      SESSION_SECRET,
+      buildSessionClaims(user.userId, orgId, roles),
+    );
+
+    return {
+      userId: user.userId,
+      organisationId: orgId,
+      cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
+  }
+
+  function createBody(overrides: Partial<Record<string, unknown>> = {}) {
+    return {
+      name: `Expense claim ${generateId()}`,
+      description: 'Reimburse a work expense.',
+      category: 'Finance',
+      referencePrefix: 'EXP',
+      ...overrides,
+    };
+  }
+
+  it('creates a definition with a bootstrap draft the engine can already run', async () => {
+    const owner = await buildMember(['processOwner']);
+    const app = buildApp();
+
+    const response = await request(app)
+      .post('/api/v1/process-definitions')
+      .set('Cookie', owner.cookie)
+      .send(createBody());
+
+    expect(response.status).toBe(201);
+    expect(response.body.definition.status).toBe('draft');
+    expect(response.body.version).toMatchObject({ versionNumber: 1, status: 'draft' });
+    expect(response.body.document.workflow).toEqual({ startStepKey: '$completed', steps: [] });
+    expect(response.body.document.form).toEqual({ titleFieldKey: '', sections: [] });
+  });
+
+  it('refuses to create a definition for a member with no process-owning role', async () => {
+    const member = await buildMember(['member']);
+    const app = buildApp();
+
+    const response = await request(app)
+      .post('/api/v1/process-definitions')
+      .set('Cookie', member.cookie)
+      .send(createBody());
+
+    expect(response.status).toBe(403);
+  });
+
+  it('edits the open draft in place, without bumping the version number', async () => {
+    const owner = await buildMember(['processOwner']);
+    const app = buildApp();
+
+    const created = await request(app)
+      .post('/api/v1/process-definitions')
+      .set('Cookie', owner.cookie)
+      .send(createBody());
+    const definitionId = created.body.definition.definitionId as string;
+
+    const editBody = {
+      name: 'Expense claim (edited)',
+      form: {
+        titleFieldKey: 'amount',
+        sections: [
+          {
+            key: 'details',
+            title: 'Details',
+            fields: [{ key: 'amount', type: 'currency', label: 'Amount' }],
+          },
+        ],
+      },
+      workflow: { startStepKey: '$completed', steps: [] },
+    };
+
+    const firstEdit = await request(app)
+      .patch(`/api/v1/process-definitions/${definitionId}/draft`)
+      .set('Cookie', owner.cookie)
+      .send(editBody);
+    expect(firstEdit.status).toBe(200);
+    expect(firstEdit.body.version.versionNumber).toBe(1);
+
+    const secondEdit = await request(app)
+      .patch(`/api/v1/process-definitions/${definitionId}/draft`)
+      .set('Cookie', owner.cookie)
+      .send({ ...editBody, name: 'Expense claim (edited again)' });
+    expect(secondEdit.status).toBe(200);
+    expect(secondEdit.body.version.versionId).toBe(firstEdit.body.version.versionId);
+    expect(secondEdit.body.version.versionNumber).toBe(1);
+    expect(secondEdit.body.document.name).toBe('Expense claim (edited again)');
+
+    const loaded = await request(app)
+      .get(`/api/v1/process-definitions/${definitionId}/draft`)
+      .set('Cookie', owner.cookie);
+    expect(loaded.status).toBe(200);
+    expect(loaded.body.document.form.sections[0].fields[0].key).toBe('amount');
+  });
+
+  it('publishes the draft, then opens a new draft on the next edit without disturbing the published one', async () => {
+    const owner = await buildMember(['processOwner']);
+    const app = buildApp();
+
+    const created = await request(app)
+      .post('/api/v1/process-definitions')
+      .set('Cookie', owner.cookie)
+      .send(createBody());
+    const definitionId = created.body.definition.definitionId as string;
+
+    const publish = await request(app)
+      .post(`/api/v1/process-definitions/${definitionId}/draft/publish`)
+      .set('Cookie', owner.cookie)
+      .send({});
+    expect(publish.status).toBe(200);
+    expect(publish.body.version).toMatchObject({ versionNumber: 1, status: 'published' });
+
+    const catalogueEntry = await request(app)
+      .get(`/api/v1/process-definitions/${definitionId}`)
+      .set('Cookie', owner.cookie);
+    expect(catalogueEntry.status).toBe(200);
+    expect(catalogueEntry.body.version.versionNumber).toBe(1);
+
+    const edit = await request(app)
+      .patch(`/api/v1/process-definitions/${definitionId}/draft`)
+      .set('Cookie', owner.cookie)
+      .send({
+        name: 'Expense claim v2',
+        form: { titleFieldKey: '', sections: [] },
+        workflow: { startStepKey: '$completed', steps: [] },
+      });
+    expect(edit.status).toBe(200);
+    expect(edit.body.version.versionNumber).toBe(2);
+
+    // The published version must still read back unchanged: version pinning
+    // (PRD.md §5.2/§11.2) means opening a new draft is never allowed to
+    // touch what a case may already be pinned to.
+    const stillPublished = await request(app)
+      .get(`/api/v1/process-definitions/${definitionId}`)
+      .set('Cookie', owner.cookie);
+    expect(stillPublished.status).toBe(200);
+    expect(stillPublished.body.version.versionNumber).toBe(1);
+    expect(stillPublished.body.document.name).not.toBe('Expense claim v2');
+  });
+
+  it('returns 404, never 403, when another organisation reaches for the draft endpoints', async () => {
+    const owner = await buildMember(['processOwner']);
+    const outsider = await buildMember(['processOwner', 'admin']);
+    const app = buildApp();
+
+    const created = await request(app)
+      .post('/api/v1/process-definitions')
+      .set('Cookie', owner.cookie)
+      .send(createBody());
+    const definitionId = created.body.definition.definitionId as string;
+
+    const getDraft = await request(app)
+      .get(`/api/v1/process-definitions/${definitionId}/draft`)
+      .set('Cookie', outsider.cookie);
+    expect(getDraft.status).toBe(404);
+
+    const patchDraft = await request(app)
+      .patch(`/api/v1/process-definitions/${definitionId}/draft`)
+      .set('Cookie', outsider.cookie)
+      .send({
+        name: 'Hijacked',
+        form: { titleFieldKey: '', sections: [] },
+        workflow: { startStepKey: '$completed', steps: [] },
+      });
+    expect(patchDraft.status).toBe(404);
+
+    const publish = await request(app)
+      .post(`/api/v1/process-definitions/${definitionId}/draft/publish`)
+      .set('Cookie', outsider.cookie)
+      .send({});
+    expect(publish.status).toBe(404);
+  });
+
+  it("hides one process owner's draft from another process owner in the same organisation", async () => {
+    const owner = await buildMember(['processOwner']);
+    const colleague = await buildMember(['processOwner'], owner.organisationId);
+    const app = buildApp();
+
+    const created = await request(app)
+      .post('/api/v1/process-definitions')
+      .set('Cookie', owner.cookie)
+      .send(createBody());
+    const definitionId = created.body.definition.definitionId as string;
+
+    const asColleague = await request(app)
+      .get(`/api/v1/process-definitions/${definitionId}/draft`)
+      .set('Cookie', colleague.cookie);
+    expect(asColleague.status).toBe(404);
+
+    const manageList = await request(app)
+      .get('/api/v1/process-definitions/manage')
+      .set('Cookie', colleague.cookie);
+    expect(manageList.status).toBe(200);
+    expect(
+      manageList.body.data.some(
+        (entry: { definitionId: string }) => entry.definitionId === definitionId,
+      ),
+    ).toBe(false);
+  });
+});

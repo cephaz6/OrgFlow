@@ -75,11 +75,36 @@ export async function findLatestProcessDefinitionDocument(
 }
 
 // PRD.md §5.2: published version documents are immutable. A change creates
-// a new document, never an update. There is deliberately no update or
-// delete function in this module to match; version pinning (§11.2) depends
-// on a document staying exactly as it was when a case was submitted
-// against it, and an in-place edit would silently rewrite history for every
-// in-flight case.
+// a new document, never an update, and the function below is the one
+// deliberate exception. It exists for the builder's own draft, which no
+// case can ever be pinned to (a case's version_id only ever points at a
+// version that has been through publishProcessVersion, and this function
+// exists precisely to be called before that happens); an in-place edit
+// there rewrites nothing a case depends on. It is the caller's
+// responsibility, enforced at the API route, to invoke this only while the
+// owning process_versions row is still status = 'draft'; nothing here
+// re-checks that, the same division PATCH /cases/:id relies on for
+// draft-only case edits.
+export async function updateProcessDefinitionDocument(
+  client: MongoClient,
+  organisationId: Uuid,
+  documentId: string,
+  document: ProcessDefinitionDocument,
+): Promise<StoredDefinition> {
+  // Same shape as insertProcessDefinitionDocument: _id is Mongo's concern,
+  // never the caller's, and documentHash is computed here, never trusted
+  // from outside.
+  const { _id: _ignored, ...withoutId } = document;
+  const documentHash = hashDocument(withoutId);
+  const stored: StoredProcessDefinitionDocument = { ...withoutId, documentHash };
+
+  await processDefinitionsCollection(client).replaceOne(
+    { _id: new ObjectId(documentId), organisationId },
+    stored,
+  );
+
+  return { documentId, documentHash, document: stored };
+}
 
 // Verifies a document still hashes to what process_versions recorded when
 // it was published. PRD.md §2.2 calls document_hash an integrity check, and

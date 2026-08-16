@@ -122,6 +122,55 @@ export async function findPublishedProcessDefinitions(
   return rows.map(toDefinitionDomain);
 }
 
+// Every status, for the builder's "manage processes" list (PRD.md §13.1's
+// /processes route). findPublishedProcessDefinitions above is deliberately
+// narrower: the catalogue a requester browses must never show a draft, but
+// a process owner managing their own definitions needs to see one.
+export async function findProcessDefinitionsForOrganisation(
+  trx: Transaction<Database>,
+): Promise<ProcessDefinition[]> {
+  const rows = await trx
+    .selectFrom('process_definitions')
+    .selectAll()
+    .orderBy('updated_at', 'desc')
+    .execute();
+
+  return rows.map(toDefinitionDomain);
+}
+
+export interface UpdateProcessDefinitionMetadataInput {
+  name?: string;
+  description?: string | null;
+  category?: string | null;
+  icon?: string | null;
+}
+
+// Definition-level metadata (name, description, category, icon), separate
+// from the document the version carries. Callers are responsible for only
+// invoking this while the definition's current work is still a draft; nothing
+// here re-checks that, the same division of responsibility updateCaseState
+// has with its own draft-only PATCH route.
+export async function updateProcessDefinitionMetadata(
+  trx: Transaction<Database>,
+  definitionId: string,
+  input: UpdateProcessDefinitionMetadataInput,
+): Promise<ProcessDefinition> {
+  const row = await trx
+    .updateTable('process_definitions')
+    .set({
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.category !== undefined ? { category: input.category } : {}),
+      ...(input.icon !== undefined ? { icon: input.icon } : {}),
+      updated_at: new Date(),
+    })
+    .where('definition_id', '=', definitionId)
+    .returningAll()
+    .executeTakeFirstOrThrow();
+
+  return toDefinitionDomain(row);
+}
+
 export interface CreateProcessVersionInput {
   organisationId: string;
   definitionId: string;
@@ -165,6 +214,63 @@ export async function findProcessVersionById(
     .executeTakeFirst();
 
   return row ? toVersionDomain(row) : null;
+}
+
+// The one open draft for a definition, if any. The create and "new version"
+// endpoints only ever leave a definition with zero or one draft version at a
+// time, so "the" is accurate; this is what the builder loads and saves to.
+export async function findDraftProcessVersion(
+  trx: Transaction<Database>,
+  definitionId: string,
+): Promise<ProcessVersion | null> {
+  const row = await trx
+    .selectFrom('process_versions')
+    .selectAll()
+    .where('definition_id', '=', definitionId)
+    .where('status', '=', 'draft')
+    .orderBy('version_number', 'desc')
+    .executeTakeFirst();
+
+  return row ? toVersionDomain(row) : null;
+}
+
+// The highest version_number a definition has used, across every status.
+// The next draft's version_number is this plus one, so numbering survives
+// a publish, an edit-again cycle regardless of how many drafts along the
+// way were abandoned.
+export async function findLatestVersionNumber(
+  trx: Transaction<Database>,
+  definitionId: string,
+): Promise<number> {
+  const row = await trx
+    .selectFrom('process_versions')
+    .select(({ fn }) => fn.max('version_number').as('max_version_number'))
+    .where('definition_id', '=', definitionId)
+    .executeTakeFirst();
+
+  return row?.max_version_number ?? 0;
+}
+
+// Records a new content hash against a draft version after its document was
+// edited in place (updateProcessDefinitionDocument in packages/documents).
+// process_versions.document_hash is what verifyDocumentIntegrity checks a
+// read document against, so a Mongo edit that does not update this row
+// would make every subsequent read of the draft fail that check. Callers
+// are responsible for only invoking this against a draft; nothing here
+// re-checks status, the same division the rest of this file uses.
+export async function updateProcessVersionDocumentHash(
+  trx: Transaction<Database>,
+  versionId: string,
+  documentHash: string,
+): Promise<ProcessVersion> {
+  const row = await trx
+    .updateTable('process_versions')
+    .set({ document_hash: documentHash })
+    .where('version_id', '=', versionId)
+    .returningAll()
+    .executeTakeFirstOrThrow();
+
+  return toVersionDomain(row);
 }
 
 // Marks a version published and points the definition at it. Both rows

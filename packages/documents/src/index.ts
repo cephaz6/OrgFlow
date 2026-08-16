@@ -12,6 +12,7 @@ export {
   findLatestProcessDefinitionDocument,
   findProcessDefinitionDocumentById,
   insertProcessDefinitionDocument,
+  updateProcessDefinitionDocument,
   verifyDocumentIntegrity,
 } from './process-definitions.js';
 export type { ReadProcessDefinitionDocument, StoredDefinition } from './process-definitions.js';
