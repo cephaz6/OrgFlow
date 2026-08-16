@@ -1,5 +1,921 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`CDK skeleton: cdk synth and cdk-nag > synthesises ApiStack with no unsuppressed cdk-nag findings 1`] = `
+{
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "AlbAccessLogsBucket9C39E353": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "This bucket is itself the access-log destination for the load balancer (loadBalancer.logAccessLogs). Enabling S3 server access logging on a log bucket would have it log access to its own logs, which nothing reads and which only inflates storage cost.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256",
+              },
+            },
+          ],
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "ExpirationInDays": 90,
+              "Id": "expire-access-logs",
+              "Status": "Enabled",
+            },
+          ],
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true,
+        },
+        "Tags": [
+          {
+            "Key": "aws-cdk:auto-delete-objects",
+            "Value": "true",
+          },
+        ],
+      },
+      "Type": "AWS::S3::Bucket",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "AlbAccessLogsBucketAutoDeleteObjectsCustomResource33FE6609": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "AlbAccessLogsBucketPolicyD4900BA1",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "This bucket is itself the access-log destination for the load balancer (loadBalancer.logAccessLogs). Enabling S3 server access logging on a log bucket would have it log access to its own logs, which nothing reads and which only inflates storage cost.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "BucketName": {
+          "Ref": "AlbAccessLogsBucket9C39E353",
+        },
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::S3AutoDeleteObjects",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "AlbAccessLogsBucketPolicyD4900BA1": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "This bucket is itself the access-log destination for the load balancer (loadBalancer.logAccessLogs). Enabling S3 server access logging on a log bucket would have it log access to its own logs, which nothing reads and which only inflates storage cost.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Bucket": {
+          "Ref": "AlbAccessLogsBucket9C39E353",
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "AlbAccessLogsBucket9C39E353",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "AlbAccessLogsBucket9C39E353",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+            {
+              "Action": [
+                "s3:PutBucketPolicy",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*",
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::GetAtt": [
+                    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+                    "Arn",
+                  ],
+                },
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "AlbAccessLogsBucket9C39E353",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "AlbAccessLogsBucket9C39E353",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+            {
+              "Action": "s3:PutObject",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition",
+                      },
+                      ":iam::652711504416:root",
+                    ],
+                  ],
+                },
+              },
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "AlbAccessLogsBucket9C39E353",
+                        "Arn",
+                      ],
+                    },
+                    "/AWSLogs/",
+                    {
+                      "Ref": "AWS::AccountId",
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+            },
+            {
+              "Action": "s3:PutObject",
+              "Condition": {
+                "StringEquals": {
+                  "s3:x-amz-acl": "bucket-owner-full-control",
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "delivery.logs.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "AlbAccessLogsBucket9C39E353",
+                        "Arn",
+                      ],
+                    },
+                    "/AWSLogs/",
+                    {
+                      "Ref": "AWS::AccountId",
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+            },
+            {
+              "Action": "s3:GetBucketAcl",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "delivery.logs.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "AlbAccessLogsBucket9C39E353",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+      },
+      "Type": "AWS::S3::BucketPolicy",
+    },
+    "AlbSecurityGroup86A59E99": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-EC23",
+              "reason": "Deliberate: this is a public-facing load balancer for an HTTP API meant to be reached from the internet. Restricting inbound to a fixed CIDR would defeat the point of the ALB.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "GroupDescription": "OrgFlow API load balancer.",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic by default",
+            "IpProtocol": "-1",
+          },
+        ],
+        "SecurityGroupIngress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Public HTTP",
+            "FromPort": 80,
+            "IpProtocol": "tcp",
+            "ToPort": 80,
+          },
+        ],
+        "VpcId": {
+          "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpc8378EB38272D6E3A",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
+    "ApiLogGroup1DEDFC07": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "RetentionInDays": 30,
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "ClusterEB0386A7": {
+      "Properties": {
+        "ClusterSettings": [
+          {
+            "Name": "containerInsights",
+            "Value": "enabled",
+          },
+        ],
+      },
+      "Type": "AWS::ECS::Cluster",
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F": {
+      "DependsOn": [
+        "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-\${AWS::AccountId}-eu-west-2",
+          },
+          "S3Key": "faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6.zip",
+        },
+        "Description": {
+          "Fn::Join": [
+            "",
+            [
+              "Lambda function for auto-deleting objects in ",
+              {
+                "Ref": "AlbAccessLogsBucket9C39E353",
+              },
+              " S3 bucket.",
+            ],
+          ],
+        },
+        "Handler": "index.handler",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs24.x",
+        "Timeout": 900,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Sub": "arn:\${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "LoadBalancerBE9EEC3A": {
+      "DependsOn": [
+        "AlbAccessLogsBucketPolicyD4900BA1",
+      ],
+      "Properties": {
+        "LoadBalancerAttributes": [
+          {
+            "Key": "deletion_protection.enabled",
+            "Value": "false",
+          },
+          {
+            "Key": "access_logs.s3.enabled",
+            "Value": "true",
+          },
+          {
+            "Key": "access_logs.s3.bucket",
+            "Value": {
+              "Ref": "AlbAccessLogsBucket9C39E353",
+            },
+          },
+          {
+            "Key": "access_logs.s3.prefix",
+            "Value": "",
+          },
+        ],
+        "Scheme": "internet-facing",
+        "SecurityGroups": [
+          {
+            "Fn::GetAtt": [
+              "AlbSecurityGroup86A59E99",
+              "GroupId",
+            ],
+          },
+        ],
+        "Subnets": [
+          {
+            "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcpublicSubnet1Subnet2BB74ED74EB42ADC",
+          },
+          {
+            "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcpublicSubnet2SubnetE34B022AC8BB6627",
+          },
+        ],
+        "Type": "application",
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+    },
+    "LoadBalancerListenerApiTargetsGroup2636815E": {
+      "Properties": {
+        "HealthCheckPath": "/health",
+        "Matcher": {
+          "HttpCode": "200",
+        },
+        "Port": 4000,
+        "Protocol": "HTTP",
+        "TargetGroupAttributes": [
+          {
+            "Key": "stickiness.enabled",
+            "Value": "false",
+          },
+        ],
+        "TargetType": "ip",
+        "VpcId": {
+          "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpc8378EB38272D6E3A",
+        },
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+    },
+    "LoadBalancerListenerE1A099B9": {
+      "Properties": {
+        "DefaultActions": [
+          {
+            "TargetGroupArn": {
+              "Ref": "LoadBalancerListenerApiTargetsGroup2636815E",
+            },
+            "Type": "forward",
+          },
+        ],
+        "LoadBalancerArn": {
+          "Ref": "LoadBalancerBE9EEC3A",
+        },
+        "Port": 80,
+        "Protocol": "HTTP",
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+    },
+    "MongoUriSecret12185CDA": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-SMG4",
+              "reason": "Same reasoning as DataStack.databaseUrlSecret: MongoDB Atlas is provisioned outside this CDK app, so there is no resource here for automatic rotation to update. Set and rotated by hand until an Atlas-side rotation integration exists.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Description": "ORGFLOW_MONGODB_URI. Placeholder: MongoDB Atlas is provisioned outside this CDK app, so there is nothing to generate this from. Set the real connection string by hand once an Atlas cluster exists for this environment.",
+        "SecretString": "mongodb+srv://replace-me-after-deploy",
+      },
+      "Type": "AWS::SecretsManager::Secret",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "ServiceD69D759B": {
+      "DependsOn": [
+        "LoadBalancerListenerApiTargetsGroup2636815E",
+        "LoadBalancerListenerE1A099B9",
+        "TaskDefinitionTaskRoleDefaultPolicy282E8624",
+        "TaskDefinitionTaskRoleFD40A61D",
+      ],
+      "Properties": {
+        "Cluster": {
+          "Ref": "ClusterEB0386A7",
+        },
+        "DeploymentConfiguration": {
+          "Alarms": {
+            "AlarmNames": [],
+            "Enable": false,
+            "Rollback": false,
+          },
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true,
+          },
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 0,
+        },
+        "DeploymentController": {
+          "Type": "ECS",
+        },
+        "DesiredCount": 1,
+        "EnableECSManagedTags": false,
+        "HealthCheckGracePeriodSeconds": 60,
+        "LaunchType": "FARGATE",
+        "LoadBalancers": [
+          {
+            "ContainerName": "api",
+            "ContainerPort": 4000,
+            "TargetGroupArn": {
+              "Ref": "LoadBalancerListenerApiTargetsGroup2636815E",
+            },
+          },
+        ],
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "DISABLED",
+            "SecurityGroups": [
+              {
+                "Fn::GetAtt": [
+                  "ServiceSecurityGroup61DE1A49",
+                  "GroupId",
+                ],
+              },
+            ],
+            "Subnets": [
+              {
+                "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcappSubnet1SubnetAE489B2F386690C8",
+              },
+              {
+                "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcappSubnet2Subnet2449FB56F27A422B",
+              },
+            ],
+          },
+        },
+        "TaskDefinition": {
+          "Ref": "TaskDefinitionB36D86D9",
+        },
+      },
+      "Type": "AWS::ECS::Service",
+    },
+    "ServiceSecurityGroup61DE1A49": {
+      "Properties": {
+        "GroupDescription": "OrgFlow API (Fargate tasks).",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic by default",
+            "IpProtocol": "-1",
+          },
+        ],
+        "VpcId": {
+          "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpc8378EB38272D6E3A",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
+    "ServiceSecurityGroupfromTestApiAlbSecurityGroup382581824000E94A1A5C": {
+      "Properties": {
+        "Description": "From the load balancer only",
+        "FromPort": 4000,
+        "GroupId": {
+          "Fn::GetAtt": [
+            "ServiceSecurityGroup61DE1A49",
+            "GroupId",
+          ],
+        },
+        "IpProtocol": "tcp",
+        "SourceSecurityGroupId": {
+          "Fn::GetAtt": [
+            "AlbSecurityGroup86A59E99",
+            "GroupId",
+          ],
+        },
+        "ToPort": 4000,
+      },
+      "Type": "AWS::EC2::SecurityGroupIngress",
+    },
+    "SessionSecretC41FBD23": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-SMG4",
+              "reason": "ADR-0010: sessions are not individually revocable, so rotating this secret signs every active user out at once. That is a deliberate operational event, not something to schedule automatically on a timer; it happens when an operator chooses to force a sign-out.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Description": "ORGFLOW_SESSION_SECRET: signs and encrypts the session cookie (ADR-0010).",
+        "GenerateSecretString": {
+          "ExcludeCharacters": ""'\\@/",
+          "PasswordLength": 64,
+        },
+      },
+      "Type": "AWS::SecretsManager::Secret",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "TaskDefinitionB36D86D9": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-ECS2",
+              "reason": "Every value here is genuinely non-secret (log level, port, region, the events topic ARN, the web URL) and the rule's actual concern, a credential in plaintext, does not apply: ORGFLOW_DATABASE_URL, ORGFLOW_MONGODB_URI and ORGFLOW_SESSION_SECRET are the three values that are sensitive, and all three are wired through the container's \`secrets\` map (ecs.Secret.fromSecretsManager), never \`environment\`.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "ContainerDefinitions": [
+          {
+            "Environment": [
+              {
+                "Name": "ORGFLOW_ENV",
+                "Value": "development",
+              },
+              {
+                "Name": "ORGFLOW_API_PORT",
+                "Value": "4000",
+              },
+              {
+                "Name": "ORGFLOW_LOG_LEVEL",
+                "Value": "info",
+              },
+              {
+                "Name": "ORGFLOW_WEB_URL",
+                "Value": "https://app.orgflow-dev.example",
+              },
+              {
+                "Name": "ORGFLOW_AWS_REGION",
+                "Value": "eu-west-2",
+              },
+              {
+                "Name": "ORGFLOW_EVENTS_TOPIC_ARN",
+                "Value": {
+                  "Fn::ImportValue": "TestMessaging:ExportsOutputRefDomainEventsTopic9EECFB6421310043",
+                },
+              },
+            ],
+            "Essential": true,
+            "Image": "public.ecr.aws/docker/library/busybox:stable",
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": {
+                  "Ref": "ApiLogGroup1DEDFC07",
+                },
+                "awslogs-region": "eu-west-2",
+                "awslogs-stream-prefix": "api",
+              },
+            },
+            "Name": "api",
+            "PortMappings": [
+              {
+                "ContainerPort": 4000,
+                "Protocol": "tcp",
+              },
+            ],
+            "Secrets": [
+              {
+                "Name": "ORGFLOW_DATABASE_URL",
+                "ValueFrom": {
+                  "Fn::ImportValue": "TestData:ExportsOutputRefDatabaseUrlSecretFA7DE06246075C80",
+                },
+              },
+              {
+                "Name": "ORGFLOW_MONGODB_URI",
+                "ValueFrom": {
+                  "Ref": "MongoUriSecret12185CDA",
+                },
+              },
+              {
+                "Name": "ORGFLOW_SESSION_SECRET",
+                "ValueFrom": {
+                  "Ref": "SessionSecretC41FBD23",
+                },
+              },
+            ],
+          },
+        ],
+        "Cpu": "256",
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "TaskDefinitionExecutionRole8D61C2FB",
+            "Arn",
+          ],
+        },
+        "Family": "TestApiTaskDefinition54F7D0C5",
+        "Memory": "512",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": [
+          "FARGATE",
+        ],
+        "TaskRoleArn": {
+          "Fn::GetAtt": [
+            "TaskDefinitionTaskRoleFD40A61D",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "AWS::ECS::TaskDefinition",
+    },
+    "TaskDefinitionExecutionRole8D61C2FB": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-ECS2",
+              "reason": "Every value here is genuinely non-secret (log level, port, region, the events topic ARN, the web URL) and the rule's actual concern, a credential in plaintext, does not apply: ORGFLOW_DATABASE_URL, ORGFLOW_MONGODB_URI and ORGFLOW_SESSION_SECRET are the three values that are sensitive, and all three are wired through the container's \`secrets\` map (ecs.Secret.fromSecretsManager), never \`environment\`.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "TaskDefinitionExecutionRoleDefaultPolicy1F3406F5": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-ECS2",
+              "reason": "Every value here is genuinely non-secret (log level, port, region, the events topic ARN, the web URL) and the rule's actual concern, a credential in plaintext, does not apply: ORGFLOW_DATABASE_URL, ORGFLOW_MONGODB_URI and ORGFLOW_SESSION_SECRET are the three values that are sensitive, and all three are wired through the container's \`secrets\` map (ecs.Secret.fromSecretsManager), never \`environment\`.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "ecr:GetAuthorizationToken, which CDK grants automatically so the execution role can pull apps/api's image from this account's private ECR: the action has no resource-level permissions, so AWS itself only ever allows it scoped to '*'. The actual pull of a specific image is separately scoped to the ApiImage repository ARN in the same policy.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "ApiLogGroup1DEDFC07",
+                  "Arn",
+                ],
+              },
+            },
+            {
+              "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestData:ExportsOutputRefDatabaseUrlSecretFA7DE06246075C80",
+              },
+            },
+            {
+              "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Ref": "MongoUriSecret12185CDA",
+              },
+            },
+            {
+              "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Ref": "SessionSecretC41FBD23",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "TaskDefinitionExecutionRoleDefaultPolicy1F3406F5",
+        "Roles": [
+          {
+            "Ref": "TaskDefinitionExecutionRole8D61C2FB",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "TaskDefinitionTaskRoleDefaultPolicy282E8624": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-ECS2",
+              "reason": "Every value here is genuinely non-secret (log level, port, region, the events topic ARN, the web URL) and the rule's actual concern, a credential in plaintext, does not apply: ORGFLOW_DATABASE_URL, ORGFLOW_MONGODB_URI and ORGFLOW_SESSION_SECRET are the three values that are sensitive, and all three are wired through the container's \`secrets\` map (ecs.Secret.fromSecretsManager), never \`environment\`.",
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "From domainEventsTopic.grantPublish(taskDefinition.taskRole): publishing to a KMS-encrypted SNS topic requires kms:GenerateDataKey* on the topic's key (MessagingStack's EncryptionKey), which CDK grants automatically. The wildcard is on the action family (GenerateDataKey / GenerateDataKeyWithoutPlaintext), not on the resource: the statement's Resource is the one named key ARN, never '*'.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sns:Publish",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestMessaging:ExportsOutputRefDomainEventsTopic9EECFB6421310043",
+              },
+            },
+            {
+              "Action": [
+                "kms:Decrypt",
+                "kms:GenerateDataKey*",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestMessaging:ExportsOutputFnGetAttEncryptionKey1B843E66Arn91172964",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "TaskDefinitionTaskRoleDefaultPolicy282E8624",
+        "Roles": [
+          {
+            "Ref": "TaskDefinitionTaskRoleFD40A61D",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "TaskDefinitionTaskRoleFD40A61D": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-ECS2",
+              "reason": "Every value here is genuinely non-secret (log level, port, region, the events topic ARN, the web URL) and the rule's actual concern, a credential in plaintext, does not apply: ORGFLOW_DATABASE_URL, ORGFLOW_MONGODB_URI and ORGFLOW_SESSION_SECRET are the three values that are sensitive, and all three are wired through the container's \`secrets\` map (ecs.Secret.fromSecretsManager), never \`environment\`.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+      },
+      "Type": "AWS::IAM::Role",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;
+
 exports[`CDK skeleton: cdk synth and cdk-nag > synthesises DataStack with no unsuppressed cdk-nag findings 1`] = `
 {
   "Mappings": {
@@ -15,6 +931,16 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises DataStack with no uns
       "aws-us-gov": {
         "applicationId": "arn:aws-us-gov:serverlessrepo:us-gov-west-1:023102451235:applications/SecretsManagerRDSPostgreSQLRotationSingleUser",
         "semanticVersion": "1.1.383",
+      },
+    },
+  },
+  "Outputs": {
+    "ExportsOutputRefDatabaseUrlSecretFA7DE06246075C80": {
+      "Export": {
+        "Name": "TestData:ExportsOutputRefDatabaseUrlSecretFA7DE06246075C80",
+      },
+      "Value": {
+        "Ref": "DatabaseUrlSecretFA7DE062",
       },
     },
   },
@@ -396,6 +1322,52 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises DataStack with no uns
             "ToPort": 86,
           },
         ],
+        "SecurityGroupIngress": [
+          {
+            "CidrIp": "10.0.2.0/24",
+            "Description": {
+              "Fn::Join": [
+                "",
+                [
+                  "Postgres from the app subnet in ",
+                  {
+                    "Fn::Select": [
+                      0,
+                      {
+                        "Fn::GetAZs": "",
+                      },
+                    ],
+                  },
+                ],
+              ],
+            },
+            "FromPort": 5432,
+            "IpProtocol": "tcp",
+            "ToPort": 5432,
+          },
+          {
+            "CidrIp": "10.0.3.0/24",
+            "Description": {
+              "Fn::Join": [
+                "",
+                [
+                  "Postgres from the app subnet in ",
+                  {
+                    "Fn::Select": [
+                      1,
+                      {
+                        "Fn::GetAZs": "",
+                      },
+                    ],
+                  },
+                ],
+              ],
+            },
+            "FromPort": 5432,
+            "IpProtocol": "tcp",
+            "ToPort": 5432,
+          },
+        ],
         "VpcId": {
           "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpc8378EB38272D6E3A",
         },
@@ -464,6 +1436,25 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises DataStack with no uns
         ],
       },
       "Type": "AWS::RDS::DBSubnetGroup",
+    },
+    "DatabaseUrlSecretFA7DE062": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-SMG4",
+              "reason": "This secret holds an assembled connection string a person sets by hand after the first deploy (see the comment on DataStack.databaseUrlSecret), not a credential this CDK app issues. Automatic rotation would need a custom resource that recomposes it from the RDS-generated secret alongside that secret's own rotation, which is out of scope for a synth-only skeleton and is recorded as a follow-up in ADR-0019.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Description": "ORGFLOW_DATABASE_URL for apps/api and workers. Placeholder: set the real postgres://user:pass@host:port/dbname value after the first deploy, once the database's generated credentials secret exists to compose it from.",
+        "SecretString": "postgres://replace-me-after-deploy",
+      },
+      "Type": "AWS::SecretsManager::Secret",
+      "UpdateReplacePolicy": "Delete",
     },
     "EncryptionKey1B843E66": {
       "DeletionPolicy": "Delete",
@@ -761,6 +1752,38 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises DataStack with no uns
 
 exports[`CDK skeleton: cdk synth and cdk-nag > synthesises MessagingStack with no unsuppressed cdk-nag findings 1`] = `
 {
+  "Outputs": {
+    "ExportsOutputFnGetAttEncryptionKey1B843E66Arn91172964": {
+      "Export": {
+        "Name": "TestMessaging:ExportsOutputFnGetAttEncryptionKey1B843E66Arn91172964",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "EncryptionKey1B843E66",
+          "Arn",
+        ],
+      },
+    },
+    "ExportsOutputFnGetAttnotificationsQueue8852CCBBArn3A593CF6": {
+      "Export": {
+        "Name": "TestMessaging:ExportsOutputFnGetAttnotificationsQueue8852CCBBArn3A593CF6",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "notificationsQueue8852CCBB",
+          "Arn",
+        ],
+      },
+    },
+    "ExportsOutputRefDomainEventsTopic9EECFB6421310043": {
+      "Export": {
+        "Name": "TestMessaging:ExportsOutputRefDomainEventsTopic9EECFB6421310043",
+      },
+      "Value": {
+        "Ref": "DomainEventsTopic9EECFB64",
+      },
+    },
+  },
   "Parameters": {
     "BootstrapVersion": {
       "Default": "/cdk-bootstrap/hnb659fds/version",
@@ -1257,6 +2280,7 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises MessagingStack with n
           },
           "maxReceiveCount": 5,
         },
+        "VisibilityTimeout": 90,
       },
       "Type": "AWS::SQS::Queue",
       "UpdateReplacePolicy": "Delete",
@@ -1540,6 +2564,22 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises NetworkStack with no 
         "Ref": "Vpc8378EB38",
       },
     },
+    "ExportsOutputRefVpcappSubnet1SubnetAE489B2F386690C8": {
+      "Export": {
+        "Name": "TestNetwork:ExportsOutputRefVpcappSubnet1SubnetAE489B2F386690C8",
+      },
+      "Value": {
+        "Ref": "VpcappSubnet1SubnetAE489B2F",
+      },
+    },
+    "ExportsOutputRefVpcappSubnet2Subnet2449FB56F27A422B": {
+      "Export": {
+        "Name": "TestNetwork:ExportsOutputRefVpcappSubnet2Subnet2449FB56F27A422B",
+      },
+      "Value": {
+        "Ref": "VpcappSubnet2Subnet2449FB56",
+      },
+    },
     "ExportsOutputRefVpcisolatedSubnet1SubnetE62B1B9BEE029908": {
       "Export": {
         "Name": "TestNetwork:ExportsOutputRefVpcisolatedSubnet1SubnetE62B1B9BEE029908",
@@ -1554,6 +2594,22 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises NetworkStack with no 
       },
       "Value": {
         "Ref": "VpcisolatedSubnet2Subnet39217055",
+      },
+    },
+    "ExportsOutputRefVpcpublicSubnet1Subnet2BB74ED74EB42ADC": {
+      "Export": {
+        "Name": "TestNetwork:ExportsOutputRefVpcpublicSubnet1Subnet2BB74ED74EB42ADC",
+      },
+      "Value": {
+        "Ref": "VpcpublicSubnet1Subnet2BB74ED7",
+      },
+    },
+    "ExportsOutputRefVpcpublicSubnet2SubnetE34B022AC8BB6627": {
+      "Export": {
+        "Name": "TestNetwork:ExportsOutputRefVpcpublicSubnet2SubnetE34B022AC8BB6627",
+      },
+      "Value": {
+        "Ref": "VpcpublicSubnet2SubnetE34B022A",
       },
     },
   },
@@ -1742,6 +2798,12 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises NetworkStack with no 
       "Properties": {
         "RouteTableIds": [
           {
+            "Ref": "VpcappSubnet1RouteTable072E8E09",
+          },
+          {
+            "Ref": "VpcappSubnet2RouteTableB76BFC59",
+          },
+          {
             "Ref": "VpcpublicSubnet1RouteTable15C15F8E",
           },
           {
@@ -1803,10 +2865,10 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises NetworkStack with no 
         "ServiceName": "com.amazonaws.eu-west-2.secretsmanager",
         "SubnetIds": [
           {
-            "Ref": "VpcisolatedSubnet1SubnetE62B1B9B",
+            "Ref": "VpcappSubnet1SubnetAE489B2F",
           },
           {
-            "Ref": "VpcisolatedSubnet2Subnet39217055",
+            "Ref": "VpcappSubnet2Subnet2449FB56",
           },
         ],
         "Tags": [
@@ -1903,6 +2965,224 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises NetworkStack with no 
       },
       "Type": "AWS::EC2::VPCGatewayAttachment",
     },
+    "VpcappSubnet1DefaultRoute64294A8F": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NatGatewayId": {
+          "Ref": "VpcpublicSubnet1NATGatewayA036E8A6",
+        },
+        "RouteTableId": {
+          "Ref": "VpcappSubnet1RouteTable072E8E09",
+        },
+      },
+      "Type": "AWS::EC2::Route",
+    },
+    "VpcappSubnet1RouteTable072E8E09": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/appSubnet1",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::RouteTable",
+    },
+    "VpcappSubnet1RouteTableAssociation168BF781": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VpcappSubnet1RouteTable072E8E09",
+        },
+        "SubnetId": {
+          "Ref": "VpcappSubnet1SubnetAE489B2F",
+        },
+      },
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+    },
+    "VpcappSubnet1SubnetAE489B2F": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AvailabilityZone": {
+          "Fn::Select": [
+            0,
+            {
+              "Fn::GetAZs": "",
+            },
+          ],
+        },
+        "CidrBlock": "10.0.2.0/24",
+        "MapPublicIpOnLaunch": false,
+        "Tags": [
+          {
+            "Key": "aws-cdk:subnet-name",
+            "Value": "app",
+          },
+          {
+            "Key": "aws-cdk:subnet-type",
+            "Value": "Private",
+          },
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/appSubnet1",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::Subnet",
+    },
+    "VpcappSubnet2DefaultRouteEBCCC1EA": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NatGatewayId": {
+          "Ref": "VpcpublicSubnet1NATGatewayA036E8A6",
+        },
+        "RouteTableId": {
+          "Ref": "VpcappSubnet2RouteTableB76BFC59",
+        },
+      },
+      "Type": "AWS::EC2::Route",
+    },
+    "VpcappSubnet2RouteTableAssociation81E96A75": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VpcappSubnet2RouteTableB76BFC59",
+        },
+        "SubnetId": {
+          "Ref": "VpcappSubnet2Subnet2449FB56",
+        },
+      },
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+    },
+    "VpcappSubnet2RouteTableB76BFC59": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/appSubnet2",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::RouteTable",
+    },
+    "VpcappSubnet2Subnet2449FB56": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AvailabilityZone": {
+          "Fn::Select": [
+            1,
+            {
+              "Fn::GetAZs": "",
+            },
+          ],
+        },
+        "CidrBlock": "10.0.3.0/24",
+        "MapPublicIpOnLaunch": false,
+        "Tags": [
+          {
+            "Key": "aws-cdk:subnet-name",
+            "Value": "app",
+          },
+          {
+            "Key": "aws-cdk:subnet-type",
+            "Value": "Private",
+          },
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/appSubnet2",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::Subnet",
+    },
     "VpcisolatedSubnet1RouteTableAssociationD259E31A": {
       "Metadata": {
         "cdk_nag": {
@@ -1968,7 +3248,7 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises NetworkStack with no 
             },
           ],
         },
-        "CidrBlock": "10.0.2.0/24",
+        "CidrBlock": "10.0.4.0/24",
         "MapPublicIpOnLaunch": false,
         "Tags": [
           {
@@ -2055,7 +3335,7 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises NetworkStack with no 
             },
           ],
         },
-        "CidrBlock": "10.0.3.0/24",
+        "CidrBlock": "10.0.5.0/24",
         "MapPublicIpOnLaunch": false,
         "Tags": [
           {
@@ -2101,6 +3381,62 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises NetworkStack with no 
         },
       },
       "Type": "AWS::EC2::Route",
+    },
+    "VpcpublicSubnet1EIP411541E6": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Domain": "vpc",
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/publicSubnet1",
+          },
+        ],
+      },
+      "Type": "AWS::EC2::EIP",
+    },
+    "VpcpublicSubnet1NATGatewayA036E8A6": {
+      "DependsOn": [
+        "VpcpublicSubnet1DefaultRouteB88F9E93",
+        "VpcpublicSubnet1RouteTableAssociation4E83B6E4",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AllocationId": {
+          "Fn::GetAtt": [
+            "VpcpublicSubnet1EIP411541E6",
+            "AllocationId",
+          ],
+        },
+        "SubnetId": {
+          "Ref": "VpcpublicSubnet1Subnet2BB74ED7",
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc/publicSubnet1",
+          },
+        ],
+      },
+      "Type": "AWS::EC2::NatGateway",
     },
     "VpcpublicSubnet1RouteTable15C15F8E": {
       "Metadata": {
@@ -2300,6 +3636,328 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises NetworkStack with no 
         },
       },
       "Type": "AWS::EC2::Subnet",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;
+
+exports[`CDK skeleton: cdk synth and cdk-nag > synthesises WorkersStack with no unsuppressed cdk-nag findings 1`] = `
+{
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "EmailIdentity7187767D": {
+      "Properties": {
+        "EmailIdentity": "orgflow-dev.example",
+      },
+      "Type": "AWS::SES::EmailIdentity",
+    },
+    "NotificationsFunctionE347FB50": {
+      "DependsOn": [
+        "NotificationsFunctionServiceRoleDefaultPolicy4C6646C3",
+        "NotificationsFunctionServiceRole879987A8",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "NODEJS_22_X is the runtime TECH-STACK.md §5.1 specifies ("Node.js 22 runtime, ARM64"), matching apps/api's Dockerfile (node:22-slim) and every package.json engines field in this monorepo. Moving to a newer major the rest of the codebase has not adopted would be a separate, deliberate upgrade, not something to do silently to satisfy this rule.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-\${AWS::AccountId}-eu-west-2",
+          },
+          "S3Key": "891ad230d7fae1d002d114ccca1f592901d68773f48d964110088e56490acd81.zip",
+        },
+        "Environment": {
+          "Variables": {
+            "ORGFLOW_AWS_REGION": "eu-west-2",
+            "ORGFLOW_DATABASE_URL_SECRET_ARN": {
+              "Fn::ImportValue": "TestData:ExportsOutputRefDatabaseUrlSecretFA7DE06246075C80",
+            },
+            "ORGFLOW_ENV": "development",
+            "ORGFLOW_LOG_LEVEL": "info",
+            "ORGFLOW_SES_FROM_ADDRESS": "notifications@orgflow-dev.example",
+            "ORGFLOW_WEB_URL": "https://app.orgflow-dev.example",
+          },
+        },
+        "Handler": "index.handler",
+        "LoggingConfig": {
+          "LogGroup": {
+            "Ref": "NotificationsLogGroup30CD7BAC",
+          },
+        },
+        "MemorySize": 256,
+        "Role": {
+          "Fn::GetAtt": [
+            "NotificationsFunctionServiceRole879987A8",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 30,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {
+              "Fn::GetAtt": [
+                "NotificationsFunctionSecurityGroupA99F1917",
+                "GroupId",
+              ],
+            },
+          ],
+          "SubnetIds": [
+            {
+              "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcappSubnet1SubnetAE489B2F386690C8",
+            },
+            {
+              "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcappSubnet2Subnet2449FB56F27A422B",
+            },
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "NotificationsFunctionSecurityGroupA99F1917": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "NODEJS_22_X is the runtime TECH-STACK.md §5.1 specifies ("Node.js 22 runtime, ARM64"), matching apps/api's Dockerfile (node:22-slim) and every package.json engines field in this monorepo. Moving to a newer major the rest of the codebase has not adopted would be a separate, deliberate upgrade, not something to do silently to satisfy this rule.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "GroupDescription": "Automatic security group for Lambda Function TestWorkersNotificationsFunctionB7255D64",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic by default",
+            "IpProtocol": "-1",
+          },
+        ],
+        "VpcId": {
+          "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpc8378EB38272D6E3A",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
+    "NotificationsFunctionServiceRole879987A8": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "NODEJS_22_X is the runtime TECH-STACK.md §5.1 specifies ("Node.js 22 runtime, ARM64"), matching apps/api's Dockerfile (node:22-slim) and every package.json engines field in this monorepo. Moving to a newer major the rest of the codebase has not adopted would be a separate, deliberate upgrade, not something to do silently to satisfy this rule.",
+            },
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "AWSLambdaBasicExecutionRole (CloudWatch Logs) and AWSLambdaVPCAccessExecutionRole (ENI management for VPC attachment) are the two AWS-managed policies CDK attaches automatically to a VPC-attached lambda.Function's default execution role. Both are scoped to exactly what a VPC-attached Lambda's own infrastructure needs; a hand-written equivalent would duplicate what AWS already maintains for its own service integration, not tighten it.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "NotificationsFunctionServiceRoleDefaultPolicy4C6646C3": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "NODEJS_22_X is the runtime TECH-STACK.md §5.1 specifies ("Node.js 22 runtime, ARM64"), matching apps/api's Dockerfile (node:22-slim) and every package.json engines field in this monorepo. Moving to a newer major the rest of the codebase has not adopted would be a separate, deliberate upgrade, not something to do silently to satisfy this rule.",
+            },
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "AWSLambdaBasicExecutionRole (CloudWatch Logs) and AWSLambdaVPCAccessExecutionRole (ENI management for VPC attachment) are the two AWS-managed policies CDK attaches automatically to a VPC-attached lambda.Function's default execution role. Both are scoped to exactly what a VPC-attached Lambda's own infrastructure needs; a hand-written equivalent would duplicate what AWS already maintains for its own service integration, not tighten it.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestData:ExportsOutputRefDatabaseUrlSecretFA7DE06246075C80",
+              },
+            },
+            {
+              "Action": [
+                "ses:SendEmail",
+                "ses:SendRawEmail",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition",
+                    },
+                    ":ses:eu-west-2:",
+                    {
+                      "Ref": "AWS::AccountId",
+                    },
+                    ":identity/",
+                    {
+                      "Ref": "EmailIdentity7187767D",
+                    },
+                  ],
+                ],
+              },
+            },
+            {
+              "Action": [
+                "sqs:ReceiveMessage",
+                "sqs:ChangeMessageVisibility",
+                "sqs:GetQueueUrl",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestMessaging:ExportsOutputFnGetAttnotificationsQueue8852CCBBArn3A593CF6",
+              },
+            },
+            {
+              "Action": "kms:Decrypt",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestMessaging:ExportsOutputFnGetAttEncryptionKey1B843E66Arn91172964",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "NotificationsFunctionServiceRoleDefaultPolicy4C6646C3",
+        "Roles": [
+          {
+            "Ref": "NotificationsFunctionServiceRole879987A8",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "NotificationsFunctionSqsEventSourceTestMessagingnotificationsQueue0536113B8C684A3B": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "NODEJS_22_X is the runtime TECH-STACK.md §5.1 specifies ("Node.js 22 runtime, ARM64"), matching apps/api's Dockerfile (node:22-slim) and every package.json engines field in this monorepo. Moving to a newer major the rest of the codebase has not adopted would be a separate, deliberate upgrade, not something to do silently to satisfy this rule.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "BatchSize": 10,
+        "EventSourceArn": {
+          "Fn::ImportValue": "TestMessaging:ExportsOutputFnGetAttnotificationsQueue8852CCBBArn3A593CF6",
+        },
+        "FunctionName": {
+          "Ref": "NotificationsFunctionE347FB50",
+        },
+        "FunctionResponseTypes": [
+          "ReportBatchItemFailures",
+        ],
+      },
+      "Type": "AWS::Lambda::EventSourceMapping",
+    },
+    "NotificationsLogGroup30CD7BAC": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "RetentionInDays": 30,
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete",
     },
   },
   "Rules": {

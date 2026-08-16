@@ -3,8 +3,10 @@ import {
   aws_kms as kms,
   aws_rds as rds,
   aws_s3 as s3,
+  aws_secretsmanager as secretsmanager,
   Duration,
   RemovalPolicy,
+  SecretValue,
   Stack,
   type StackProps,
 } from 'aws-cdk-lib';
@@ -22,6 +24,21 @@ export class DataStack extends Stack {
   public readonly encryptionKey: kms.Key;
   public readonly database: rds.DatabaseInstance;
   public readonly filesBucket: s3.Bucket;
+  // A placeholder, not a real credential: RDS's own generated secret above
+  // holds the real, rotating username and password, reachable only by
+  // rotation and by whatever composes a connection string from it.
+  // ApiStack and WorkersStack both need one *assembled* ORGFLOW_DATABASE_URL
+  // string (host, port, credentials and database name together), and
+  // CloudFormation has no built-in way to concatenate one secret's fields
+  // into another's value without either embedding the password in the
+  // template (which CDK's own docs warn against) or a custom resource this
+  // synth-only skeleton does not yet need. The pragmatic middle ground: an
+  // empty secret whose real value is set once, by hand, the first time this
+  // stack is actually deployed, exactly like ORGFLOW_MONGODB_URI already
+  // has to be (Atlas is not infra-managed either). Composing and rotating
+  // it automatically alongside RDS's own rotation is a real improvement,
+  // documented as a follow-up rather than built here.
+  public readonly databaseUrlSecret: secretsmanager.Secret;
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
@@ -109,5 +126,41 @@ export class DataStack extends Stack {
     // endpoint NetworkStack already sets up, so it never needs internet
     // egress.
     this.database.addRotationSingleUser({ automaticallyAfter: Duration.days(30) });
+
+    // ApiStack's Fargate tasks and WorkersStack's Lambda both need to reach
+    // Postgres, and both live in NetworkStack's 'app' subnet group. Scoped
+    // by that subnet group's CIDR blocks rather than by security group
+    // reference: DataStack is built before either of those stacks exists,
+    // and a security-group-to-security-group rule would need ApiStack's SG
+    // as an input, making DataStack depend on a stack that itself depends
+    // on DataStack for the database endpoint. A CIDR-based rule needs
+    // nothing back from either stack, so the dependency stays one-directional.
+    for (const subnet of props.vpc.selectSubnets({ subnetGroupName: 'app' }).subnets) {
+      databaseSecurityGroup.addIngressRule(
+        ec2.Peer.ipv4(subnet.ipv4CidrBlock),
+        ec2.Port.tcp(5432),
+        `Postgres from the app subnet in ${subnet.availabilityZone}`,
+      );
+    }
+
+    // No encryptionKey: this.encryptionKey here, deliberately, matching
+    // rds.Credentials.fromGeneratedSecret above, which likewise never
+    // passes one. A secret on this stack's own customer-managed key would
+    // need its key's resource policy to name whichever role in ApiStack or
+    // WorkersStack reads it, and DataStack is built before either of those
+    // stacks exists; that reference would make DataStack depend on a stack
+    // that already depends on DataStack for this very secret, the same
+    // cyclic shape MessagingStack's own EncryptionKey comment describes.
+    // The default AWS-managed secretsmanager key carries no such policy to
+    // update, so granting a role in a different stack read access needs
+    // nothing back from that stack.
+    this.databaseUrlSecret = new secretsmanager.Secret(this, 'DatabaseUrlSecret', {
+      description:
+        'ORGFLOW_DATABASE_URL for apps/api and workers. Placeholder: set the real ' +
+        'postgres://user:pass@host:port/dbname value after the first deploy, once the ' +
+        "database's generated credentials secret exists to compose it from.",
+      secretStringValue: SecretValue.unsafePlainText('postgres://replace-me-after-deploy'),
+      removalPolicy,
+    });
   }
 }

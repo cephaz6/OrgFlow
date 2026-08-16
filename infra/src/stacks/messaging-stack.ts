@@ -86,6 +86,14 @@ export class MessagingStack extends Stack {
         enforceSSL: true,
         deadLetterQueue: { queue: deadLetterQueue, maxReceiveCount: 5 },
         removalPolicy,
+        // Only 'notifications' has a real consumer yet (WorkersStack's
+        // Lambda). AWS recommends a queue's visibility timeout comfortably
+        // exceed its consumer's processing time, so a slow send does not
+        // make the message visible to a second concurrent delivery before
+        // the first has finished; the other three queues keep SQS's
+        // 30-second default until they have a consumer whose actual
+        // duration this could be tuned against.
+        ...(consumer === 'notifications' ? { visibilityTimeout: Duration.seconds(90) } : {}),
       });
 
       this.domainEventsTopic.addSubscription(new subscriptions.SqsSubscription(queue));

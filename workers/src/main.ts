@@ -1,30 +1,17 @@
 import { createDb } from '@orgflow/db';
 
 import { loadConfig } from './config/env.js';
-import { createDummyEmailSender } from './email/dummy-sender.js';
-import type { EmailSender } from './email/sender.js';
-import { createSesSender } from './email/ses-sender.js';
-import { createLogger, type Logger } from './logger.js';
+import { resolveEmailSender } from './email/resolve-sender.js';
+import { createLogger } from './logger.js';
 import { dispatchDomainEvent } from './notifications/dispatch.js';
 import { createSqsClient, runConsumer } from './sqs/consumer.js';
 
-// ADR-0008 and the 3pservice pattern. Which implementation was built is
-// logged rather than left implicit, because "no email arrived" and "email
-// went to a dummy" look identical from the outside otherwise.
-function createEmailSender(config: ReturnType<typeof loadConfig>, logger: Logger): EmailSender {
-  if (!config.ORGFLOW_SES_FROM_ADDRESS) {
-    logger.warn('ORGFLOW_SES_FROM_ADDRESS is not set; email goes to the dummy sender');
-    return createDummyEmailSender();
-  }
-
-  logger.info({ from: config.ORGFLOW_SES_FROM_ADDRESS }, 'sending email through SES');
-  return createSesSender({
-    fromAddress: config.ORGFLOW_SES_FROM_ADDRESS,
-    region: config.ORGFLOW_AWS_REGION,
-    endpoint: config.ORGFLOW_AWS_ENDPOINT,
-  });
-}
-
+// The local development driver: `pnpm dev` runs this against LocalStack,
+// self-managing the receive/handle/delete loop. In a deployed environment
+// AWS itself pulls messages off the same queue and invokes
+// lambda-handler.ts instead (TECH-STACK.md §6); dispatchDomainEvent is the
+// part shared between the two, so what a message does never depends on
+// which one delivered it.
 async function main(): Promise<void> {
   const config = loadConfig();
   const logger = createLogger(config.ORGFLOW_LOG_LEVEL);
@@ -39,7 +26,7 @@ async function main(): Promise<void> {
   const db = createDb({ connectionString: config.ORGFLOW_DATABASE_URL });
   const deps = {
     db,
-    emailSender: createEmailSender(config, logger),
+    emailSender: resolveEmailSender(config, logger),
     webUrl: config.ORGFLOW_WEB_URL,
     logger,
   };

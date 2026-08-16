@@ -557,3 +557,145 @@ requires produces an incomplete case. The server remains authoritative either wa
   rejected outright, but not needed: it changes a shipped API contract to remove a
   fail-open path that is already safe. Worth revisiting if a real definition depends on a
   department condition in a form.
+
+## ADR-0019: ECS Fargate for the API, Lambda for the notification worker
+
+**Date:** 2026-08-16
+**Status:** Accepted
+**Deciders:** Project operator (session continuation after step 10; asked to proceed)
+
+**Context**
+
+`TECH-STACK.md` §7 names `ApiStack` and `WorkersStack` but leaves the API's compute
+choice open ("Lambda + API Gateway, or ECS Fargate") and states the worker's ("Lambda
+functions, event source mappings"). `PRD.md` §20's own Phase 1 acceptance criterion
+settles the worker question explicitly: "the approver receives an email via SNS -> SQS ->
+Lambda -> SES." Building step 11's deployment skeleton meant making the API's choice for
+real, and then discovering that `workers/src/main.ts`'s existing local development driver,
+a self-managed `ReceiveMessage`/`DeleteMessage` poll loop, is not what a Lambda deployment
+actually runs: an SQS event source mapping has AWS itself pull messages and invoke the
+function with a batch, so nothing in `main.ts` carries over unchanged.
+
+`apps/api/src/index.ts` is a long-running Express process that opens its Postgres pool and
+Mongo client once at startup and holds them for the process lifetime. Wrapping that in a
+Lambda handler would mean either reopening a connection pool on every cold start, the
+opposite of what a persistent pool is for, or a rewrite of already-tested server bootstrap
+code to defer that setup per-invocation.
+
+**Decision**
+
+`ApiStack` runs the API on ECS Fargate, behind an internet-facing Application Load
+Balancer, built from a new multi-stage `apps/api/Dockerfile` using `turbo prune` to isolate
+exactly the workspace packages `@orgflow/api` depends on. `WorkersStack` runs the
+notification worker as a single Lambda function (Node.js 22, ARM64, matching
+`TECH-STACK.md` §5.1), triggered by an SQS event source mapping on the `notifications`
+queue with `reportBatchItemFailures` enabled.
+
+The event source mapping needed a genuine adapter, not a reuse of the poll loop:
+`workers/src/lambda-handler.ts` is new, exports `handler(event: SQSEvent):
+Promise<SQSBatchResponse>`, and calls the same `dispatchDomainEvent` the local driver
+calls. `reportBatchItemFailures` is what lets it report only the records that actually
+failed rather than the SQS-default "retry the whole batch on any non-empty return", the
+Lambda equivalent of `pollOnce`'s per-message delete. `main.ts`'s email-sender construction
+was extracted to `workers/src/email/resolve-sender.ts` so the two entry points cannot
+disagree about which implementation they built.
+
+Getting the Dockerfile right needed three real, empirically found fixes, not guessed ones:
+`--ignore-scripts` on both `pnpm install` calls (the root `package.json`'s own `prepare`
+script runs `husky`, a devDependency `turbo prune`'s pruned tree does not carry);
+`tsconfig.base.json` copied explicitly into the build stage (`turbo prune` walks
+`package.json` dependencies, not a `tsconfig`'s `extends` target, so every pruned
+package's tsconfig pointed at a file that was not there); and `apps/api/node_modules`
+copied alongside the root one into the runtime stage (pnpm places the workspace symlinks,
+`@orgflow/db -> ../../../packages/db`, inside the _consuming package's own_ `node_modules`,
+not the root one, so a build that copied only the root layer looked complete and then
+failed at boot with `ERR_MODULE_NOT_FOUND`). The built image was run against the real
+Postgres and Mongo containers this session already had up, confirmed serving `GET /health`
+and completing a real `dev-login` database write, not merely confirmed to build.
+
+`NetworkStack` gains a third subnet group, `app` (`PRIVATE_WITH_EGRESS`), with one NAT
+gateway. Neither Fargate nor the Lambda could reach the internet without it: MongoDB
+Atlas is the definition store's actual deployment target (`TECH-STACK.md` §5.2, "DocumentDB
+... is not API-complete. That is noted as a constraint, not a plan."), meaning it sits
+outside the VPC entirely, and the Google OIDC discovery endpoint `apps/api` calls at boot
+is likewise public internet. `DataStack`'s Postgres security group gains an ingress rule
+scoped to the `app` subnet group's CIDR blocks rather than to a security group reference,
+because `DataStack` is built before `ApiStack` or `WorkersStack` exist, and a
+security-group-to-security-group rule would need one of their security groups as an input,
+making `DataStack` depend on a stack that already depends on `DataStack`. The same cyclic
+shape surfaced a second time, empirically, as a real `DependencyCycle` synth failure: the
+first version of `ApiStack`'s two application secrets (a MongoDB URI placeholder and the
+session secret) used `DataStack`'s shared customer-managed KMS key, and granting the
+execution role read access to a secret on that key would have needed the key's resource
+policy, owned by `DataStack`, to name a role owned by `ApiStack`. Both now use the default
+AWS-managed `secretsmanager` key, matching how `rds.Credentials.fromGeneratedSecret`
+already does in the same file.
+
+Three secrets are deliberate placeholders, not generated credentials: `DataStack`'s
+`databaseUrlSecret` (an assembled `postgres://...` connection string) and `ApiStack`'s
+`mongoUriSecret` both describe a value nothing in this CDK app can compose. RDS's own
+generated secret holds a real, rotating username and password, but CloudFormation has no
+built-in way to combine one secret's fields into another's value without either embedding
+a password in the template, which CDK's own documentation warns against, or a custom
+resource this synth-only skeleton does not yet need. Both are set by hand once, the first
+time a given environment is actually deployed, the same way `sesDomain` and `webUrl`
+(`infra/src/config/environment.ts`) are `.example` placeholders (RFC 2606) until `WebStack`
+owns a real, DNS-controlled domain. `WorkersStack`'s Lambda receives the database secret's
+ARN as a plain environment variable and a read grant, rather than the composed value
+itself: unlike ECS's `secrets` mapping, which never exposes a secret's value outside the
+running container's process environment, a Lambda environment variable sourced from
+Secrets Manager is resolved into the function's visible configuration at deploy time,
+which defeats the purpose of keeping it in Secrets Manager at all. Fetching it via the SDK
+at cold start is the correct pattern and is not yet built; `resolveDeps` in
+`lambda-handler.ts` is where it belongs.
+
+Every `cdk-nag` finding against the two new stacks was suppressed from an actual run, not
+predicted: an earlier draft guessed rule IDs and a resource path before ever running
+`cdk-nag`, and every one of those guesses was wrong or incomplete once checked against real
+output (a debugging script written for this session printed exact resource paths before
+any suppression was written, then was deleted). The load balancer's listener is HTTP only:
+an HTTPS listener needs an ACM certificate, which needs a real, DNS-validated domain, which
+does not exist yet either.
+
+**Consequences**
+
+`cdk synth -c env=dev` succeeds with exit code 0 and zero unsuppressed `cdk-nag` findings
+across all six stacks (Network, Data, Messaging, the new Assets, Api, Workers), confirmed
+by running the real command, not only the snapshot test that mirrors it.
+`infra/test/stacks.test.ts` takes an injected `apiImage: ecs.ContainerImage` on `ApiStack`
+specifically so that suite stays fast and offline: `bin/app.ts`'s real synth path builds a
+`DockerImageAsset` from `apps/api/Dockerfile`, while the test passes a tiny public-registry
+stub, since neither the template shape nor `cdk-nag` cares whether the referenced image
+could actually serve traffic. One finding, the execution role's `ecr:GetAuthorizationToken`
+wildcard, only appears against the real image and is invisible to the stub-based test; its
+suppression was written and verified against the real `cdk synth` output for exactly that
+reason.
+
+Nothing here is deployed. The manually-populated secrets are a real operational gap for
+whoever runs the first actual deployment, not a solved problem, and are named as such
+rather than silently assumed away. `ApiStack`'s HTTP-only listener and every `.example`
+placeholder move once `WebStack` exists.
+
+**Alternatives rejected**
+
+- **Lambda + API Gateway for the API.** Rejected: `apps/api` already holds its database and
+  Mongo connections open for the process lifetime by design; adapting that to a
+  per-invocation Lambda lifecycle is a rewrite of tested server bootstrap code for no
+  benefit this skeleton needs, and `TECH-STACK.md` §7 names Fargate as an equally valid
+  alternative rather than mandating Lambda for API compute specifically.
+- **Keep the notification worker as a long-running poll loop on ECS instead of Lambda.**
+  Rejected: `PRD.md` §20 explicitly commits to "SNS -> SQS -> Lambda -> SES" as a Phase 1
+  acceptance criterion, and nothing about the worker holds a connection open the way
+  Express does, so there is no persistent-pool argument against Lambda the way there is for
+  the API.
+- **A shared customer-managed KMS key for the new application secrets.** Rejected: this is
+  the exact cyclic cross-stack dependency `MessagingStack`'s own `EncryptionKey` comment
+  already warns about, confirmed as a real `DependencyCycle` synth failure rather than a
+  theoretical one.
+- **Compose `ORGFLOW_DATABASE_URL` automatically via a custom resource.** Not rejected
+  outright, deferred: correct, but a bigger deliverable than a synth-only, not-deployed
+  skeleton needs. Recorded above as the follow-up it is.
+- **Guess `cdk-nag` rule IDs and suppress ahead of running the checker.** Rejected after
+  one draft did exactly this and got several wrong; every suppression in
+  `infra/src/nag-suppressions.ts` for the two new stacks was written after seeing the
+  actual `AwsSolutions-*` id and resource path in real output.

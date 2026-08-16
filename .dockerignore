@@ -1,0 +1,16 @@
+# Kept minimal deliberately: `turbo prune` in apps/api/Dockerfile needs the
+# real pnpm-lock.yaml and workspace package.json files to compute an
+# accurate pruned subset, so nothing workspace-related is excluded here.
+# This only strips what a build never needs to read.
+
+node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/cdk.out
+.git
+.env
+.env.*
+!.env.example
+*.log
