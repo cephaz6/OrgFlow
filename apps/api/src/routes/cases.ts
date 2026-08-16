@@ -7,6 +7,7 @@ import {
   findCaseTasksForCase,
   findProcessDefinitionById,
   findProcessVersionById,
+  recordTaskDecision,
   updateCaseState,
   withTenantTransaction,
 } from '@orgflow/db';
@@ -25,7 +26,7 @@ import type { MongoClient } from 'mongodb';
 import { z } from 'zod';
 
 import { buildEvaluationContext } from '../cases/evaluation-context.js';
-import { canViewCase } from '../cases/permissions.js';
+import { canViewCase, isAdministrator } from '../cases/permissions.js';
 import { persistEngineOutput } from '../cases/persist-engine-output.js';
 import { buildCaseTimeline } from '../cases/timeline.js';
 import type { Logger } from '../logger.js';
@@ -62,6 +63,26 @@ const patchCaseSchema = z
   .refine((body) => body.values !== undefined || body.title !== undefined, {
     message: 'Provide at least one of values or title.',
   });
+
+const resubmitCaseSchema = z
+  .object({
+    // Optional: the requester may amend before resubmitting, or resubmit
+    // unchanged after a conversation happened elsewhere. Supplied values are
+    // merged over the existing ones rather than replacing the document, so a
+    // partial amendment cannot silently blank untouched fields.
+    values: z.record(z.unknown()).optional(),
+  })
+  .optional();
+
+const cancelCaseSchema = z.object({
+  // PRD.md §11.5 calls this "cancel with reason", and §8.5 depends on the
+  // reason being recorded, so it is required rather than optional.
+  reason: z.string().min(1).max(2000),
+});
+
+// PRD.md §4.1 reserves this step key; the engine routes a `return` decision
+// to it and creates an amendment task against it.
+const RETURNED_STEP_KEY = '$returnedToRequester';
 
 // Turns a Zod failure into the RFC 7807 shape PRD.md §11.10 specifies,
 // including the errors[] array with a field path per problem.
@@ -165,6 +186,32 @@ async function requireVisibleCase(
     throw new HttpProblemError(404, 'Not Found', 'No such case.');
   }
   return found;
+}
+
+// Closes the amendment task a return created, recording it as completed by
+// the requester rather than cancelled: they did the work the task asked for.
+// Written on the caller's transaction so it lands with the resubmission or
+// not at all.
+async function completeReturnedTask(
+  trx: Transaction<Database>,
+  caseId: string,
+  requesterUserId: string,
+): Promise<void> {
+  const tasks = await findCaseTasksForCase(trx, caseId);
+  const returned = tasks.find(
+    (task) =>
+      task.stepKey === RETURNED_STEP_KEY &&
+      (task.status === 'pending' || task.status === 'claimed'),
+  );
+
+  if (returned) {
+    await recordTaskDecision(trx, {
+      taskId: returned.taskId,
+      expectedRowVersion: returned.rowVersion,
+      decision: 'completed',
+      completedByUserId: requesterUserId,
+    });
+  }
 }
 
 function titleFromValues(
@@ -467,6 +514,219 @@ export function createCasesRouter(deps: CasesDeps): Router {
         case: toCaseResponse(result.updatedCase),
         tasks: result.tasks,
       });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PRD.md §11.5: resubmit a returned case.
+  //
+  // The one thing this must not do is re-pin the version. Submit takes
+  // whatever is current; resubmit deliberately keeps the version the case
+  // already holds, because PRD.md §8.4 says a returned case never silently
+  // upgrades: the requester is amending against the form they saw. It does
+  // not allocate a reference either, since the case already has one.
+  router.post('/cases/:caseId/resubmit', async (req, res, next) => {
+    try {
+      const session = sessionOf(req);
+      const caseId = req.params.caseId!;
+      const body = parseBody(resubmitCaseSchema, req.body) ?? {};
+      const now = new Date();
+
+      const result = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
+        const found = await requireVisibleCase(trx, session, caseId);
+
+        if (found.submittedByUserId !== session.userId) {
+          throw new HttpProblemError(
+            403,
+            'Forbidden',
+            'Only the requester can resubmit this case.',
+          );
+        }
+
+        // The engine enforces the same rule and would report it as an
+        // error, but checking here turns it into a clearer message than
+        // the generic engine-refusal path produces.
+        if (found.status !== 'active' || found.currentStepKey !== null) {
+          throw new HttpProblemError(
+            409,
+            'Conflict',
+            'Only a case that was returned to its requester can be resubmitted.',
+          );
+        }
+
+        const document = await loadPinnedDocument(
+          trx,
+          deps.mongoClient,
+          session.organisationId,
+          // PRD.md §8.4 and §8.2: the case's existing pin, not the
+          // definition's current version.
+          found.versionId,
+        );
+
+        const existingValues = await readCaseValues(
+          deps.mongoClient,
+          session.organisationId,
+          found.caseId,
+        );
+        const values = body.values ? { ...existingValues, ...body.values } : existingValues;
+
+        let valuesDocumentId: string | undefined;
+        if (body.values) {
+          valuesDocumentId = await upsertCaseValues(deps.mongoClient, {
+            organisationId: session.organisationId,
+            caseId: found.caseId,
+            values,
+            now: now.toISOString(),
+          });
+        }
+
+        const context = await buildEvaluationContext(trx, {
+          submitterUserId: found.submittedByUserId,
+          correlationId: req.correlationId,
+          now,
+          existingCase: found,
+        });
+
+        const output = advance({
+          definition: document,
+          caseState: {
+            caseId: found.caseId,
+            definitionId: found.definitionId,
+            versionId: found.versionId,
+            status: found.status,
+            outcome: found.outcome,
+            currentStepKey: found.currentStepKey,
+          },
+          values,
+          event: { type: 'caseResubmitted' },
+          context,
+        });
+
+        if (output.caseUpdates.status === undefined) {
+          throw new HttpProblemError(
+            409,
+            'Conflict',
+            output.errors[0]?.message ?? 'The workflow engine refused this resubmission.',
+          );
+        }
+
+        // The engine's caseResubmitted branch runs from startStepKey and
+        // does not close the amendment task, and persistEngineOutput only
+        // cancels open tasks when a case terminates. Without this the case
+        // would move back to its first step while the returned task sat
+        // pending forever, showing in the requester's queue as outstanding
+        // work they had already done.
+        await completeReturnedTask(trx, found.caseId, session.userId);
+
+        return persistEngineOutput(trx, {
+          organisationId: session.organisationId,
+          actorUserId: session.userId,
+          correlationId: req.correlationId,
+          existingCase: found,
+          output,
+          title: titleFromValues(document, values, found.title),
+          ...(valuesDocumentId !== undefined ? { valuesDocumentId } : {}),
+          auditAction: 'case.resubmitted',
+        });
+      });
+
+      await publishOrLog(deps, result.events, caseId);
+
+      res.status(200).json({
+        case: toCaseResponse(result.updatedCase),
+        tasks: result.tasks,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PRD.md §11.5: cancel with a reason. PRD.md §6.2 names the requester or
+  // an admin as the actors, and §8.5 relies on this being available to an
+  // admin specifically, as the remedy when a published version turns out to
+  // contain a critical error.
+  router.post('/cases/:caseId/cancel', async (req, res, next) => {
+    try {
+      const session = sessionOf(req);
+      const caseId = req.params.caseId!;
+      const body = parseBody(cancelCaseSchema, req.body);
+      const now = new Date();
+
+      const result = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
+        const found = await requireVisibleCase(trx, session, caseId);
+
+        if (found.submittedByUserId !== session.userId && !(await isAdministrator(trx, session))) {
+          throw new HttpProblemError(
+            403,
+            'Forbidden',
+            'Only the requester or an administrator can cancel this case.',
+          );
+        }
+
+        if (['completed', 'rejected', 'cancelled'].includes(found.status)) {
+          throw new HttpProblemError(
+            409,
+            'Conflict',
+            `This case is already ${found.status} and cannot be cancelled.`,
+          );
+        }
+
+        const document = await loadPinnedDocument(
+          trx,
+          deps.mongoClient,
+          session.organisationId,
+          found.versionId,
+        );
+
+        const values = await readCaseValues(deps.mongoClient, session.organisationId, found.caseId);
+
+        const context = await buildEvaluationContext(trx, {
+          submitterUserId: found.submittedByUserId,
+          correlationId: req.correlationId,
+          now,
+          existingCase: found,
+        });
+
+        const output = advance({
+          definition: document,
+          caseState: {
+            caseId: found.caseId,
+            definitionId: found.definitionId,
+            versionId: found.versionId,
+            status: found.status,
+            outcome: found.outcome,
+            currentStepKey: found.currentStepKey,
+          },
+          values,
+          event: { type: 'caseCancelled', reason: body.reason },
+          context,
+        });
+
+        if (output.caseUpdates.status === undefined) {
+          throw new HttpProblemError(
+            409,
+            'Conflict',
+            output.errors[0]?.message ?? 'The workflow engine refused this cancellation.',
+          );
+        }
+
+        // persistEngineOutput cancels every open task itself once the case
+        // reaches a terminal step, so nothing extra is needed here.
+        return persistEngineOutput(trx, {
+          organisationId: session.organisationId,
+          actorUserId: session.userId,
+          correlationId: req.correlationId,
+          existingCase: found,
+          output,
+          reason: body.reason,
+          auditAction: 'case.cancelled',
+        });
+      });
+
+      await publishOrLog(deps, result.events, caseId);
+
+      res.status(200).json({ case: toCaseResponse(result.updatedCase) });
     } catch (err) {
       next(err);
     }

@@ -143,6 +143,51 @@ describe('tasks API against real Postgres and Mongo', () => {
     expect(entry.caseTitle).toBe('mbp14');
   });
 
+  it('carries requester context on the decision screen', async () => {
+    // PRD.md §13.2: the decision screen must hold everything needed to
+    // decide, on one screen, without navigating away. Requester name,
+    // department and line manager are named explicitly.
+    const { managerTask } = await submitCase(700);
+    const managerCookie = await cookieFor(managerTask.assigneeUserId, ['member', 'approver']);
+
+    const detail = await request(buildApp())
+      .get(`/api/v1/tasks/${managerTask.taskId}`)
+      .set('Cookie', managerCookie);
+
+    expect(detail.status).toBe(200);
+    expect(detail.body.requester).toMatchObject({
+      userId: devUserId,
+      displayName: 'Local Dev User',
+      email: 'dev@orgflow.local',
+    });
+    // The seed makes the dev manager the requester's line manager, and it
+    // is the approver reading this screen, so it resolves to them.
+    expect(detail.body.requester.lineManagerUserId).toBe(managerTask.assigneeUserId);
+    expect(detail.body.case.submittedAt).toBeTruthy();
+  });
+
+  it('carries the requester on every queue row', async () => {
+    const { caseId, managerTask } = await submitCase(700);
+    const managerCookie = await cookieFor(managerTask.assigneeUserId, ['member', 'approver']);
+
+    const queue = await request(buildApp()).get('/api/v1/tasks').set('Cookie', managerCookie);
+    const entry = queue.body.data.find((task: { caseId: string }) => task.caseId === caseId);
+
+    expect(entry.requesterName).toBe('Local Dev User');
+    expect(entry.requesterUserId).toBe(devUserId);
+
+    // The claimable pool carries it too, since PRD.md §13.2's queue row
+    // applies to unclaimed work just as much.
+    const approved = await decide(managerTask.taskId, managerCookie, { decision: 'approve' });
+    const available = await request(buildApp())
+      .get('/api/v1/tasks/available')
+      .set('Cookie', await devCookie());
+    const poolEntry = available.body.data.find(
+      (task: { taskId: string }) => task.taskId === approved.body.tasks[0].taskId,
+    );
+    expect(poolEntry.requesterName).toBe('Local Dev User');
+  });
+
   it('returns the task with the step definition from the pinned version', async () => {
     const { managerTask } = await submitCase(700);
     const managerCookie = await cookieFor(managerTask.assigneeUserId, ['member', 'approver']);

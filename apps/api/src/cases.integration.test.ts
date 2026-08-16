@@ -1,15 +1,22 @@
 import {
   createDb,
   createOrganisation,
+  createProcessVersion,
   createUserWithIdentity,
   findCaseTasksForCase,
   findCaseTransitionsForCase,
   generateId,
   insertOrganisationMember,
+  publishProcessVersion,
   withTenantTransaction,
   type Database,
 } from '@orgflow/db';
-import { createMongoClient, ensureIndexes } from '@orgflow/documents';
+import {
+  buildLaptopRequestDefinition,
+  createMongoClient,
+  ensureIndexes,
+  insertProcessDefinitionDocument,
+} from '@orgflow/documents';
 import { createDummyPublisher, type DummyDomainEventPublisher } from '@orgflow/events';
 import type { Kysely } from 'kysely';
 import type { MongoClient } from 'mongodb';
@@ -317,6 +324,197 @@ describe('cases API against real Postgres and Mongo', () => {
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+
+  it('resubmits a returned case without re-pinning its version', async () => {
+    const agent = await signInAsDevUser();
+    const session = await agent.get('/api/v1/auth/session');
+    const organisationId = session.body.organisationId as string;
+
+    const draft = await createDraft(agent, laptopValues(850));
+    const submitted = await agent.post(`/api/v1/cases/${draft.caseId}/submit`);
+    const pinnedVersionId = submitted.body.case.versionId as string;
+    const reference = submitted.body.case.reference as string;
+
+    const managerTask = submitted.body.tasks[0];
+    const managerCookie = `${SESSION_COOKIE_NAME}=${await createSessionToken(
+      SESSION_SECRET,
+      buildSessionClaims(managerTask.assigneeUserId, organisationId, ['member', 'approver']),
+    )}`;
+
+    const returned = await request(buildApp())
+      .post(`/api/v1/tasks/${managerTask.taskId}/decide`)
+      .set('Cookie', managerCookie)
+      .send({ decision: 'return', comment: 'Please attach a supplier quote.' });
+    expect(returned.status).toBe(200);
+    expect(returned.body.case.currentStepKey).toBeNull();
+
+    const resubmitted = await agent
+      .post(`/api/v1/cases/${draft.caseId}/resubmit`)
+      .send({ values: { ...laptopValues(850), justification: 'Quote attached, as requested.' } });
+
+    expect(resubmitted.status).toBe(200);
+    expect(resubmitted.body.case.currentStepKey).toBe('managerApproval');
+    expect(resubmitted.body.case.status).toBe('active');
+
+    // PRD.md §8.4, the property this endpoint exists to protect: a returned
+    // case never silently upgrades, because the requester is amending
+    // against the form they saw.
+    expect(resubmitted.body.case.versionId).toBe(pinnedVersionId);
+    // ADR-0013: the reference was allocated at first submission and is not
+    // reissued.
+    expect(resubmitted.body.case.reference).toBe(reference);
+
+    const detail = await agent.get(`/api/v1/cases/${draft.caseId}`);
+    expect(detail.body.values.justification).toBe('Quote attached, as requested.');
+
+    // The amendment task is closed, not left outstanding in the requester's
+    // queue as work they have already done.
+    const returnedTask = detail.body.tasks.find(
+      (task: { stepKey: string }) => task.stepKey === '$returnedToRequester',
+    );
+    expect(returnedTask.status).toBe('completed');
+    expect(returnedTask.decision).toBe('completed');
+
+    // A fresh manager task exists for the new pass.
+    const openTasks = detail.body.tasks.filter(
+      (task: { status: string }) => task.status === 'pending',
+    );
+    expect(openTasks).toHaveLength(1);
+    expect(openTasks[0].stepKey).toBe('managerApproval');
+  });
+
+  it('keeps the original pin even when a newer version has been published', async () => {
+    // The sharper half of PRD.md §8.4. Submit, return, publish a second
+    // version, then resubmit: the case must still execute the version it
+    // was submitted against, not the one that is current now.
+    const agent = await signInAsDevUser();
+    const session = await agent.get('/api/v1/auth/session');
+    const organisationId = session.body.organisationId as string;
+    const definition = await definitionId(agent);
+
+    const draft = await createDraft(agent, laptopValues(850));
+    const submitted = await agent.post(`/api/v1/cases/${draft.caseId}/submit`);
+    const pinnedVersionId = submitted.body.case.versionId as string;
+
+    const managerTask = submitted.body.tasks[0];
+    const managerCookie = `${SESSION_COOKIE_NAME}=${await createSessionToken(
+      SESSION_SECRET,
+      buildSessionClaims(managerTask.assigneeUserId, organisationId, ['member', 'approver']),
+    )}`;
+    await request(buildApp())
+      .post(`/api/v1/tasks/${managerTask.taskId}/decide`)
+      .set('Cookie', managerCookie)
+      .send({ decision: 'return', comment: 'Needs a quote.' });
+
+    // Publish version 2 of the same definition, so current_version_id moves.
+    const stored = await insertProcessDefinitionDocument(
+      mongoClient,
+      buildLaptopRequestDefinition({
+        organisationId,
+        definitionId: definition,
+        createdByUserId: session.body.user.userId as string,
+        createdAt: new Date().toISOString(),
+      }),
+    );
+    const newVersionId = await withTenantTransaction(db, organisationId, async (trx) => {
+      const version = await createProcessVersion(trx, {
+        organisationId,
+        definitionId: definition,
+        versionNumber: 2,
+        documentId: stored.documentId,
+        documentHash: stored.documentHash,
+      });
+      await publishProcessVersion(trx, version.versionId, session.body.user.userId as string);
+      return version.versionId;
+    });
+    expect(newVersionId).not.toBe(pinnedVersionId);
+
+    const resubmitted = await agent.post(`/api/v1/cases/${draft.caseId}/resubmit`).send({});
+
+    expect(resubmitted.status).toBe(200);
+    expect(resubmitted.body.case.versionId).toBe(pinnedVersionId);
+    expect(resubmitted.body.case.versionId).not.toBe(newVersionId);
+
+    // A case submitted after the publish does pin the new one, which is
+    // what makes the assertion above meaningful rather than vacuous.
+    const laterDraft = await createDraft(agent, laptopValues(300));
+    const laterSubmitted = await agent.post(`/api/v1/cases/${laterDraft.caseId}/submit`);
+    expect(laterSubmitted.body.case.versionId).toBe(newVersionId);
+  });
+
+  it('refuses to resubmit a case that was never returned', async () => {
+    const agent = await signInAsDevUser();
+    const draft = await createDraft(agent, laptopValues(850));
+
+    // A draft is not a returned case.
+    expect((await agent.post(`/api/v1/cases/${draft.caseId}/resubmit`).send({})).status).toBe(409);
+
+    // Nor is one sitting on an open step.
+    await agent.post(`/api/v1/cases/${draft.caseId}/submit`);
+    expect((await agent.post(`/api/v1/cases/${draft.caseId}/resubmit`).send({})).status).toBe(409);
+  });
+
+  it('cancels a case with a reason, terminating it and cancelling open tasks', async () => {
+    const agent = await signInAsDevUser();
+    const draft = await createDraft(agent, laptopValues(850));
+    const submitted = await agent.post(`/api/v1/cases/${draft.caseId}/submit`);
+    expect(submitted.body.tasks[0].status).toBe('pending');
+    publisher.clear();
+
+    const cancelled = await agent
+      .post(`/api/v1/cases/${draft.caseId}/cancel`)
+      .send({ reason: 'Ordered through the existing hardware refresh instead.' });
+
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body.case.status).toBe('cancelled');
+    expect(cancelled.body.case.outcome).toBe('cancelled');
+    expect(cancelled.body.case.completedAt).toBeTruthy();
+
+    const detail = await agent.get(`/api/v1/cases/${draft.caseId}`);
+    expect(detail.body.tasks.every((task: { status: string }) => task.status === 'cancelled')).toBe(
+      true,
+    );
+
+    // PRD.md §10 puts the reason on the case.cancelled payload, which the
+    // engine cannot supply because nothing in the state machine reads it.
+    const event = publisher.published.find((candidate) => candidate.eventType === 'case.cancelled');
+    expect(event?.payload.reason).toBe('Ordered through the existing hardware refresh instead.');
+
+    const audit = detail.body.timeline.find(
+      (entry: { kind: string; action?: string }) =>
+        entry.kind === 'audit' && entry.action === 'case.cancelled',
+    );
+    expect(audit.payload.reason).toBe('Ordered through the existing hardware refresh instead.');
+  });
+
+  it('requires a reason to cancel, and refuses to cancel a terminal case', async () => {
+    const agent = await signInAsDevUser();
+    const draft = await createDraft(agent, laptopValues(850));
+    await agent.post(`/api/v1/cases/${draft.caseId}/submit`);
+
+    expect((await agent.post(`/api/v1/cases/${draft.caseId}/cancel`).send({})).status).toBe(400);
+
+    await agent.post(`/api/v1/cases/${draft.caseId}/cancel`).send({ reason: 'No longer needed.' });
+    const again = await agent
+      .post(`/api/v1/cases/${draft.caseId}/cancel`)
+      .send({ reason: 'Again.' });
+    expect(again.status).toBe(409);
+  });
+
+  it('serves the same definition detail by key as by id', async () => {
+    const agent = await signInAsDevUser();
+    const id = await definitionId(agent);
+
+    const byId = await agent.get(`/api/v1/process-definitions/${id}`);
+    const byKey = await agent.get('/api/v1/process-definitions/by-key/laptop-request');
+
+    expect(byKey.status).toBe(200);
+    expect(byKey.body).toEqual(byId.body);
+
+    expect((await agent.get('/api/v1/process-definitions/by-key/no-such-process')).status).toBe(
+      404,
+    );
   });
 
   it('refuses to submit or edit a case that is no longer a draft', async () => {

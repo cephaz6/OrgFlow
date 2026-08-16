@@ -184,6 +184,14 @@ describe('cross-tenant isolation', () => {
           .set('Cookie', intruder.cookie)
           .send({ title: 'Taken over' }),
         request(app).post(`/api/v1/cases/${victim.caseId}/submit`).set('Cookie', intruder.cookie),
+        request(app)
+          .post(`/api/v1/cases/${victim.caseId}/resubmit`)
+          .set('Cookie', intruder.cookie)
+          .send({ values: { estimatedCost: 1 } }),
+        request(app)
+          .post(`/api/v1/cases/${victim.caseId}/cancel`)
+          .set('Cookie', intruder.cookie)
+          .send({ reason: 'Cancelled by somebody who should not be able to.' }),
       ];
 
       for (const probe of probes) {
@@ -233,6 +241,22 @@ describe('cross-tenant isolation', () => {
 
       expect(response.status).toBe(404);
       expect(response.status).not.toBe(403);
+    }
+  });
+
+  it('scopes definition lookup by key to the caller’s own tenant', async () => {
+    // Both tenants run a process under the same key, which is exactly the
+    // case a by-key lookup could get wrong: the key is unique per
+    // organisation, not globally, so the route must resolve to the caller's
+    // own definition rather than whichever row it finds first.
+    for (const { intruder, victim } of bothDirections()) {
+      const response = await request(buildApp())
+        .get('/api/v1/process-definitions/by-key/laptop-request')
+        .set('Cookie', intruder.cookie);
+
+      expect(response.status).toBe(200);
+      expect(response.body.definition.definitionId).toBe(intruder.definitionId);
+      expect(response.body.definition.definitionId).not.toBe(victim.definitionId);
     }
   });
 
