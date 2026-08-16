@@ -5,10 +5,19 @@ export { withTenantTransaction } from './tenant-transaction.js';
 export { generateId } from './uuid.js';
 export type { Database } from './schema.js';
 export {
+  findOrganisationMemberByUserId,
   findOrganisationMembersForCurrentTenant,
   insertOrganisationMember,
+  setLineManager,
 } from './repositories/organisation-members.js';
 export type { InsertOrganisationMemberInput } from './repositories/organisation-members.js';
+export {
+  ensureGroup,
+  ensureGroupMember,
+  findGroupIdsByKeyForCurrentTenant,
+  findGroupIdsForUser,
+} from './repositories/groups.js';
+export type { EnsureGroupInput } from './repositories/groups.js';
 export { findMembershipsForUser } from './repositories/memberships.js';
 export {
   createIdentityProvider,
@@ -50,9 +59,11 @@ export {
   createCase,
   findCaseById,
   findCasesForCurrentTenant,
+  isDraftReference,
   updateCaseState,
 } from './repositories/cases.js';
 export type {
+  CasePage,
   CreateCaseInput,
   FindCasesFilter,
   UpdateCaseStateInput,

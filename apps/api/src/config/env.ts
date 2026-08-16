@@ -21,6 +21,15 @@ const envSchema = z.object({
   ORGFLOW_WEB_URL: z.string().url(),
   // ADR-0010: signs and encrypts the session cookie, not a database secret.
   ORGFLOW_SESSION_SECRET: z.string().min(32),
+  ORGFLOW_AWS_REGION: z.string().min(1),
+  // Points at LocalStack locally; unset in a deployed environment so the
+  // SDK resolves the real endpoint itself.
+  ORGFLOW_AWS_ENDPOINT: optionalString(z.string().url()),
+  // Blank means domain events go to the dummy publisher instead of SNS.
+  // Acceptable locally, where the topic may not be provisioned yet; the
+  // API logs which one it constructed at boot so the choice is never
+  // silent.
+  ORGFLOW_EVENTS_TOPIC_ARN: optionalString(z.string().min(1)),
   // ADR-0002: optional locally; blank means /auth/dev-login is the only
   // path in, which the route itself gates to ORGFLOW_ENV=local.
   ORGFLOW_OIDC_ISSUER_URL: optionalString(z.string().url()),

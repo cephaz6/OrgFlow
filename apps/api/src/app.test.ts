@@ -1,4 +1,5 @@
 import type { Database } from '@orgflow/db';
+import { createDummyPublisher } from '@orgflow/events';
 import type { Kysely } from 'kysely';
 import type { MongoClient } from 'mongodb';
 import request from 'supertest';
@@ -14,6 +15,7 @@ function buildApp() {
   return createApp({
     db: {} as Kysely<Database>,
     mongoClient: {} as MongoClient,
+    publisher: createDummyPublisher(),
     corsOrigin: 'http://localhost:3000',
     logger: createLogger('silent'),
     sessionSecret: '0'.repeat(64),
@@ -54,6 +56,7 @@ describe('POST /auth/dev-login', () => {
     const app = createApp({
       db: {} as Kysely<Database>,
       mongoClient: {} as MongoClient,
+      publisher: createDummyPublisher(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: '0'.repeat(64),

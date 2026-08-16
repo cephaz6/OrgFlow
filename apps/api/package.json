@@ -15,8 +15,10 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@orgflow/core": "workspace:^",
     "@orgflow/db": "workspace:^",
     "@orgflow/documents": "workspace:^",
+    "@orgflow/events": "workspace:^",
     "@orgflow/types": "workspace:^",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

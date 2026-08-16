@@ -12,5 +12,13 @@ export default defineConfig({
     // Testcontainers pulls images and waits for both services to accept
     // connections; the default 5s hook timeout is too tight for that.
     hookTimeout: 60_000,
+    // Every file in this suite talks to the same Postgres and Mongo pair
+    // that global-setup started. Running them in parallel means two files
+    // seeding the same development organisation at once, which collides on
+    // the unique constraints that make the seed idempotent in the first
+    // place, and makes row-counting assertions depend on what another file
+    // happened to insert. Sequential files, parallel assertions within a
+    // file.
+    fileParallelism: false,
   },
 });
