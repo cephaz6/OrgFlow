@@ -4,14 +4,22 @@ import type { ButtonHTMLAttributes } from 'react';
 
 import { cn } from '../lib/cn.js';
 
+// The focus ring is deliberately absent from these class lists. globals.css
+// draws one :focus-visible outline for the whole application, so that
+// anything focusable is indicated, including elements no component here
+// wraps. Restating it per component would stack two indicators on top of
+// each other.
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+        // Transparent rather than bg-background: an outline button sits on
+        // a card as often as on the page, and a background-coloured fill
+        // would punch a darker hole in the lighter surface.
+        outline: 'border border-input bg-transparent hover:bg-accent hover:text-accent-foreground',
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
       },

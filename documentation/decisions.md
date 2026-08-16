@@ -447,3 +447,49 @@ Resolving the template from the payload also means the notification describes th
 - **Retry anything not yet marked sent.** Rejected: duplicates under concurrency, caught by the three-way concurrent delivery test rather than by review.
 - **A dedicated `claimed_at` or lock column.** Rejected for now: `created_at` plus `status` already carries enough to express the lease, and a column that exists only to hold a lock invites the assumption that a distributed lock is being maintained, which it is not.
 - **Resolve the recipient and template from the task row at delivery time.** Rejected: the row is mutable, so a redelivery after a claim computes a different template key, which is a different idempotency key, which sends a duplicate. Observed in the live run before it was fixed.
+
+## ADR-0017: One dark palette, with each semantic hue in a solid and a subtle tier
+
+**Date:** 2026-08-16
+**Status:** Accepted
+**Deciders:** Project operator (design direction supplied as Cloudflare dashboard screenshots)
+
+**Context**
+`CLAUDE.md` §5.3 already required every colour to be a design token consumed through the Tailwind theme, and the token file that existed was the light neutral shadcn default declared solely on `:root`. The operator then supplied a visual direction: the Cloudflare dashboard, dark-first, and asked that `apps/web` follow it while taking OrgFlow's own brand hue rather than Cloudflare's orange.
+
+Adopting a dark surface breaks an assumption the light default never had to face. On white, one red serves both as a button fill carrying white text and as error text on the page, because both readings sit on the same side of the surface. On a near-black background they pull in opposite directions: a red dark enough for white text at 4.5:1 sits at roughly the same lightness as the page, and a red light enough to read as text against the page cannot carry white text at all. The same is true of green, amber and the action blue. `CLAUDE.md` §3 makes WCAG 2.2 AA a completion criterion rather than a follow-up, so this could not be settled by choosing whichever value looked closest to the screenshots.
+
+There is a second, independent collision. In the reference, the brand colour marks identity (the mark, the panel beside the sign-in form) and blue marks interaction. The existing token set had no way to express that difference, because `--primary` was the only token meaning "the product's colour", so brand and action would have had to be the same value.
+
+**Decision**
+`packages/ui/src/tokens.css` is a single dark palette. There is no light set and no `prefers-color-scheme` override: the product has one look, and a theme swap replaces the file wholly, as `CLAUDE.md` §5.2 already anticipates for a GOV.UK theme.
+
+Each semantic hue is declared in four tokens rather than two:
+
+    --x                    solid fill
+    --x-foreground         text on that fill
+    --x-subtle             tinted surface
+    --x-subtle-foreground  text on that tint, and on background or card
+
+`--brand` is separate from `--primary`, and `--link` is separate from both, because a blue that carries white button text is too dark to read as link text on a dark page.
+
+Every value is a literal `oklch()` triple rather than a `var()` alias, because `packages/ui/src/tokens.test.ts` parses this file, converts each token to a WCAG relative luminance and asserts the real contrast ratio of every foreground-against-surface pair, plus that every colour lies inside the sRGB gamut. Aliases would read more tersely and could not be checked.
+
+**Consequences**
+The palette is verified rather than asserted. The test found a real defect on its first run: `--link-hover` was outside the sRGB gamut, so the browser would have clamped it to a colour no ratio had been measured against. Contrast is now a property of the token set, checkable before the pages that consume it exist, which is the only point at which a whole palette can be checked at once. `axe-core` in the Playwright suite still runs per page and catches what a palette cannot know, such as text placed on the wrong surface.
+
+The cost is that a component author must pick the right tier, and picking the wrong one produces a page that passes lint and fails axe. The four-token shape and the naming are what make the choice obvious; the alternative was two tokens and a rule that some of the pairings silently fail.
+
+Dropping the light theme means a user who prefers light gets dark anyway. That is a real accessibility consideration, not merely a preference, and it is accepted for now because a second palette doubles the surface `tokens.test.ts` has to hold for a theme nothing has asked for. Adding one later is additive: the pairs are already enumerated.
+
+The exact greys of the reference are not reproduced. The muted secondary text tier sits at `oklch(0.7 …)` rather than the darker grey the screenshots use, because the screenshots' value fails 4.5:1 against both the page and the card. The structure, the dark shell, the card language and blue-as-action all survive; the specific greys do not.
+
+`CLAUDE.md` §5.3's claim that raw colours are "enforced by lint rather than by review" was not previously true. It is now: `eslint.config.mjs` rejects hex literals, `rgb()`/`hsl()`/`oklch()` calls, direct Tailwind palette classes and absolute white or black, in both string literals and template chunks, throughout `apps/web` and `packages/ui`.
+
+**Alternatives rejected**
+
+- **Light and dark palettes with a `prefers-color-scheme` override.** Rejected for now: it doubles every contrast pair the test holds, for a theme not asked for. Recorded here as the obvious extension rather than a closed door.
+- **Two tokens per hue, as the light default had.** Rejected: on a dark surface a single value cannot both carry white text and read as text. This is arithmetic, not taste.
+- **Colour-matching the reference screenshots.** Rejected: several of its greys fail 4.5:1, and `axe-core` passing with zero violations is a completion criterion. The look was adopted, the values were recomputed.
+- **Reusing `--primary` as the brand colour.** Rejected: it makes "this is OrgFlow" and "this does something" the same colour, which is the one structural claim the reference design makes about its own palette.
+- **Deriving subtle tints with opacity utilities such as `bg-success/10`.** Rejected: the colour that actually renders depends on whatever sits behind it, so no ratio can be measured. The previous `Alert` did this, and it is why the tints are now real tokens.

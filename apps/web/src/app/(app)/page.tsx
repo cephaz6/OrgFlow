@@ -2,6 +2,8 @@ import { EmptyState } from '@orgflow/ui';
 import { LayoutDashboard } from 'lucide-react';
 import type { Metadata } from 'next';
 
+import { PageHeader } from '../../features/shell';
+
 export const metadata: Metadata = {
   title: 'Dashboard — OrgFlow',
 };
@@ -9,7 +11,10 @@ export const metadata: Metadata = {
 export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <PageHeader
+        title="Dashboard"
+        description="Approvals waiting on you and the requests you have open."
+      />
       <EmptyState
         icon={LayoutDashboard}
         title="Nothing here yet"

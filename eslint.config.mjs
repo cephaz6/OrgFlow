@@ -77,7 +77,60 @@ const CONFIG_MODULE_GLOBS = [
 // global setup handing an ephemeral connection string to its test files)
 // is not application runtime config, so it is exempted independently
 // rather than folded into CONFIG_MODULE_GLOBS above.
-const TEST_HARNESS_GLOBS = ['**/src/test/**/*.ts', '**/*.test.ts', '**/*.integration.test.ts'];
+const TEST_HARNESS_GLOBS = [
+  '**/src/test/**/*.ts',
+  '**/*.test.ts',
+  '**/*.integration.test.ts',
+  // Playwright's runner and its specs are harness wiring for the same
+  // reason the Testcontainers setup above is: they choose a base URL and a
+  // reporter from the environment, which is not application runtime config.
+  '**/playwright.config.ts',
+  '**/e2e/**/*.ts',
+];
+
+const PROCESS_ENV_RULE = {
+  selector: "MemberExpression[object.name='process'][property.name='env']",
+  message:
+    'Read process.env only inside an application config module, never elsewhere. See ADR-0001.',
+};
+
+// CLAUDE.md §5.3 says raw colour values outside the token file are "a
+// defect, and this is enforced by lint rather than by review". This is that
+// enforcement. It was previously unenforced, which is why the rule is
+// arriving alongside the first substantial batch of components rather than
+// after them.
+//
+// Both string literals and template chunks are matched, because
+// cn(`bg-blue-500`) is as much a violation as className="bg-blue-500", and
+// only checking Literal would leave the template form as an easy accident.
+const RAW_COLOUR_PATTERNS = [
+  {
+    pattern: '#[0-9a-fA-F]{3}',
+    message:
+      'No raw hex colours in components (CLAUDE.md §5.3). Use a semantic token such as bg-card or text-muted-foreground; raw values belong only in packages/ui/src/tokens.css.',
+  },
+  {
+    pattern: '(?:rgb|rgba|hsl|hsla|oklch|oklab|lab|lch)\\(',
+    message:
+      'No raw colour functions in components (CLAUDE.md §5.3). Use a semantic token; raw values belong only in packages/ui/src/tokens.css.',
+  },
+  {
+    pattern:
+      '(?:bg|text|border|ring|from|via|to|fill|stroke|outline|decoration|shadow|accent|caret|divide|placeholder)-(?:slate|gray|grey|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-[0-9]{2,3}',
+    message:
+      'No direct Tailwind palette colours in components (CLAUDE.md §5.3). Use a semantic token such as bg-primary, text-muted-foreground or border-destructive.',
+  },
+  {
+    pattern: '(?:bg|text|border|ring|fill|stroke|divide|placeholder)-(?:white|black)',
+    message:
+      'No absolute white or black in components (CLAUDE.md §5.3). Use a semantic token such as bg-card or text-foreground, so a theme swap reaches this colour too.',
+  },
+];
+
+const rawColourRules = RAW_COLOUR_PATTERNS.flatMap(({ pattern, message }) => [
+  { selector: `Literal[value=/${pattern}/]`, message },
+  { selector: `TemplateElement[value.raw=/${pattern}/]`, message },
+]);
 
 export default tseslint.config(
   {
@@ -111,17 +164,22 @@ export default tseslint.config(
   {
     files: ['**/*.ts', '**/*.tsx'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "MemberExpression[object.name='process'][property.name='env']",
-          message:
-            'Read process.env only inside an application config module, never elsewhere. See ADR-0001.',
-        },
-      ],
+      'no-restricted-syntax': ['error', PROCESS_ENV_RULE],
     },
   },
   {
+    // no-restricted-syntax takes one options array, and a later block
+    // replaces the earlier one rather than adding to it, so the colour
+    // selectors have to carry PROCESS_ENV_RULE along with them. Dropping it
+    // here would silently exempt every component from ADR-0001.
+    files: ['apps/web/**/*.ts', 'apps/web/**/*.tsx', 'packages/ui/**/*.ts', 'packages/ui/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': ['error', PROCESS_ENV_RULE, ...rawColourRules],
+    },
+  },
+  {
+    // Must stay after both blocks above: this is the exemption, and an
+    // exemption that runs first exempts nothing.
     files: [...CONFIG_MODULE_GLOBS, ...TEST_HARNESS_GLOBS],
     rules: {
       'no-restricted-syntax': 'off',

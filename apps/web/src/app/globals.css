@@ -8,27 +8,63 @@
 
 /* Maps the raw token values from @orgflow/ui/tokens.css onto Tailwind's
    theme namespace, so utilities like bg-primary and text-muted-foreground
-   exist. This is the only place that mapping happens (CLAUDE.md §5.3). */
+   exist. This is the only place that mapping happens (CLAUDE.md §5.3).
+
+   Every token in tokens.css is mapped, including ones no component uses
+   yet: a token that exists but has no utility is a trap, because the
+   component that reaches for it gets a class name that silently does
+   nothing rather than an error. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+
+  --color-divider: var(--divider);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-subtle-foreground: var(--brand-subtle-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-subtle-foreground: var(--primary-subtle-foreground);
+
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-destructive-subtle-foreground: var(--destructive-subtle-foreground);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-subtle-foreground: var(--success-subtle-foreground);
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-subtle-foreground: var(--warning-subtle-foreground);
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -44,10 +80,25 @@
 :root {
   --font-sans: var(--font-sans-app), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-app), ui-monospace, monospace;
+
+  /* Tells the browser to render its own furniture (scrollbars, date
+     pickers, autofill, the caret) against a dark surface. Without it the
+     controls the user agent draws stay light, which is both ugly and a
+     genuine contrast failure on inputs the palette never gets to touch. */
+  color-scheme: dark;
 }
 
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+}
+
+/* The reference design surfaces keyboard affordances rather than hiding
+   them, and CLAUDE.md §3 requires every journey to be operable by
+   keyboard. A visible, consistent focus ring is the cheapest way to keep
+   that true by default instead of per-component. */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
