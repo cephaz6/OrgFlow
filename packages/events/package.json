@@ -9,6 +9,17 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sns": "^3.1111.0",
+    "@orgflow/types": "workspace:^"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-sqs": "^3.1111.0",
+    "@testcontainers/localstack": "^12.1.0",
+    "@types/node": "^22",
+    "testcontainers": "^12.1.0"
   }
 }
