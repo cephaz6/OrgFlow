@@ -247,9 +247,25 @@ importers:
 
   packages/documents:
     dependencies:
+      '@orgflow/types':
+        specifier: workspace:^
+        version: link:../types
       mongodb:
         specifier: ^7.5.0
         version: 7.5.0
+    devDependencies:
+      '@orgflow/core':
+        specifier: workspace:^
+        version: link:../core
+      '@testcontainers/mongodb':
+        specifier: ^12.1.0
+        version: 12.1.0
+      '@types/node':
+        specifier: ^22
+        version: 22.20.1
+      testcontainers:
+        specifier: ^12.1.0
+        version: 12.1.0
 
   packages/events: {}
 
@@ -5386,7 +5402,7 @@ snapshots:
 
   '@types/conventional-commits-parser@5.0.2':
     dependencies:
-      '@types/node': 26.2.0
+      '@types/node': 22.20.1
 
   '@types/cookie-parser@1.4.10(@types/express@5.0.6)':
     dependencies:
@@ -5448,7 +5464,7 @@ snapshots:
 
   '@types/pg@8.21.0':
     dependencies:
-      '@types/node': 26.2.0
+      '@types/node': 22.20.1
       pg-protocol: 1.16.0
       pg-types: 2.2.0
 

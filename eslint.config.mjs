@@ -98,7 +98,14 @@ export default tseslint.config(
       // Express error-handling middleware requires all four parameters
       // (err, req, res, next) even when next is unused; underscore-prefix
       // is the convention for a deliberately unused parameter elsewhere too.
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      //
+      // ignoreRestSiblings covers the standard omit-by-destructuring idiom,
+      // `const { _id, ...rest } = document`, where naming the discarded key
+      // is the whole mechanism rather than an oversight.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
     },
   },
   {
