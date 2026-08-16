@@ -70,20 +70,21 @@ Two properties follow from this, and both are load-bearing:
 
 ## Tech stack
 
-| Area             | Technology                                     |
-| ----------------- | ----------------------------------------------- |
-| Language          | TypeScript, everywhere                          |
-| Repository        | npm workspaces with Turborepo                   |
-| Web                | Next.js 15 (App Router), React 19               |
-| UI                 | shadcn/ui on Radix, Tailwind CSS 4              |
-| API                | Express 5                                       |
-| Runtime data       | PostgreSQL 16 via Kysely                        |
-| Definition store   | MongoDB                                         |
-| Auth               | OIDC (Authorization Code flow with PKCE)        |
-| Async              | SQS, SNS, EventBridge Scheduler, Lambda         |
-| Infrastructure     | AWS CDK                                         |
-| Testing            | Vitest, Testcontainers, Playwright, axe-core    |
-| CI/CD              | GitHub Actions                                  |
+| Area             | Technology                                   |
+| ---------------- | -------------------------------------------- |
+| Language         | TypeScript, everywhere                       |
+| Repository       | pnpm workspaces with Turborepo               |
+| Web              | Next.js 15 (App Router), React 19            |
+| UI               | shadcn/ui on Radix, Tailwind CSS 4           |
+| API              | Express 5                                    |
+| Runtime data     | PostgreSQL 16 via Kysely                     |
+| Definition store | MongoDB                                      |
+| Auth             | OIDC (Authorization Code flow with PKCE)     |
+| Async            | SQS, SNS, EventBridge Scheduler, Lambda      |
+| Email            | SES, behind a swappable sender interface     |
+| Infrastructure   | AWS CDK                                      |
+| Testing          | Vitest, Testcontainers, Playwright, axe-core |
+| CI/CD            | GitHub Actions                               |
 
 The reasoning behind each choice is in [docs/TECH-STACK.md](docs/TECH-STACK.md);
 substituting one is an architectural decision, recorded in
@@ -139,13 +140,13 @@ script, the API and the web application, at `http://localhost:3000`.
 
 ## Documentation
 
-| Document                                                | Holds                                                       |
-| --------------------------------------------------------- | -------------------------------------------------------------- |
-| [docs/PROBLEM-STATEMENT.md](docs/PROBLEM-STATEMENT.md)   | Why OrgFlow exists                                          |
-| [docs/GOV-STANDARDS.md](docs/GOV-STANDARDS.md)            | The quality bar: accessibility, security, data protection  |
-| [docs/TECH-STACK.md](docs/TECH-STACK.md)                  | Every technology and the reason it was chosen               |
-| [docs/PRD-SUMMARY.md](docs/PRD-SUMMARY.md)                | Scope, build phases, rules of engagement                    |
+| Document                                               | Holds                                                     |
+| ------------------------------------------------------ | --------------------------------------------------------- |
+| [docs/PROBLEM-STATEMENT.md](docs/PROBLEM-STATEMENT.md) | Why OrgFlow exists                                        |
+| [docs/GOV-STANDARDS.md](docs/GOV-STANDARDS.md)         | The quality bar: accessibility, security, data protection |
+| [docs/TECH-STACK.md](docs/TECH-STACK.md)               | Every technology and the reason it was chosen             |
+| [docs/PRD-SUMMARY.md](docs/PRD-SUMMARY.md)             | Scope, build phases, rules of engagement                  |
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE).

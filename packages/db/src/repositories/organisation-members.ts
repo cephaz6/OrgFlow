@@ -1,4 +1,4 @@
-import type { Selectable, Transaction } from 'kysely';
+import { sql, type Selectable, type Transaction } from 'kysely';
 import type { MemberStatus, OrganisationMember, OrganisationRole } from '@orgflow/types';
 
 import type { Database, OrganisationMembersTable } from '../schema.js';
@@ -68,6 +68,28 @@ export async function findOrganisationMemberByUserId(
     .executeTakeFirst();
 
   return row ? toDomain(row) : null;
+}
+
+// Active members holding a role, which is the recipient list for a
+// role-assigned task's claimable notification (PRD.md §14.1).
+export async function findActiveMembersWithRole(
+  trx: Transaction<Database>,
+  role: string,
+): Promise<OrganisationMember[]> {
+  const rows = await trx
+    .selectFrom('organisation_members')
+    .selectAll()
+    .where('status', '=', 'active')
+    // roles is a TEXT[]; the array-contains operator lets Postgres do the
+    // filtering rather than pulling every member back to filter in memory.
+    // The role reaches here from a tenant-authored definition document, so
+    // it is interpolated as a bind parameter, never inlined: Kysely's sql
+    // template parameterises `${role}` but `sql.lit(role)` would splice the
+    // string straight into the statement.
+    .where(sql<boolean>`roles @> ARRAY[${role}]::text[]`)
+    .execute();
+
+  return rows.map(toDomain);
 }
 
 export async function setLineManager(

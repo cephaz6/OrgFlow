@@ -226,6 +226,25 @@ export interface CaseCommentsTable {
   created_at: Generated<Date>;
 }
 
+export interface NotificationsTable {
+  notification_id: string;
+  organisation_id: string;
+  recipient_user_id: string;
+  case_id: string | null;
+  task_id: string | null;
+  channel: string;
+  template_key: string;
+  subject: string | null;
+  status: Generated<string>;
+  read_at: Date | null;
+  sent_at: Date | null;
+  failure_reason: string | null;
+  // PRD.md §14.2: eventId + recipientUserId + templateKey, joined into one
+  // value so the database's UNIQUE constraint can enforce it.
+  idempotency_key: string;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   organisations: OrganisationsTable;
   users: UsersTable;
@@ -243,4 +262,5 @@ export interface Database {
   case_tasks: CaseTasksTable;
   case_transitions: CaseTransitionsTable;
   case_comments: CaseCommentsTable;
+  notifications: NotificationsTable;
 }

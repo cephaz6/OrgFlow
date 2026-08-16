@@ -5,6 +5,7 @@ export { withTenantTransaction } from './tenant-transaction.js';
 export { generateId } from './uuid.js';
 export type { Database } from './schema.js';
 export {
+  findActiveMembersWithRole,
   findOrganisationMemberByUserId,
   findOrganisationMembersForCurrentTenant,
   insertOrganisationMember,
@@ -16,8 +17,18 @@ export {
   ensureGroupMember,
   findGroupIdsByKeyForCurrentTenant,
   findGroupIdsForUser,
+  findGroupMemberUserIds,
 } from './repositories/groups.js';
 export type { EnsureGroupInput } from './repositories/groups.js';
+export {
+  buildIdempotencyKey,
+  claimNotification,
+  findNotificationsForCase,
+  findNotificationsForRecipient,
+  markNotificationFailed,
+  markNotificationSent,
+} from './repositories/notifications.js';
+export type { ClaimedNotification, ClaimNotificationInput } from './repositories/notifications.js';
 export { findMembershipsForUser } from './repositories/memberships.js';
 export {
   createIdentityProvider,
