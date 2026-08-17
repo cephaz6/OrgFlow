@@ -16,8 +16,10 @@ jobs:
       # next build partially executes Server Components to determine static
       # vs dynamic rendering, so apps/web/src/config/env.ts must see this.
       # Not a real endpoint: CI never serves live traffic, it only needs a
-      # value that passes validation.
-      NEXT_PUBLIC_ORGFLOW_API_URL: http://localhost:4000
+      # value that passes validation. Every route mounts under /api/v1
+      # (apps/api/src/app.ts) except /health, so this must include that
+      # prefix or a browser talking to this build would 404 on every call.
+      NEXT_PUBLIC_ORGFLOW_API_URL: http://localhost:4000/api/v1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,6 +54,127 @@ jobs:
       # before tests run, so this needs nothing else set up here.
       - name: Integration tests
         run: pnpm run test:integration
+
+  # Playwright + axe against a real production build, parallel to the job
+  # above so a failure here is attributable at a glance rather than buried
+  # in a mixed log. Everything the suite needs is provisioned by hand
+  # (services:, not docker-compose.yml, which also carries LocalStack and
+  # host volumes this does not need): no domain events are asserted on, so
+  # ORGFLOW_EVENTS_TOPIC_ARN is left unset and the API falls back to its
+  # dummy publisher (apps/api/src/index.ts).
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: orgflow
+          POSTGRES_PASSWORD: orgflow
+          POSTGRES_DB: orgflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U orgflow -d orgflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # The whole suite authenticates through /auth/dev-login, which
+      # apps/api/src/routes/auth.ts fails closed outside 'local'
+      # (GOV-STANDARDS.md §6.2). Correct and safe here, since this flag only
+      # ever reaches an ephemeral container with a throwaway database, but
+      # it does mean this job never exercises the real OIDC path, only the
+      # seeded one.
+      ORGFLOW_ENV: local
+      ORGFLOW_API_PORT: 4000
+      ORGFLOW_LOG_LEVEL: warn
+      ORGFLOW_DATABASE_URL: postgres://orgflow:orgflow@localhost:5432/orgflow
+      ORGFLOW_MONGODB_URI: mongodb://localhost:27017/orgflow
+      # Doubles as the API's CORS origin (apps/api/src/app.ts), so it has to
+      # be exactly the origin Playwright serves the built app from.
+      ORGFLOW_WEB_URL: http://localhost:3000
+      ORGFLOW_AWS_REGION: eu-west-2
+      NEXT_PUBLIC_ORGFLOW_API_URL: http://localhost:4000/api/v1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # A generated value into $GITHUB_ENV rather than a committed
+      # secret-shaped string in this file, which the security-scan job's
+      # Gitleaks step would be right to flag.
+      - name: Generate a throwaway session secret
+        run: echo "ORGFLOW_SESSION_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      # Produces both apps/api/dist and the Next build the suite runs
+      # against.
+      - name: Build
+        run: pnpm run build
+
+      - name: Run database migrations
+        run: pnpm --filter @orgflow/db run migrate:up
+
+      - name: Start the API
+        run: pnpm --filter @orgflow/api run start &
+
+      - name: Wait for the API to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4000/health > /dev/null; then
+              echo "API is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not become ready in time" >&2
+          exit 1
+
+      # ensureLaptopRequestSeeded (apps/api/src/seed/laptop-request.ts) is
+      # idempotent, but against a freshly migrated database, Playwright's
+      # parallel workers would otherwise race on the first seeding. That
+      # race does not exist locally, where the database is already seeded
+      # by the time anyone runs the suite by hand.
+      - name: Warm the seed
+        run: curl -sf -X POST http://localhost:4000/api/v1/auth/dev-login > /dev/null
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+
+      - name: Run the e2e suite
+        run: pnpm --filter @orgflow/web run test:e2e
+        env:
+          CI: 'true'
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 7
 
   security-scan:
     runs-on: ubuntu-latest

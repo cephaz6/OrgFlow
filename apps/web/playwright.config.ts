@@ -29,7 +29,10 @@ export default defineConfig({
   // stale dev server is the one failure mode this suite cannot detect about
   // itself, so the trustworthy run is the one against a real build.
   webServer: {
-    command: 'pnpm run dev',
+    // CI always gets the real build (see the comment above): a freshly
+    // provisioned runner has no long-lived dev server to reuse in any case,
+    // so there is no cost to always building there, only upside.
+    command: process.env.CI ? 'pnpm run start' : 'pnpm run dev',
     url: process.env.ORGFLOW_E2E_BASE_URL ?? 'http://localhost:3000',
     // The operator keeps the dev servers running between steps in order to
     // trace live state, so an existing server is the normal case locally
