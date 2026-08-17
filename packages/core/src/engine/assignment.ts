@@ -9,6 +9,11 @@ export interface ResolvedAssignment {
   // silently.
   resolved: boolean;
   reason?: string;
+  // Set when the resolved user has an active delegation and the task is
+  // redirected to their delegate instead (PRD.md §7: "delegation is
+  // applied at resolution time"). Holds the user delegation redirected
+  // *away from*, for case_tasks.delegated_from_user_id.
+  delegatedFromUserId?: string;
 }
 
 function unresolved(reason: string): ResolvedAssignment {
@@ -21,6 +26,29 @@ function unresolved(reason: string): ResolvedAssignment {
   };
 }
 
+// PRD.md §7: delegation only ever redirects a *specific person*, never a
+// role or group pool (a pool is claimable by anyone eligible, which already
+// covers someone being away), so this only looks at assigneeUserId.
+function applyDelegation(
+  context: EvaluationContext,
+  result: ResolvedAssignment,
+): ResolvedAssignment {
+  if (!result.resolved || !result.assigneeUserId) {
+    return result;
+  }
+
+  const delegateUserId = context.directory.activeDelegateByUserId[result.assigneeUserId];
+  if (!delegateUserId) {
+    return result;
+  }
+
+  return {
+    ...result,
+    assigneeUserId: delegateUserId,
+    delegatedFromUserId: result.assigneeUserId,
+  };
+}
+
 // PRD.md §7. Resolution happens at task creation and the outcome is
 // persisted on the task, so later membership changes never retroactively
 // reassign existing work.
@@ -28,13 +56,10 @@ function unresolved(reason: string): ResolvedAssignment {
 // Pool strategies (`role`, `group`) deliberately resolve to a null
 // assigneeUserId with the pool recorded instead: the task is claimable by
 // anyone eligible, and the first to claim it owns it. That is exactly how
-// case_tasks models them.
-//
-// Two things PRD.md §7 describes are deferred, both belonging to later
-// phases and both explicitly reported rather than silently skipped:
-// delegation at resolution time (Phase 6) and `lineManagerOfAssignee`,
-// which exists only for escalation (Phase 6).
-export function resolveAssignment(
+// case_tasks models them, and it is also why delegation (below) never
+// touches these two branches: a pool has no single resolved user to
+// redirect.
+function resolveAssignmentCore(
   strategy: AssignmentStrategy,
   context: EvaluationContext,
 ): ResolvedAssignment {
@@ -98,16 +123,36 @@ export function resolveAssignment(
         `Strategy 'fieldReference' requires case values; use resolveAssignmentWithValues.`,
       );
 
-    case 'lineManagerOfAssignee':
-      return unresolved(
-        `Strategy 'lineManagerOfAssignee' is only used for escalation, which is not implemented yet.`,
-      );
+    // Used only for escalation (PRD.md §7): the line manager of whoever is
+    // currently assigned, not the submitter's. The caller resolves that
+    // manager the same way it resolves the submitter's (a database lookup
+    // the engine is not allowed to make) and hands it in as
+    // context.currentAssignee, set only while resolving an escalation.
+    case 'lineManagerOfAssignee': {
+      const lineManagerUserId = context.currentAssignee?.lineManagerUserId;
+      if (!lineManagerUserId) {
+        return unresolved('The current assignee has no line manager recorded.');
+      }
+      return {
+        assigneeUserId: lineManagerUserId,
+        assigneeGroupId: null,
+        assigneeRole: null,
+        resolved: true,
+      };
+    }
 
     default: {
       const exhaustive: never = strategy;
       return unresolved(`Unknown assignment strategy: ${JSON.stringify(exhaustive)}`);
     }
   }
+}
+
+export function resolveAssignment(
+  strategy: AssignmentStrategy,
+  context: EvaluationContext,
+): ResolvedAssignment {
+  return applyDelegation(context, resolveAssignmentCore(strategy, context));
 }
 
 // fieldReference is the one strategy that reads submitted values rather
@@ -122,12 +167,12 @@ export function resolveAssignmentWithValues(
     if (typeof selected !== 'string' || selected.length === 0) {
       return unresolved(`Field '${strategy.fieldKey}' does not name a user.`);
     }
-    return {
+    return applyDelegation(context, {
       assigneeUserId: selected,
       assigneeGroupId: null,
       assigneeRole: null,
       resolved: true,
-    };
+    });
   }
 
   return resolveAssignment(strategy, context);

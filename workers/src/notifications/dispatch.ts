@@ -1,6 +1,9 @@
 import type { DomainEvent } from '@orgflow/types';
 
+import { handleCaseUnassigned } from './handle-case-unassigned.js';
 import { handleTaskCreated, type NotificationDeps } from './handle-task-created.js';
+import { handleTaskEscalated } from './handle-task-escalated.js';
+import { handleTaskReminderDue } from './handle-task-reminder-due.js';
 
 // PRD.md §10 consumer contract: unknown event types are ignored, not
 // errored, for forward compatibility. The topic fans every domain event out
@@ -8,11 +11,13 @@ import { handleTaskCreated, type NotificationDeps } from './handle-task-created.
 // on from the day another producer adds one, and erroring on them would
 // dead-letter perfectly valid traffic.
 //
-// Only task.created is handled here. The rest of PRD.md §14.1's templates
-// arrive with the phases that trigger them, and a handler that sent nothing
-// would be worse than none at all.
+// The rest of PRD.md §14.1's templates arrive with the phases that trigger
+// them, and a handler that sent nothing would be worse than none at all.
 const HANDLED: Record<string, (deps: NotificationDeps, event: DomainEvent) => Promise<unknown>> = {
   'task.created': handleTaskCreated,
+  'task.reminderDue': handleTaskReminderDue,
+  'task.escalated': handleTaskEscalated,
+  'case.unassigned': handleCaseUnassigned,
 };
 
 export async function dispatchDomainEvent(

@@ -86,7 +86,7 @@ function context(overrides: Partial<EvaluationContext> = {}): EvaluationContext 
     },
     case: { daysOpen: 0 },
     step: { escalationLevel: 0 },
-    directory: { groupIdsByKey: { itSupport: IT_GROUP_ID } },
+    directory: { groupIdsByKey: { itSupport: IT_GROUP_ID }, activeDelegateByUserId: {} },
     ...overrides,
   };
 }
@@ -140,8 +140,11 @@ describe('submission', () => {
 
   it('computes dueAt from the step SLA', () => {
     const output = advance(input());
-    // 48 hours after the injected clock, not the real one.
-    expect(output.tasksToCreate[0]?.dueAt).toBe('2026-08-16T12:00:00.000Z');
+    // 48 hours after the injected clock (a Friday), not the real one. That
+    // lands on a Sunday, and businessHoursOnly defaults to true, so the
+    // weekend-skip in computeDueAt pushes it to the following Monday at the
+    // same time of day.
+    expect(output.tasksToCreate[0]?.dueAt).toBe('2026-08-17T12:00:00.000Z');
   });
 
   it('refuses to submit a case that is not a draft', () => {
@@ -508,16 +511,30 @@ describe('other lifecycle events', () => {
     expect(output.caseUpdates.status).toBe('unassigned');
   });
 
-  it('reports timer events as belonging to a later phase rather than ignoring them', () => {
-    for (const type of ['taskExpired', 'escalationTriggered'] as const) {
-      const output = advance(
-        input({
-          caseState: caseState({ status: 'active', currentStepKey: 'managerApproval' }),
-          event: { type, taskId: 'task-1' },
-        }),
-      );
-      expect(output.errors[0]?.code).toBe('eventNotImplemented');
-    }
+  it('reports taskExpired as belonging to a later phase rather than ignoring it', () => {
+    const output = advance(
+      input({
+        caseState: caseState({ status: 'active', currentStepKey: 'managerApproval' }),
+        event: { type: 'taskExpired', taskId: 'task-1' },
+      }),
+    );
+    expect(output.errors[0]?.code).toBe('eventNotImplemented');
+  });
+
+  it('flags a step with no escalation configured as exhausted rather than not implemented', () => {
+    // managerApproval in this fixture carries no sla.escalation, so the
+    // very first level already has nothing to try: a real outcome
+    // (escalationTriggered is implemented), not a stand-in for
+    // "unsupported". See escalation.test.ts for a step that does configure
+    // escalation levels.
+    const output = advance(
+      input({
+        caseState: caseState({ status: 'active', currentStepKey: 'managerApproval' }),
+        event: { type: 'escalationTriggered', taskId: 'task-1' },
+      }),
+    );
+    expect(output.errors[0]?.code).toBe('escalationLevelsExhausted');
+    expect(output.caseUpdates.status).toBe('unassigned');
   });
 
   it('reports an unrecognised event instead of throwing', () => {

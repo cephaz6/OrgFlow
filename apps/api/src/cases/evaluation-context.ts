@@ -1,4 +1,8 @@
-import { findGroupIdsByKeyForCurrentTenant, findOrganisationMemberByUserId } from '@orgflow/db';
+import {
+  findActiveDelegateByUserId,
+  findGroupIdsByKeyForCurrentTenant,
+  findOrganisationMemberByUserId,
+} from '@orgflow/db';
 import type { Database } from '@orgflow/db';
 import type { Case, EvaluationContext } from '@orgflow/types';
 import type { Transaction } from 'kysely';
@@ -10,6 +14,14 @@ export interface BuildEvaluationContextInput {
   correlationId: string;
   now: Date;
   existingCase?: Case;
+  // The level already recorded on the task being escalated (0 for one
+  // never escalated before). Only meaningful when resolving an
+  // escalationTriggered event; every other caller leaves it at the default.
+  escalationLevel?: number;
+  // Who is currently assigned to the task being escalated, so
+  // lineManagerOfAssignee (PRD.md §7) can resolve *their* manager rather
+  // than the submitter's. Only set by callers resolving an escalation.
+  currentAssigneeUserId?: string;
 }
 
 // packages/core performs no I/O, so every directory fact the engine needs
@@ -20,9 +32,13 @@ export async function buildEvaluationContext(
   trx: Transaction<Database>,
   input: BuildEvaluationContextInput,
 ): Promise<EvaluationContext> {
-  const [member, groupIdsByKey] = await Promise.all([
+  const [member, groupIdsByKey, activeDelegateByUserId, currentAssigneeMember] = await Promise.all([
     findOrganisationMemberByUserId(trx, input.submitterUserId),
     findGroupIdsByKeyForCurrentTenant(trx),
+    findActiveDelegateByUserId(trx, input.now),
+    input.currentAssigneeUserId
+      ? findOrganisationMemberByUserId(trx, input.currentAssigneeUserId)
+      : Promise.resolve(undefined),
   ]);
 
   const createdAt = input.existingCase ? new Date(input.existingCase.createdAt) : input.now;
@@ -45,8 +61,10 @@ export async function buildEvaluationContext(
       lineManagerUserId: member?.lineManagerUserId ?? null,
     },
     case: { daysOpen },
-    // Escalation is Phase 6; every task starts at level zero until then.
-    step: { escalationLevel: 0 },
-    directory: { groupIdsByKey },
+    step: { escalationLevel: input.escalationLevel ?? 0 },
+    ...(input.currentAssigneeUserId
+      ? { currentAssignee: { lineManagerUserId: currentAssigneeMember?.lineManagerUserId ?? null } }
+      : {}),
+    directory: { groupIdsByKey, activeDelegateByUserId },
   };
 }

@@ -14,6 +14,19 @@ export interface TaskNotificationFacts {
   webUrl: string;
 }
 
+export interface TaskEscalatedFacts extends TaskNotificationFacts {
+  escalationLevel: number;
+}
+
+export interface CaseUnassignedFacts {
+  reference: string;
+  processName: string;
+  caseTitle: string;
+  reason: string;
+  caseId: string;
+  webUrl: string;
+}
+
 // PRD.md §14.2: subject lines lead with the reference and the action.
 // The action word follows the task type, so an IT fulfilment step does not
 // tell somebody their approval is needed when what is wanted is an order.
@@ -73,6 +86,67 @@ export function buildTaskClaimableEmail(facts: TaskNotificationFacts): EmailMess
     callToAction: 'Open the task to claim it',
     note: 'Anyone in your team can take this. Claim it first so others know you are handling it.',
   });
+}
+
+// PRD.md §15.2's reminder: purely informational, sent to whoever the task is
+// already assigned to (or delegated to), not a new pool of people.
+export function buildTaskReminderEmail(facts: TaskNotificationFacts): EmailMessage & {
+  subject: string;
+} {
+  return buildTaskEmail(facts, {
+    opening: `A ${facts.processName.toLowerCase()} is still waiting on you.`,
+    callToAction: 'Open the task to respond',
+  });
+}
+
+// PRD.md §15.3: escalation adds an assignee, it never replaces one, so this
+// goes only to the escalation-level recipient, worded to say who else can
+// still act rather than implying the original assignee has been dropped.
+export function buildTaskEscalatedEmail(facts: TaskEscalatedFacts): EmailMessage & {
+  subject: string;
+} {
+  return buildTaskEmail(facts, {
+    opening: `A ${facts.processName.toLowerCase()} has been escalated to you (level ${facts.escalationLevel}) because it was not actioned in time.`,
+    callToAction: 'Open the task to respond',
+    note: 'The original assignee can still act on this too.',
+  });
+}
+
+// PRD.md §7: a case that exhausts every configured escalation level (or
+// otherwise cannot resolve an assignee) moves to unassigned and needs an
+// administrator, not a claimable task in anyone's queue.
+export function buildCaseUnassignedEmail(facts: CaseUnassignedFacts): EmailMessage & {
+  subject: string;
+} {
+  const subject = `${facts.reference} Needs administrative action: ${facts.processName}`;
+  const link = `${facts.webUrl.replace(/\/$/, '')}/cases/${facts.caseId}`;
+
+  const lines = [
+    `A ${facts.processName.toLowerCase()} could not be assigned and needs administrative attention.`,
+    '',
+    `Reference: ${facts.reference}`,
+    `Request: ${facts.caseTitle}`,
+    `Reason: ${facts.reason}`,
+    '',
+    `Open the case: ${link}`,
+  ];
+
+  const htmlLines = [
+    `<p>A ${escapeHtml(facts.processName.toLowerCase())} could not be assigned and needs administrative attention.</p>`,
+    '<ul>',
+    `<li>Reference: ${escapeHtml(facts.reference)}</li>`,
+    `<li>Request: ${escapeHtml(facts.caseTitle)}</li>`,
+    `<li>Reason: ${escapeHtml(facts.reason)}</li>`,
+    '</ul>',
+    `<p><a href="${escapeHtml(link)}">Open the case</a></p>`,
+  ];
+
+  return {
+    to: '',
+    subject,
+    textBody: lines.join('\n'),
+    htmlBody: htmlLines.join('\n'),
+  };
 }
 
 function buildTaskEmail(

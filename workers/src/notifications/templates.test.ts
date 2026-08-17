@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTaskAssignedEmail, buildTaskClaimableEmail } from './templates.js';
-import type { TaskNotificationFacts } from './templates.js';
+import {
+  buildCaseUnassignedEmail,
+  buildTaskAssignedEmail,
+  buildTaskClaimableEmail,
+  buildTaskEscalatedEmail,
+  buildTaskReminderEmail,
+} from './templates.js';
+import type {
+  CaseUnassignedFacts,
+  TaskEscalatedFacts,
+  TaskNotificationFacts,
+} from './templates.js';
 
 function facts(overrides: Partial<TaskNotificationFacts> = {}): TaskNotificationFacts {
   return {
@@ -13,6 +23,22 @@ function facts(overrides: Partial<TaskNotificationFacts> = {}): TaskNotification
     requesterName: 'Priya Nair',
     dueAt: '2026-08-18T09:00:00.000Z',
     taskId: '01a008a3-1e3e-75c7-ac9e-0be1e8c853a5',
+    webUrl: 'http://localhost:3000',
+    ...overrides,
+  };
+}
+
+function escalatedFacts(overrides: Partial<TaskEscalatedFacts> = {}): TaskEscalatedFacts {
+  return { ...facts(), escalationLevel: 1, ...overrides };
+}
+
+function unassignedFacts(overrides: Partial<CaseUnassignedFacts> = {}): CaseUnassignedFacts {
+  return {
+    reference: 'LAP-000123',
+    processName: 'Laptop request',
+    caseTitle: 'MacBook Pro 14-inch',
+    reason: 'No eligible assignee could be resolved for the next step.',
+    caseId: '01a008a3-1e3e-75c7-ac9e-0be1e8c853a5',
     webUrl: 'http://localhost:3000',
     ...overrides,
   };
@@ -85,5 +111,40 @@ describe('notification templates', () => {
     expect(email.htmlBody.length).toBeGreaterThan(0);
     expect(email.textBody).toContain('Reference: LAP-000123');
     expect(email.htmlBody).toContain('Reference: LAP-000123');
+  });
+
+  it('reminds the current holder rather than a fresh pool', () => {
+    const email = buildTaskReminderEmail(facts());
+
+    expect(email.subject).toBe('LAP-000123 Approval needed: Laptop request');
+    expect(email.textBody).toContain('still waiting on you');
+  });
+
+  it('states the escalation level and reassures the original assignee was not dropped', () => {
+    const email = buildTaskEscalatedEmail(escalatedFacts({ escalationLevel: 2 }));
+
+    expect(email.textBody).toContain('level 2');
+    expect(email.textBody).toContain('The original assignee can still act on this too.');
+  });
+
+  it('directs an unassigned case to the case screen, not a task', () => {
+    const email = buildCaseUnassignedEmail(unassignedFacts());
+
+    expect(email.subject).toBe('LAP-000123 Needs administrative action: Laptop request');
+    expect(email.textBody).toContain(
+      'http://localhost:3000/cases/01a008a3-1e3e-75c7-ac9e-0be1e8c853a5',
+    );
+    expect(email.textBody).toContain(
+      'Reason: No eligible assignee could be resolved for the next step.',
+    );
+  });
+
+  it('escapes tenant-authored text in the unassigned email HTML body', () => {
+    const email = buildCaseUnassignedEmail(
+      unassignedFacts({ caseTitle: 'Order <script>alert(1)</script>' }),
+    );
+
+    expect(email.htmlBody).not.toContain('<script>');
+    expect(email.htmlBody).toContain('&lt;script&gt;');
   });
 });

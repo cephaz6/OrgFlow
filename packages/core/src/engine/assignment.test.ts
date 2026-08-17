@@ -20,7 +20,7 @@ function context(overrides: Partial<EvaluationContext> = {}): EvaluationContext 
     },
     case: { daysOpen: 0 },
     step: { escalationLevel: 0 },
-    directory: { groupIdsByKey: { itSupport: IT_GROUP_ID } },
+    directory: { groupIdsByKey: { itSupport: IT_GROUP_ID }, activeDelegateByUserId: {} },
     ...overrides,
   };
 }
@@ -43,7 +43,7 @@ describe('assignment resolution (PRD.md §7)', () => {
     // Even with an otherwise empty directory and no line manager.
     const bare = context({
       submitter: { userId: SUBMITTER, department: null, roles: [], lineManagerUserId: null },
-      directory: { groupIdsByKey: {} },
+      directory: { groupIdsByKey: {}, activeDelegateByUserId: {} },
     });
     expect(resolveAssignment({ strategy: 'submitter' }, bare).resolved).toBe(true);
   });
@@ -109,10 +109,55 @@ describe('assignment resolution (PRD.md §7)', () => {
     });
   });
 
-  it('reports lineManagerOfAssignee as not yet implemented rather than guessing', () => {
-    const result = resolveAssignment({ strategy: 'lineManagerOfAssignee' }, context());
-    expect(result.resolved).toBe(false);
-    expect(result.reason).toContain('escalation');
+  it('resolves lineManagerOfAssignee from context.currentAssignee, not the submitter', () => {
+    const withoutCurrentAssignee = resolveAssignment(
+      { strategy: 'lineManagerOfAssignee' },
+      context(),
+    );
+    expect(withoutCurrentAssignee.resolved).toBe(false);
+    expect(withoutCurrentAssignee.reason).toContain('line manager');
+
+    const ASSIGNEE_MANAGER = '00000000-0000-0000-0000-000000000009';
+    const result = resolveAssignment(
+      { strategy: 'lineManagerOfAssignee' },
+      context({ currentAssignee: { lineManagerUserId: ASSIGNEE_MANAGER } }),
+    );
+    expect(result).toMatchObject({ resolved: true, assigneeUserId: ASSIGNEE_MANAGER });
+  });
+
+  it('redirects to an active delegate, recording who was delegated from', () => {
+    const DELEGATE = '00000000-0000-0000-0000-0000000000de';
+    const delegated = context({
+      directory: {
+        groupIdsByKey: {},
+        activeDelegateByUserId: { [LINE_MANAGER]: DELEGATE },
+      },
+    });
+
+    const result = resolveAssignment({ strategy: 'lineManager' }, delegated);
+    expect(result).toMatchObject({
+      resolved: true,
+      assigneeUserId: DELEGATE,
+      delegatedFromUserId: LINE_MANAGER,
+    });
+  });
+
+  it('never redirects a role or group pool, which has no single resolved user to delegate', () => {
+    const delegated = context({
+      directory: {
+        groupIdsByKey: { itSupport: IT_GROUP_ID },
+        // Keyed by a user id that is never produced by a role/group
+        // resolution, so this proves the point structurally: pool
+        // strategies never look here at all.
+        activeDelegateByUserId: { [IT_GROUP_ID]: '00000000-0000-0000-0000-0000000000de' },
+      },
+    });
+    expect(resolveAssignment({ strategy: 'role', role: 'approver' }, delegated)).toEqual({
+      assigneeUserId: null,
+      assigneeGroupId: null,
+      assigneeRole: 'approver',
+      resolved: true,
+    });
   });
 
   it('reports an unrecognised strategy instead of throwing', () => {
@@ -126,9 +171,24 @@ describe('assignment resolution (PRD.md §7)', () => {
 });
 
 describe('SLA due dates', () => {
-  it('adds the step duration to the injected clock', () => {
+  it('adds the step duration to the injected clock, then skips forward over the weekend it lands on', () => {
+    // Friday 12:00 + 48h = Sunday 12:00; businessHoursOnly defaults to
+    // true, so this pushes forward to the following Monday.
     expect(computeDueAt({ durationHours: 48 }, '2026-08-14T12:00:00.000Z')).toBe(
-      '2026-08-16T12:00:00.000Z',
+      '2026-08-17T12:00:00.000Z',
+    );
+  });
+
+  it('does not skip the weekend when businessHoursOnly is explicitly false', () => {
+    expect(
+      computeDueAt({ durationHours: 48, businessHoursOnly: false }, '2026-08-14T12:00:00.000Z'),
+    ).toBe('2026-08-16T12:00:00.000Z');
+  });
+
+  it('leaves a due date that never lands on a weekend untouched', () => {
+    // Monday 12:00 + 24h = Tuesday 12:00, nowhere near a weekend.
+    expect(computeDueAt({ durationHours: 24 }, '2026-08-17T12:00:00.000Z')).toBe(
+      '2026-08-18T12:00:00.000Z',
     );
   });
 

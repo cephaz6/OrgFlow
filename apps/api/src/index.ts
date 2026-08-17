@@ -7,6 +7,7 @@ import { createApp } from './app.js';
 import { loadConfig } from './config/env.js';
 import { createLogger } from './logger.js';
 import type { Logger } from './logger.js';
+import { startSlaSweep } from './sla/sweep.js';
 
 // ADR-0008 and the 3pservice pattern: the transport is a construction-time
 // choice behind one interface. Which one was chosen is logged rather than
@@ -40,10 +41,12 @@ async function main(): Promise<void> {
     const mongoClient = await createMongoClient({ uri: config.ORGFLOW_MONGODB_URI });
     await ensureIndexes(mongoClient);
 
+    const publisher = createPublisher(config, logger);
+
     const app = createApp({
       db,
       mongoClient,
-      publisher: createPublisher(config, logger),
+      publisher,
       corsOrigin: config.ORGFLOW_WEB_URL,
       logger,
       sessionSecret: config.ORGFLOW_SESSION_SECRET,
@@ -60,6 +63,11 @@ async function main(): Promise<void> {
             }
           : undefined,
     });
+
+    // The local substitute for PRD.md §15.2's EventBridge Scheduler (see
+    // sla/sweep.ts): polls sla_timers for due reminders and escalations for
+    // as long as this process runs.
+    startSlaSweep({ db, mongoClient, publisher, logger });
 
     app.listen(config.ORGFLOW_API_PORT, () => {
       logger.info({ port: config.ORGFLOW_API_PORT }, 'apps/api listening');

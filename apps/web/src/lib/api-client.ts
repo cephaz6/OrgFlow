@@ -34,3 +34,14 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
 
   return (await response.json()) as T;
 }
+
+export async function apiDelete(path: string): Promise<void> {
+  const response = await fetch(`${config.NEXT_PUBLIC_ORGFLOW_API_URL}${path}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw await toApiError(response);
+  }
+}

@@ -2,16 +2,27 @@ import {
   appendAuditEvent,
   appendCaseTransition,
   cancelOpenTasksForCase,
+  cancelTimersForCase,
+  cancelTimersForTask,
   createCaseTask,
+  createSlaTimer,
+  markTaskEscalated,
   updateCaseState,
 } from '@orgflow/db';
 import type { Database } from '@orgflow/db';
-import type { Case, CaseTask, DomainEvent, EngineOutput } from '@orgflow/types';
+import type { AuditActorType, Case, CaseTask, DomainEvent, EngineOutput } from '@orgflow/types';
 import type { Transaction } from 'kysely';
 
 export interface PersistEngineOutputInput {
   organisationId: string;
-  actorUserId: string;
+  // Null for a system-triggered advance (the SLA sweep resolving an
+  // escalation): nobody acted, so there is nobody to name on the audit
+  // trail or the transition record, both of which already accept null for
+  // exactly this reason.
+  actorUserId: string | null;
+  // Defaults to 'user'. Set to 'scheduler' by the sweep so the audit event
+  // records what actually triggered it, not merely who is left blank.
+  actorType?: AuditActorType;
   correlationId: string;
   existingCase: Case;
   output: EngineOutput;
@@ -47,7 +58,7 @@ export async function persistEngineOutput(
   trx: Transaction<Database>,
   input: PersistEngineOutputInput,
 ): Promise<PersistedEngineOutput> {
-  const { output, existingCase, organisationId, actorUserId } = input;
+  const { output, existingCase, organisationId, actorUserId, actorType } = input;
   const now = new Date();
 
   const terminalStatuses = ['completed', 'rejected', 'cancelled'];
@@ -72,9 +83,17 @@ export async function persistEngineOutput(
 
   // PRD.md §6.3 step 4 cancels outstanding work on reaching a terminal
   // step. The engine cannot name the tasks (EngineInput carries case state,
-  // not task rows), so the caller cancels every open one for the case.
+  // not task rows), so the caller cancels every open one for the case. Its
+  // still-scheduled timers go the same way (PRD.md §15.2: "all timers for a
+  // task are cancelled when the task is completed, reassigned or
+  // cancelled"), including ones on a task nobody ever decided.
   if (isTerminal) {
     await cancelOpenTasksForCase(trx, existingCase.caseId);
+    await cancelTimersForCase(trx, existingCase.caseId);
+  }
+
+  for (const taskId of output.timersToCancel) {
+    await cancelTimersForTask(trx, taskId);
   }
 
   const tasks: CaseTask[] = [];
@@ -92,11 +111,29 @@ export async function persistEngineOutput(
         assigneeRole: spec.assigneeRole,
         delegatedFromUserId: spec.delegatedFromUserId,
         dueAt: spec.dueAt ? new Date(spec.dueAt) : null,
+        ...(spec.escalationLevel !== undefined ? { escalationLevel: spec.escalationLevel } : {}),
       }),
     );
   }
 
   const taskIdByStepKey = new Map(tasks.map((task) => [task.stepKey, task.taskId]));
+
+  // timersToSchedule is only ever populated by enterStep (packages/core/src
+  // /engine/advance.ts), which creates at most one task per advance() call,
+  // so every timer in this batch belongs to that one task: the engine
+  // cannot attach a task id itself, since the task's real id does not exist
+  // until createCaseTask above assigns it.
+  const scheduledTaskId = tasks[0]?.taskId ?? null;
+  for (const timer of output.timersToSchedule) {
+    await createSlaTimer(trx, {
+      organisationId,
+      caseId: existingCase.caseId,
+      taskId: scheduledTaskId,
+      timerType: timer.timerType,
+      escalationLevel: timer.escalationLevel,
+      fireAt: timer.fireAt,
+    });
+  }
 
   for (const transition of output.transitions) {
     await appendCaseTransition(trx, {
@@ -113,11 +150,29 @@ export async function persistEngineOutput(
         (transition.toStepKey ? (taskIdByStepKey.get(transition.toStepKey) ?? null) : null),
       conditionResult: transition.conditionResult ?? null,
     });
+
+    // The engine names the level it escalated to on the transition
+    // (escalationTriggered in packages/core/src/engine/advance.ts) but
+    // cannot stamp it onto the original task itself, since a pure engine
+    // never writes to the database. Recording it here is what stops a
+    // later-firing timer for the same task (a further escalation level,
+    // scheduled independently at task creation) from re-walking the rule
+    // list from level 1 and creating a duplicate task at the level this
+    // one already resolved.
+    const escalatedLevel = transition.conditionResult?.escalationLevel;
+    if (
+      transition.triggerType === 'escalation' &&
+      transition.taskId &&
+      typeof escalatedLevel === 'number'
+    ) {
+      await markTaskEscalated(trx, transition.taskId, escalatedLevel);
+    }
   }
 
   await appendAuditEvent(trx, {
     organisationId,
     actorUserId,
+    ...(actorType ? { actorType } : {}),
     entityType: 'case',
     entityId: existingCase.caseId,
     action: input.auditAction,
@@ -149,6 +204,7 @@ export async function persistEngineOutput(
       updatedCase,
       taskIdByStepKey,
       actorUserId,
+      actorType,
       input.reason,
     ),
   };
@@ -173,7 +229,8 @@ function enrichEvents(
   events: DomainEvent[],
   updatedCase: Case,
   taskIdByStepKey: Map<string, string>,
-  actorUserId: string,
+  actorUserId: string | null,
+  actorType: AuditActorType | undefined,
   reason: string | undefined,
 ): DomainEvent[] {
   return events.map((event) => {
@@ -194,6 +251,6 @@ function enrichEvents(
       payload.reason = reason;
     }
 
-    return { ...event, actorUserId, payload };
+    return { ...event, actorUserId, ...(actorType ? { actorType } : {}), payload };
   });
 }

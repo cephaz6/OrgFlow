@@ -68,7 +68,7 @@ export function isVisible(
       },
       case: { daysOpen: 0 },
       step: { escalationLevel: 0 },
-      directory: { groupIdsByKey: {} },
+      directory: { groupIdsByKey: {}, activeDelegateByUserId: {} },
     },
   }).matched;
 }

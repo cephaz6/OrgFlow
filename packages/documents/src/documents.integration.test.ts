@@ -171,7 +171,10 @@ describe('the engine against the stored Laptop Request definition', () => {
       },
       case: { daysOpen: 0 },
       step: { escalationLevel: 0 },
-      directory: { groupIdsByKey: { [IT_SUPPORT_GROUP_KEY]: IT_GROUP_ID } },
+      directory: {
+        groupIdsByKey: { [IT_SUPPORT_GROUP_KEY]: IT_GROUP_ID },
+        activeDelegateByUserId: {},
+      },
     };
   }
 
