@@ -1,4 +1,5 @@
 import type {
+  AssignmentStrategy,
   CaseState,
   DomainEvent,
   DomainEventType,
@@ -13,8 +14,8 @@ import type {
 } from '@orgflow/types';
 
 import { evaluateCondition } from '../conditions/evaluate.js';
-import { resolveAssignmentWithValues } from './assignment.js';
-import { computeDueAt } from './sla.js';
+import { resolveAssignmentWithValues, type ResolvedAssignment } from './assignment.js';
+import { computeDueAt, computeTimerSpecs } from './sla.js';
 
 // PRD.md §4.1: reserved terminal step keys, never user-definable.
 const TERMINAL_OUTCOMES = {
@@ -46,6 +47,70 @@ function findStep(
   stepKey: string,
 ): WorkflowStep | undefined {
   return definition.workflow.steps.find((step) => step.key === stepKey);
+}
+
+interface EscalationResolution {
+  level: number;
+  strategy: string;
+  assignment: ResolvedAssignment;
+}
+
+// PRD.md §15.3: "lineManagerOfAssignee falling through with no result
+// advances to the next level rather than failing." Tries fromLevel, then
+// fromLevel + 1, and so on, stopping at the first level that resolves.
+// Returns null when every configured level from fromLevel onward is
+// exhausted, which the caller reports as "all escalation levels exhausted"
+// (PRD.md §15.3), never as a generic resolution failure.
+function resolveEscalationLevel(
+  step: WorkflowStep,
+  fromLevel: number,
+  input: EngineInput,
+): EscalationResolution | null {
+  const rules = step.sla?.escalation ?? [];
+
+  for (let level = fromLevel; level <= rules.length; level += 1) {
+    const rule = rules[level - 1];
+    if (!rule) {
+      continue;
+    }
+    const { atHoursAfter: _atHoursAfter, ...strategy } = rule;
+    const assignment = resolveAssignmentWithValues(
+      strategy as AssignmentStrategy,
+      input.context,
+      input.values,
+    );
+    if (assignment.resolved) {
+      return { level, strategy: strategy.strategy, assignment };
+    }
+  }
+
+  return null;
+}
+
+// The additional task an escalation creates. PRD.md §15.3: escalation adds
+// an assignee, it never replaces one, so this is always a new task
+// alongside whichever one triggered the escalation, at the same step.
+function escalationTask(step: WorkflowStep, resolution: EscalationResolution): TaskSpec {
+  return {
+    stepKey: step.key,
+    stepName: step.name,
+    // Escalation only ever fires on a step that already holds an open
+    // task, which is exactly the set of StepType values TaskType covers
+    // (an 'automatic' step creates no task and so can never be escalated).
+    taskType: step.type as TaskType,
+    assignmentStrategy: resolution.strategy,
+    assigneeUserId: resolution.assignment.assigneeUserId,
+    assigneeGroupId: resolution.assignment.assigneeGroupId,
+    assigneeRole: resolution.assignment.assigneeRole,
+    delegatedFromUserId: resolution.assignment.delegatedFromUserId ?? null,
+    allowedDecisions: step.allowedDecisions,
+    // PRD.md §15.1: due_at is fixed at task creation and never recomputed.
+    // An escalated task is already overdue by definition (it exists
+    // because the original missed its deadline), so it is not given a
+    // fresh deadline of its own.
+    dueAt: null,
+    escalationLevel: resolution.level,
+  };
 }
 
 // The engine emits events but cannot invent identifiers without breaking
@@ -147,7 +212,50 @@ function enterStep(
   triggerType: TransitionRecord['triggerType'],
   conditionResult: Record<string, unknown> | undefined,
 ): void {
-  const assignment = resolveAssignmentWithValues(step.assignment, input.context, input.values);
+  let assignment = resolveAssignmentWithValues(step.assignment, input.context, input.values);
+  let assignmentStrategy: string = step.assignment.strategy;
+  let escalationLevel: number | undefined;
+
+  // PRD.md §7's self-approval guard: an approval step whose resolved
+  // assignee is the submitter escalates one level rather than letting
+  // someone approve their own request. Checked only once, against the
+  // step's own assignment, since an already-escalated task (created by
+  // escalationTriggered below, never by enterStep) is not run back through
+  // enterStep at all.
+  if (
+    assignment.resolved &&
+    assignment.assigneeUserId === input.context.submitter.userId &&
+    taskType === 'approval' &&
+    step.allowSelfApproval !== true
+  ) {
+    const guardResolution = resolveEscalationLevel(step, 1, input);
+    state.output.errors.push(
+      fail(
+        'selfApprovalGuard',
+        `Step '${step.key}' resolved the submitter as their own approver; escalating instead.`,
+        step.key,
+      ),
+    );
+
+    if (!guardResolution) {
+      enterUnassigned(state, input, {
+        stepKey: step.key,
+        fromStepKey,
+        triggerType,
+        error: fail(
+          'selfApprovalGuardUnresolved',
+          'The submitter would be their own approver, and no escalation level could take the task instead.',
+          step.key,
+        ),
+        strategy: assignmentStrategy,
+      });
+      return;
+    }
+
+    assignment = guardResolution.assignment;
+    assignmentStrategy = guardResolution.strategy;
+    escalationLevel = guardResolution.level;
+  }
 
   if (!assignment.resolved) {
     // PRD.md §6.3 step 6 and §7: resolution yielding nobody is an explicit,
@@ -162,24 +270,29 @@ function enterStep(
         assignment.reason ?? 'Assignment resolved to nobody.',
         step.key,
       ),
-      strategy: step.assignment.strategy,
+      strategy: assignmentStrategy,
     });
     return;
   }
 
+  // Fixed at creation and never recomputed (PRD.md §15.1); a task the
+  // self-approval guard redirected still keeps the step's own deadline,
+  // since it is the same piece of work due at the same time, just assigned
+  // to someone else.
   const dueAt = computeDueAt(step.sla, input.context.now);
 
   const task: TaskSpec = {
     stepKey: step.key,
     stepName: step.name,
     taskType,
-    assignmentStrategy: step.assignment.strategy,
+    assignmentStrategy,
     assigneeUserId: assignment.assigneeUserId,
     assigneeGroupId: assignment.assigneeGroupId,
     assigneeRole: assignment.assigneeRole,
-    delegatedFromUserId: null,
+    delegatedFromUserId: assignment.delegatedFromUserId ?? null,
     allowedDecisions: step.allowedDecisions,
     dueAt,
+    ...(escalationLevel !== undefined ? { escalationLevel } : {}),
   };
 
   state.output.tasksToCreate.push(task);
@@ -192,6 +305,14 @@ function enterStep(
     triggerType,
     ...(conditionResult ? { conditionResult } : {}),
   });
+
+  // PRD.md §15.2: all of a task's timers are scheduled up front, at
+  // creation, rather than one at a time as each deadline is approached.
+  // The task's own database id does not exist yet at this point in a pure
+  // engine (it is assigned on insert), so these are matched back to the
+  // task tasksToCreate just gained by the caller that persists this output,
+  // the single task an enterStep call ever creates.
+  state.output.timersToSchedule.push(...computeTimerSpecs(step.sla, dueAt));
 
   emit(state, input, 'task.created', {
     caseId: input.caseState.caseId,
@@ -544,6 +665,11 @@ export function advance(input: EngineInput): EngineOutput {
         comment: event.comment ?? null,
       });
 
+      // PRD.md §15.2: "all timers for a task are cancelled when the task
+      // is completed, reassigned or cancelled." A decision always
+      // completes the task it was made on, whatever the case does next.
+      state.output.timersToCancel.push(event.taskId);
+
       const selection = selectNextStepKey(state, input, step, event.decision);
       if (!selection) {
         enterUnassigned(state, input, {
@@ -572,14 +698,91 @@ export function advance(input: EngineInput): EngineOutput {
       return state.output;
     }
 
-    case 'taskExpired':
-    case 'escalationTriggered': {
-      // Timers arrive with SLA and escalation in Phase 6. Reported as an
-      // error rather than silently ignored, so a caller that fires one
-      // early finds out.
+    case 'taskExpired': {
+      // The third timer type (PRD.md §15.2): an overdue task auto-decides
+      // per an `onExpiry` field nothing in the schema defines yet.
+      // Deferred deliberately, alongside that field, rather than guessed
+      // at here. Reported as an error rather than silently ignored, so a
+      // caller that fires one early finds out.
       state.output.errors.push(
-        fail('eventNotImplemented', `The '${event.type}' event is not implemented until Phase 6.`),
+        fail('eventNotImplemented', `The '${event.type}' event is not implemented yet.`),
       );
+      return state.output;
+    }
+
+    case 'escalationTriggered': {
+      const currentStepKey = caseState.currentStepKey;
+      if (!currentStepKey) {
+        state.output.errors.push(
+          fail('noCurrentStep', 'The case has no current step, so nothing can be escalated.'),
+        );
+        return state.output;
+      }
+
+      const step = findStep(definition, currentStepKey);
+      if (!step) {
+        state.output.errors.push(
+          fail(
+            'unknownStep',
+            `Step '${currentStepKey}' does not exist in this definition version.`,
+          ),
+        );
+        return state.output;
+      }
+
+      // context.step.escalationLevel is the level the task the caller is
+      // escalating already sits at (0 for a never-escalated task), so the
+      // next level to try is one past it.
+      const resolution = resolveEscalationLevel(
+        step,
+        input.context.step.escalationLevel + 1,
+        input,
+      );
+
+      if (!resolution) {
+        // PRD.md §15.3: exhausting every configured level flags the case
+        // for admin attention rather than leaving the escalation attempt
+        // silently unresolved. The case stays on its current step: the
+        // original task is still open and still actionable, it is only
+        // that nobody further could be found to add.
+        enterUnassigned(state, input, {
+          stepKey: currentStepKey,
+          fromStepKey: currentStepKey,
+          triggerType: 'escalation',
+          error: fail(
+            'escalationLevelsExhausted',
+            `Step '${step.key}' has exhausted every configured escalation level.`,
+            step.key,
+          ),
+        });
+        return state.output;
+      }
+
+      state.output.tasksToCreate.push(escalationTask(step, resolution));
+
+      // Recorded as its own transition (trigger_type 'escalation', already
+      // a valid value) rather than folded into the task.created event
+      // alone: PRD.md §15.3 requires each escalation level to be "recorded
+      // as an audit event", and case_transitions is the audit-visible
+      // timeline every other state change already goes through.
+      state.output.transitions.push({
+        fromStepKey: currentStepKey,
+        toStepKey: currentStepKey,
+        triggerType: 'escalation',
+        taskId: event.taskId,
+        conditionResult: { escalationLevel: resolution.level, strategy: resolution.strategy },
+      });
+
+      emit(state, input, 'task.escalated', {
+        caseId: caseState.caseId,
+        taskId: event.taskId,
+        stepKey: step.key,
+        escalationLevel: resolution.level,
+        assigneeUserId: resolution.assignment.assigneeUserId,
+        assigneeRole: resolution.assignment.assigneeRole,
+        assigneeGroupId: resolution.assignment.assigneeGroupId,
+      });
+
       return state.output;
     }
 

@@ -245,6 +245,31 @@ export interface NotificationsTable {
   created_at: Generated<Date>;
 }
 
+export interface SlaTimersTable {
+  timer_id: string;
+  organisation_id: string;
+  case_id: string;
+  task_id: string | null;
+  schedule_name: string;
+  timer_type: string;
+  escalation_level: Generated<number>;
+  fire_at: Date;
+  status: Generated<string>;
+  fired_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export interface DelegationsTable {
+  delegation_id: string;
+  organisation_id: string;
+  from_user_id: string;
+  to_user_id: string;
+  starts_at: Date;
+  ends_at: Date;
+  reason: string | null;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   organisations: OrganisationsTable;
   users: UsersTable;
@@ -263,4 +288,6 @@ export interface Database {
   case_transitions: CaseTransitionsTable;
   case_comments: CaseCommentsTable;
   notifications: NotificationsTable;
+  sla_timers: SlaTimersTable;
+  delegations: DelegationsTable;
 }

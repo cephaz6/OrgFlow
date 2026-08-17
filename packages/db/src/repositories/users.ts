@@ -1,4 +1,4 @@
-import type { Kysely, Selectable, Transaction } from 'kysely';
+import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 import type { User, UserStatus } from '@orgflow/types';
 
 import type { Database, UsersTable } from '../schema.js';
@@ -98,6 +98,19 @@ export async function findUserById(db: Kysely<Database>, userId: string): Promis
     .selectFrom('users')
     .selectAll()
     .where('user_id', '=', userId)
+    .executeTakeFirst();
+
+  return row ? toDomain(row) : null;
+}
+
+// Case-insensitive: identity providers do not agree on casing, and a
+// delegate typing a colleague's email from memory should not have to match
+// it exactly.
+export async function findUserByEmail(db: Kysely<Database>, email: string): Promise<User | null> {
+  const row = await db
+    .selectFrom('users')
+    .selectAll()
+    .where(sql<boolean>`lower(email) = lower(${email})`)
     .executeTakeFirst();
 
   return row ? toDomain(row) : null;

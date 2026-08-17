@@ -42,6 +42,7 @@ export { createOrganisation, findOrganisationBySlug } from './repositories/organ
 export type { CreateOrganisationInput } from './repositories/organisations.js';
 export {
   createUserWithIdentity,
+  findUserByEmail,
   findUserByIdentity,
   findUserById,
   touchLastLogin,
@@ -96,6 +97,7 @@ export {
   findOpenTasksForAssignee,
   findTaskQueueForAssignee,
   hasUserHeldTaskOnCase,
+  markTaskEscalated,
   recordTaskDecision,
   TaskConcurrencyError,
 } from './repositories/case-tasks.js';
@@ -110,3 +112,19 @@ export {
   findCaseTransitionsForCase,
 } from './repositories/case-transitions.js';
 export type { AppendCaseTransitionInput } from './repositories/case-transitions.js';
+export {
+  cancelTimersForCase,
+  cancelTimersForTask,
+  createSlaTimer,
+  findDueTimers,
+  markTimerFired,
+} from './repositories/sla-timers.js';
+export type { CreateSlaTimerInput } from './repositories/sla-timers.js';
+export {
+  createDelegation,
+  deleteDelegation,
+  findActiveDelegateByUserId,
+  findDelegationById,
+  findDelegationsForUser,
+} from './repositories/delegations.js';
+export type { CreateDelegationInput } from './repositories/delegations.js';

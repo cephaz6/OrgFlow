@@ -29,12 +29,25 @@ export interface EvaluationContext {
   step: {
     escalationLevel: number;
   };
+  // Set only when the caller is resolving an escalation (a sweep finding an
+  // overdue task, or the self-approval guard). `lineManagerOfAssignee`
+  // (PRD.md §7) escalates the *current* assignee's manager, not the
+  // submitter's, and the engine performs no I/O to find out who that is.
+  currentAssignee?: {
+    lineManagerUserId: Uuid | null;
+  };
   // Directory facts the caller resolves before invoking the engine.
   // Assignment strategies name a group by its stable key, but case_tasks
   // stores a group id, and turning one into the other is a database
   // lookup the engine is not allowed to make.
   directory: {
     groupIdsByKey: Record<string, Uuid>;
+    // PRD.md §7: "delegation is applied at resolution time." Keyed by the
+    // user a strategy resolved to; a present entry means that user has an
+    // active delegation covering `context.now`, and the engine redirects to
+    // the delegate. Resolved by the caller for the same reason
+    // groupIdsByKey is: it is a database lookup, not an engine decision.
+    activeDelegateByUserId: Record<Uuid, Uuid>;
   };
 }
 
@@ -74,6 +87,12 @@ export interface TaskSpec {
   delegatedFromUserId: Uuid | null;
   allowedDecisions: WorkflowDecisionAction[];
   dueAt: IsoDateTimeString | null;
+  // Absent (defaults to 0 at the database layer) for a task created by
+  // entering a step normally. Set on the additional task an escalation
+  // creates (PRD.md §15.3: escalation adds an assignee, it does not
+  // replace one), so both the original and the escalated task agree on
+  // which level produced them.
+  escalationLevel?: number;
 }
 
 export interface TransitionRecord {

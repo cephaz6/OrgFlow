@@ -45,6 +45,11 @@ export interface CreateCaseTaskInput {
   assigneeRole?: string | null;
   delegatedFromUserId?: string | null;
   dueAt?: Date | null;
+  // Set only for the additional task an escalation creates (PRD.md §15.3);
+  // absent leaves the column at its default of 0. escalated_at is stamped
+  // here to now() whenever a level is given, rather than taken as a
+  // separate input, since the two only ever change together.
+  escalationLevel?: number;
 }
 
 export async function createCaseTask(
@@ -66,11 +71,31 @@ export async function createCaseTask(
       assignee_role: input.assigneeRole ?? null,
       delegated_from_user_id: input.delegatedFromUserId ?? null,
       due_at: input.dueAt ?? null,
+      ...(input.escalationLevel !== undefined
+        ? { escalation_level: input.escalationLevel, escalated_at: new Date() }
+        : {}),
     })
     .returningAll()
     .executeTakeFirstOrThrow();
 
   return toDomain(row);
+}
+
+// Stamped onto the task an escalation was triggered against, so a later
+// timer for the same task (a further escalation level, still scheduled)
+// resumes from where this one left off rather than re-walking the rule
+// list from level 1 and creating a duplicate task at the same level.
+export async function markTaskEscalated(
+  trx: Transaction<Database>,
+  taskId: string,
+  escalationLevel: number,
+): Promise<void> {
+  await trx
+    .updateTable('case_tasks')
+    .set({ escalation_level: escalationLevel, escalated_at: new Date() })
+    .where('task_id', '=', taskId)
+    .where('escalation_level', '<', escalationLevel)
+    .execute();
 }
 
 export async function findCaseTaskById(

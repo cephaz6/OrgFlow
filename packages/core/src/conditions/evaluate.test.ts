@@ -16,7 +16,7 @@ const CONTEXT: EvaluationContext = {
   },
   case: { daysOpen: 3 },
   step: { escalationLevel: 1 },
-  directory: { groupIdsByKey: {} },
+  directory: { groupIdsByKey: {}, activeDelegateByUserId: {} },
 };
 
 function scope(values: Record<string, unknown>): ConditionScope {
