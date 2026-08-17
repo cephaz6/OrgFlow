@@ -55,9 +55,12 @@ test.describe('form builder', () => {
     await expect(previewPanel.getByLabel('Amount')).toBeVisible();
 
     // Validate: an empty form would warn, but two labelled text fields in
-    // one section should raise nothing.
+    // one section should raise nothing. The tab now covers both the form
+    // and the workflow (feat/workflow-builder), so this scopes to the
+    // form's own panel rather than colliding with the workflow's.
     await page.getByRole('tab', { name: /validate/i }).click();
-    await expect(page.getByText('No problems found.')).toBeVisible();
+    const formValidation = page.getByRole('heading', { name: 'Form' }).locator('..');
+    await expect(formValidation.getByText('No problems found.')).toBeVisible();
 
     // Publish.
     await page.getByRole('tab', { name: 'build' }).click();

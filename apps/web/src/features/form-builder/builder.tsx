@@ -29,13 +29,19 @@ import { Palette } from './palette';
 import { SectionProperties } from './section-properties';
 import { hasBlockingIssues, validateDraft } from './validation';
 import { ValidationPanel } from './validation-panel';
+import {
+  hasBlockingIssues as hasBlockingWorkflowIssues,
+  validateWorkflow,
+  ValidationPanel as WorkflowValidationPanel,
+  WorkflowEditor,
+} from '../workflow-builder';
 
 export interface BuilderProps {
   initial: DraftDetail;
   userId: string;
 }
 
-type View = 'build' | 'preview' | 'validate';
+type View = 'build' | 'workflow' | 'preview' | 'validate';
 
 type SaveStatus =
   { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved' } | { kind: 'error'; message: string };
@@ -80,7 +86,12 @@ export function Builder({ initial, userId }: BuilderProps) {
       }),
     [document.form, sections, settings.titleFieldKey],
   );
-  const blocking = hasBlockingIssues(issues);
+  const workflowIssues = useMemo(
+    () => validateWorkflow({ workflow: document.workflow }),
+    [document.workflow],
+  );
+  const totalIssueCount = issues.length + workflowIssues.length;
+  const blocking = hasBlockingIssues(issues) || hasBlockingWorkflowIssues(workflowIssues);
 
   function withSections(next: FormSection[]) {
     setDocument((current) => ({ ...current, form: { ...current.form, sections: next } }));
@@ -168,7 +179,7 @@ export function Builder({ initial, userId }: BuilderProps) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
         <div role="tablist" aria-label="Builder view" className="flex gap-1">
-          {(['build', 'preview', 'validate'] as const).map((tab) => (
+          {(['build', 'workflow', 'preview', 'validate'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -184,7 +195,7 @@ export function Builder({ initial, userId }: BuilderProps) {
                   : 'text-muted-foreground hover:bg-accent',
               )}
             >
-              {tab === 'validate' && issues.length > 0 ? `Validate (${issues.length})` : tab}
+              {tab === 'validate' && totalIssueCount > 0 ? `Validate (${totalIssueCount})` : tab}
             </button>
           ))}
         </div>
@@ -303,6 +314,23 @@ export function Builder({ initial, userId }: BuilderProps) {
       </div>
 
       <div
+        id="panel-workflow"
+        role="tabpanel"
+        aria-labelledby="tab-workflow"
+        hidden={view !== 'workflow'}
+      >
+        <WorkflowEditor
+          workflow={document.workflow}
+          formFields={allFields}
+          onChange={(workflow) => {
+            setDocument((current) => ({ ...current, workflow }));
+            setDirty(true);
+          }}
+          announce={announce}
+        />
+      </div>
+
+      <div
         id="panel-preview"
         role="tabpanel"
         aria-labelledby="tab-preview"
@@ -317,8 +345,15 @@ export function Builder({ initial, userId }: BuilderProps) {
         aria-labelledby="tab-validate"
         hidden={view !== 'validate'}
       >
-        <div className="rounded-lg border border-border bg-card p-4">
-          <ValidationPanel issues={issues} />
+        <div className="flex flex-col gap-4">
+          <div className="rounded-lg border border-border bg-card p-4">
+            <h2 className="mb-3 text-sm font-semibold">Form</h2>
+            <ValidationPanel issues={issues} />
+          </div>
+          <div className="rounded-lg border border-border bg-card p-4">
+            <h2 className="mb-3 text-sm font-semibold">Workflow</h2>
+            <WorkflowValidationPanel issues={workflowIssues} />
+          </div>
         </div>
       </div>
     </div>
