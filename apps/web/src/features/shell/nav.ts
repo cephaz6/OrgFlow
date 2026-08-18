@@ -1,4 +1,5 @@
 import {
+  ChartNoAxesCombined,
   Inbox,
   LayoutDashboard,
   LibraryBig,
@@ -50,6 +51,12 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         href: '/processes',
         label: 'Processes',
         icon: Wrench,
+        requiresAnyRole: ['processOwner', 'admin', 'owner'],
+      },
+      {
+        href: '/reports',
+        label: 'Reports',
+        icon: ChartNoAxesCombined,
         requiresAnyRole: ['processOwner', 'admin', 'owner'],
       },
     ],

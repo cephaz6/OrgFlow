@@ -11,6 +11,7 @@ export type * from './membership.js';
 export type * from './notification.js';
 export type * from './organisation.js';
 export type * from './process-definition.js';
+export type * from './report.js';
 export type * from './session.js';
 export type * from './sla-timer.js';
 export type * from './task.js';

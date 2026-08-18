@@ -17,6 +17,7 @@ import { createCasesRouter } from './routes/cases.js';
 import { createDelegationsRouter } from './routes/delegations.js';
 import { createHealthRouter } from './routes/health.js';
 import { createProcessDefinitionsRouter } from './routes/process-definitions.js';
+import { createReportsRouter } from './routes/reports.js';
 import { createTasksRouter } from './routes/tasks.js';
 
 export interface CreateAppDeps {
@@ -98,6 +99,14 @@ export function createApp(deps: CreateAppDeps): Express {
   app.use(
     '/api/v1',
     createDelegationsRouter({
+      db: deps.db,
+      sessionSecret: deps.sessionSecret,
+    }),
+  );
+
+  app.use(
+    '/api/v1',
+    createReportsRouter({
       db: deps.db,
       sessionSecret: deps.sessionSecret,
     }),

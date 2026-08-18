@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 import type { TimelineEntry } from './types';
-import { formatDateTime } from './format';
+import { formatDateTime } from '../../lib/format';
 
 export interface CaseTimelineProps {
   entries: TimelineEntry[];

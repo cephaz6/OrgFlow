@@ -1,5 +1,9 @@
-// One place for date rendering, so a case list and a timeline cannot
-// disagree about what a timestamp looks like.
+// One place for date rendering, so no two screens across the app can
+// disagree about what a timestamp looks like. Lives in lib/, not a
+// feature module, since it is used by more than one feature (cases,
+// reporting) and has no feature-specific logic of its own; a feature
+// importing another feature's internals would violate the modular-
+// monolith boundary ADR-0008 sets.
 //
 // en-GB explicitly rather than the visitor's locale: a server-rendered
 // string formatted with the server's locale and then hydrated with the

@@ -65,6 +65,24 @@ export async function isAdministrator(
   return member ? member.roles.includes('admin') || member.roles.includes('owner') : false;
 }
 
+// Reporting (PRD.md §17): process owners, admins and owners can see
+// aggregate reports for the organisation. Read from the database for the
+// same staleness reason as isAdministrator above.
+export async function canViewReports(
+  trx: Transaction<Database>,
+  session: RequestSession,
+): Promise<boolean> {
+  const member = await findOrganisationMemberByUserId(trx, session.userId);
+  if (!member) {
+    return false;
+  }
+  return (
+    member.roles.includes('processOwner') ||
+    member.roles.includes('admin') ||
+    member.roles.includes('owner')
+  );
+}
+
 export interface ActionabilityResult {
   allowed: boolean;
   reason?: string;
