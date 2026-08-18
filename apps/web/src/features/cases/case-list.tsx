@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { CaseResponse } from './types';
 import { CaseStatusBadge } from './case-status';
 import { isReturnedToRequester } from './case-state';
-import { formatDate } from './format';
+import { formatDate } from '../../lib/format';
 
 export interface CaseListProps {
   cases: CaseResponse[];

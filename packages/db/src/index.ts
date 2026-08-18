@@ -128,3 +128,22 @@ export {
   findDelegationsForUser,
 } from './repositories/delegations.js';
 export type { CreateDelegationInput } from './repositories/delegations.js';
+export {
+  findApproverLoad,
+  findBottlenecksAcrossDefinitions,
+  findEscalationAndReturnRates,
+  findRejectionCountsByStep,
+  findStepDurations,
+  findTurnaroundStats,
+  findVolumeByDefinition,
+} from './repositories/reports.js';
+export type {
+  ApproverLoadRow,
+  BottleneckRow,
+  EscalationAndReturnRates,
+  RejectionCountRow,
+  ReportDateRange,
+  StepDurationRow,
+  TurnaroundStats,
+  VolumeRow,
+} from './repositories/reports.js';

@@ -36,6 +36,7 @@ import { z } from 'zod';
 import { buildEvaluationContext } from '../cases/evaluation-context.js';
 import { canActOnTask, canViewCase, resolveClaimablePools } from '../cases/permissions.js';
 import { persistEngineOutput } from '../cases/persist-engine-output.js';
+import { parseBody } from '../lib/parse-body.js';
 import type { Logger } from '../logger.js';
 import { HttpProblemError } from '../middleware/error-handler.js';
 import { requireSession, sessionOf } from '../middleware/require-session.js';
@@ -82,17 +83,6 @@ const claimSchema = z
     rowVersion: z.number().int().positive().optional(),
   })
   .optional();
-
-function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    const detail = parsed.error.issues
-      .map((issue) => `${issue.path.join('.') || 'body'}: ${issue.message}`)
-      .join('; ');
-    throw new HttpProblemError(400, 'Bad Request', detail);
-  }
-  return parsed.data;
-}
 
 function toQueueResponse(entry: TaskQueueEntry) {
   return {

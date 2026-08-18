@@ -1,6 +1,6 @@
 import type { FormField, ProcessDefinitionDocument } from '@orgflow/types';
 
-import { formatDate, formatDateTime } from './format';
+import { formatDate, formatDateTime } from '../../lib/format';
 
 export interface SubmittedValuesProps {
   document: ProcessDefinitionDocument;

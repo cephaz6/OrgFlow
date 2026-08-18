@@ -7,7 +7,7 @@ export { isReturnedToRequester } from './case-state';
 export { CaseStatusBadge, TaskStatusBadge } from './case-status';
 export { CaseTimeline } from './case-timeline';
 export { FieldInput } from './field-input';
-export { formatDate, formatDateTime } from './format';
+export { formatDate, formatDateTime } from '../../lib/format';
 export { FormRuntime, type FormRuntimeMode, type FormRuntimeProps } from './form-runtime';
 export { SubmittedValues } from './submitted-values';
 // Exported so the form builder's live preview renders a draft with the same

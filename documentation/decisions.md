@@ -905,3 +905,32 @@ back to a lifted grey fails a test rather than passing unnoticed.
 - **A near-black background rather than true black.** That is what ADR-0017 chose and what
   this reverses, on request. Recorded because the older ADR argues for the lifted value on
   elevation grounds, and the trade-off it describes is genuine.
+
+## ADR-0022: Reporting exports are synchronous CSV; suppression applies only to re-identifying breakdowns
+
+**Date:** 2026-08-18
+**Status:** Accepted
+**Deciders:** Project operator
+
+**Context**
+`PRD.md` §11.8/§17 specifies `POST /exports` as an asynchronous job: request queued via SQS, delivered as a presigned S3 link once a worker finishes, CSV or PDF. Building it forced a look at what infrastructure actually exists for that path, and the answer was none: no S3 presign helper anywhere in the codebase, no exports queue in `infra/src/stacks/messaging-stack.ts`, nothing deployed to real AWS at all (`documentation/decisions.md`'s own entries confirm this repeatedly), and not even a LocalStack bootstrap script for the notification queue that already exists in working code today (the SLA feature's local sweep hits `QueueDoesNotExist` against the compose LocalStack). Building the real pipeline first would mean writing that bootstrap script, a presign helper with no other caller yet, and a queue consumer for a job type nothing else produces, all before the reporting feature itself could be exercised end to end.
+
+Separately, `PRD.md` §17.2's "suppress groups smaller than five to prevent re-identification" names no specific rows. The aggregation queries this feature adds (`packages/db/src/repositories/reports.ts`, the first aggregation-heavy repository in the codebase) produce several kinds of grouped output: volume by process and period, approver load by individual, rejection counts by step, and step duration samples by step. Not all of them carry the same re-identification risk.
+
+**Decision**
+`POST /exports` streams a CSV directly in the HTTP response (`Content-Disposition: attachment`), capped at 5,000 rows, with no queue, no S3, no PDF, and no `GET /exports/:id` polling endpoint. This is the same "local substitute now, real infra later" pattern already used for the SLA sweep standing in for EventBridge Scheduler and the dummy SES/SNS senders standing in for real delivery: the swap, when AWS is actually deployed, replaces how the export is delivered, not what it contains. The export's columns (reference, title, status, current step, submitted at, completed at) deliberately exclude submitter identity and form values, since both may carry personal data (`PRD.md` §18's `containsPersonalData` exclusion) and this synchronous path has no redaction pass; that belongs to the real async export once it exists, not reinvented here.
+
+Suppress-below-five (`HAVING count(*) >= 5` inside the SQL itself, never a post-hoc filter after rows leave Postgres) applies to approver-load rows, rejection-reasons-by-step counts, and per-step duration samples: each is a small-population breakdown that could let a viewer infer something about an identifiable individual. It does not apply to volume-by-process-by-period buckets or the overview's org-wide completion rate and turnaround: a plain case count carries no comment, duration or decision attributable to one person, and `PRD.md` §17.1 treats volume as an always-shown top-line chart rather than a breakdown.
+
+`GET /reports/approver-load` is gated to `admin`/`owner` (`isAdministrator`, reused verbatim from `apps/api/src/cases/permissions.ts`) rather than the broader `processOwner`/`admin`/`owner` set the other three report routes use (`canViewReports`, new in the same file), since it is the one individual-level view `PRD.md` §17.2 singles out for tighter gating. It is the one report route that legitimately returns `403` rather than `404`: the route itself is not tenant-secret, only the individual-level data behind it is role-gated, matching how `canActOnTask` already returns `403` for actionability once visibility (ADR-0015) has already been granted.
+
+**Consequences**
+Reporting ships and is exercisable end to end now, rather than blocked on infrastructure this codebase has not built for anything else yet. The cost is real and is the thing to remember: an export larger than 5,000 rows is silently truncated rather than paginated, there is no PDF option, and nothing in this path is suitable once export volume or delivery latency actually matters. The follow-up (a real SQS-backed export queue, an S3 presign helper, a PDF renderer, and the LocalStack bootstrap script this repository has needed since the SLA feature) is a named, scoped piece of future work, not a silent gap.
+
+Suppression living inside the SQL `HAVING` clause, rather than as a filter the route or the web layer must remember to apply, means a suppressed row is data Postgres never returns: there is no future code path, refactor, or direct repository call from a script that can leak it by forgetting to filter afterwards.
+
+**Alternatives rejected**
+
+- **Build the real async export pipeline now.** Would match `PRD.md` literally and give the codebase its first real S3 integration. Rejected because it requires provisioning infrastructure (a queue, a bootstrap script, a presign helper) that nothing else in the codebase has needed yet, none of it exercisable without a LocalStack setup step this repository has been missing since the SLA feature, for a feature whose acceptance criteria (`docs/PRD.md` Phase 8) do not require async delivery specifically.
+- **Suppress every grouped number, including volume.** More conservative reading of §17.2. Rejected because a process with genuinely low volume, itself a useful signal to a process owner, would simply vanish from the chart, and a plain count carries no individual-attributable content the way a comment, duration or decision does.
+- **Gate all four report routes at the same `processOwner`/`admin`/`owner` level.** Simpler, one permission check. Rejected because `PRD.md` §17.2 explicitly separates aggregate reporting from individual-level views, and collapsing that distinction for approver load specifically undermines the "not a staff monitoring tool" purpose-limitation `GOV-STANDARDS.md` §7 states directly.
