@@ -56,6 +56,21 @@ function buildStacks() {
   return { network, data, messaging, api, workers };
 }
 
+// The bundled Lambda's asset key is a content hash, so it moves whenever
+// anything the bundle contains changes, including a package this stack
+// never names directly: adding functions to @orgflow/db moved it once
+// already, and the only thing the snapshot had to say about it was a new
+// sixty-four character string. It asserts nothing about the template, and
+// its entropy is high enough to read as a credential to the secret scanner
+// (gitleaks flagged exactly this as generic-api-key). Normalising it keeps
+// the snapshot comparing the template's shape, which is what this suite is
+// for, and everything else is still compared exactly.
+function withStableAssetKeys(template: unknown): unknown {
+  return JSON.parse(
+    JSON.stringify(template).replace(/\b[0-9a-f]{64}\.zip\b/g, 'ASSET_CONTENT_HASH.zip'),
+  ) as unknown;
+}
+
 function expectNoUnsuppressedFindings(stack: Stack) {
   const errors = Annotations.fromStack(stack).findError(
     '*',
@@ -72,30 +87,30 @@ describe('CDK skeleton: cdk synth and cdk-nag', () => {
   it('synthesises NetworkStack with no unsuppressed cdk-nag findings', () => {
     const { network } = buildStacks();
     expectNoUnsuppressedFindings(network);
-    expect(Template.fromStack(network).toJSON()).toMatchSnapshot();
+    expect(withStableAssetKeys(Template.fromStack(network).toJSON())).toMatchSnapshot();
   });
 
   it('synthesises DataStack with no unsuppressed cdk-nag findings', () => {
     const { data } = buildStacks();
     expectNoUnsuppressedFindings(data);
-    expect(Template.fromStack(data).toJSON()).toMatchSnapshot();
+    expect(withStableAssetKeys(Template.fromStack(data).toJSON())).toMatchSnapshot();
   });
 
   it('synthesises MessagingStack with no unsuppressed cdk-nag findings', () => {
     const { messaging } = buildStacks();
     expectNoUnsuppressedFindings(messaging);
-    expect(Template.fromStack(messaging).toJSON()).toMatchSnapshot();
+    expect(withStableAssetKeys(Template.fromStack(messaging).toJSON())).toMatchSnapshot();
   });
 
   it('synthesises ApiStack with no unsuppressed cdk-nag findings', () => {
     const { api } = buildStacks();
     expectNoUnsuppressedFindings(api);
-    expect(Template.fromStack(api).toJSON()).toMatchSnapshot();
+    expect(withStableAssetKeys(Template.fromStack(api).toJSON())).toMatchSnapshot();
   });
 
   it('synthesises WorkersStack with no unsuppressed cdk-nag findings', () => {
     const { workers } = buildStacks();
     expectNoUnsuppressedFindings(workers);
-    expect(Template.fromStack(workers).toJSON()).toMatchSnapshot();
+    expect(withStableAssetKeys(Template.fromStack(workers).toJSON())).toMatchSnapshot();
   });
 });
