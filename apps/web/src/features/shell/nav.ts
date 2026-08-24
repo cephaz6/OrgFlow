@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   LibraryBig,
   ScrollText,
+  Users,
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
@@ -58,6 +59,15 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         label: 'Reports',
         icon: ChartNoAxesCombined,
         requiresAnyRole: ['processOwner', 'admin', 'owner'],
+      },
+      {
+        href: '/settings/members',
+        label: 'Members',
+        icon: Users,
+        // PRD.md §12.2 gives "manage members" to admin and above, so a
+        // process owner does not see this even though they see the two
+        // items above it.
+        requiresAnyRole: ['admin', 'owner'],
       },
     ],
   },
