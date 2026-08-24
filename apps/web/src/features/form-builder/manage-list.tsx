@@ -1,5 +1,5 @@
 import { Button, Card, CardContent, EmptyState } from '@orgflow/ui';
-import { FilePlus2, Wrench } from 'lucide-react';
+import { ChartNoAxesCombined, FilePlus2, Wrench } from 'lucide-react';
 import Link from 'next/link';
 
 import { DefinitionStatusBadge } from './definition-status-badge';
@@ -44,6 +44,22 @@ export function ManageList({ definitions }: ManageListProps) {
                 <p className="text-sm text-muted-foreground">{definition.description}</p>
               ) : null}
             </div>
+            {/* A draft has never been published, so no case has ever run
+                against it and its report would be nothing but empty states.
+                Offering the link anyway would read as a broken report rather
+                than an unused one, the same reasoning nav.ts applies to
+                items pointing at pages that do not exist. */}
+            {definition.status !== 'draft' ? (
+              <Button asChild variant="ghost" size="sm">
+                <Link href={`/reports/${definition.definitionId}`}>
+                  <ChartNoAxesCombined aria-hidden="true" className="h-4 w-4" />
+                  Report
+                  {/* Every row's link would otherwise be called "Report",
+                      which is useless to anyone listing the page's links. */}
+                  <span className="sr-only"> for {definition.name}</span>
+                </Link>
+              </Button>
+            ) : null}
             <DefinitionStatusBadge status={definition.status} />
           </CardContent>
         </Card>

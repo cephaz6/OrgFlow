@@ -934,3 +934,38 @@ Suppression living inside the SQL `HAVING` clause, rather than as a filter the r
 - **Build the real async export pipeline now.** Would match `PRD.md` literally and give the codebase its first real S3 integration. Rejected because it requires provisioning infrastructure (a queue, a bootstrap script, a presign helper) that nothing else in the codebase has needed yet, none of it exercisable without a LocalStack setup step this repository has been missing since the SLA feature, for a feature whose acceptance criteria (`docs/PRD.md` Phase 8) do not require async delivery specifically.
 - **Suppress every grouped number, including volume.** More conservative reading of §17.2. Rejected because a process with genuinely low volume, itself a useful signal to a process owner, would simply vanish from the chart, and a plain count carries no individual-attributable content the way a comment, duration or decision does.
 - **Gate all four report routes at the same `processOwner`/`admin`/`owner` level.** Simpler, one permission check. Rejected because `PRD.md` §17.2 explicitly separates aggregate reporting from individual-level views, and collapsing that distinction for approver load specifically undermines the "not a staff monitoring tool" purpose-limitation `GOV-STANDARDS.md` §7 states directly.
+
+## ADR-0023: Turbopack for the development server only, with its CSS divergence recorded
+
+**Date:** 2026-08-24
+**Status:** Accepted
+**Deciders:** Project operator (reported the application felt slow to move between sections)
+
+**Context**
+`apps/web` ran a plain `next dev`, which is webpack. In a Turborepo workspace with `transpilePackages: ['@orgflow/ui']`, that bundler recompiles a route's module graph on first visit and re-does much of the work as the developer moves around, so switching between sections took seconds every time rather than only once. Measured against the running server, a warm route took roughly half a second while a cold one took several, and the cold path was being hit far more often than it should have been.
+
+Next 15.5 ships a stable Turbopack development server, so this is a flag on an existing dependency rather than a new tool: `TECH-STACK.md`'s stack is untouched and no package was added.
+
+**Decision**
+`apps/web`'s `dev` script becomes `next dev --turbopack`. `build` stays on webpack, unchanged.
+
+The consequence that matters, and the reason this is recorded rather than left as a one-word script edit: Turbopack's CSS pipeline rewrites every `oklch()` into a fallback chain, so the development server ships
+
+    --background: #000
+    --background: color(display-p3 0 0 0)
+    --background: lab(0% 0 0)
+
+where the production build still ships `oklch(0% 0 0)`. Checked rather than assumed: the built stylesheet holds 168 `oklch()` and zero `lab()`, and the Turbopack-served one holds 172 `lab()` and zero `oklch()`. The colours are equivalent, so ADR-0017's and ADR-0020's verified contrast ratios still hold, and `packages/ui/src/tokens.test.ts` is unaffected because it parses `tokens.css` at source rather than anything a bundler emitted.
+
+**Consequences**
+Moving between sections is fast after a route's first compile, which is the whole point.
+
+Development and production now serve different CSS text for the same palette. Nothing renders differently, but a test that asserts on a serialised colour string passes against one and fails against the other. That is not hypothetical: the five theme specs that assert `oklch(0 0 0)` fail when Playwright reuses a Turbopack development server. They do not fail in CI, because `apps/web/playwright.config.ts` runs `pnpm run start` there, against a real build. That file's own comment already said the trustworthy run is the one against a build; this makes it true of colour assertions specifically, not only of the stale-stylesheet problem it was written for.
+
+The practical rule this sets: a local end-to-end run that is meant to be believed goes against `next build` plus `next start`, not against the development server. Running the suite against the development server found sixteen failures where the same suite against a build found one, and fifteen of those were artefacts.
+
+**Alternatives rejected**
+
+- **Leave the development server on webpack.** Rejected: the slowness was the reported problem, and it is real rather than a matter of taste.
+- **Move the production build to Turbopack as well, so the two match.** Not rejected on merit, deferred deliberately. It would remove the divergence, but changing how the deployed artefact is built is a materially larger decision than changing how a developer runs the app locally, and `CLAUDE.md` §8 puts it in a different risk class. Worth revisiting as its own piece of work rather than as a side effect of a speed fix.
+- **Rewrite the theme specs to compare parsed colours instead of serialised strings, so they pass under both.** Rejected for now: the assertions exist because ADR-0021 wanted a drift back to a lifted grey to fail a test, and loosening them to accommodate a development-only bundler difference weakens that guard to fix something CI never sees.

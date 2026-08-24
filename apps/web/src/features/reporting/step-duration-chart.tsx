@@ -15,7 +15,8 @@ function formatHours(hours: number): string {
 // Sorted slowest-first, since that is the order the acceptance criteria
 // (docs/PRD.md Phase 8: "slowest step is visible per process") asks for.
 // The visually-hidden table is the same accessible-text-equivalent pattern
-// VolumeChart uses.
+// VolumeChart uses, including its accessibilityLayer={false} for the same
+// aria-hidden-focus reason recorded there.
 export function StepDurationChart({ steps }: StepDurationChartProps) {
   const sorted = [...steps].sort((a, b) => b.meanDurationHours - a.meanDurationHours);
 
@@ -31,7 +32,12 @@ export function StepDurationChart({ steps }: StepDurationChartProps) {
     <div>
       <div aria-hidden="true" className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={sorted} layout="vertical" margin={{ left: 24 }}>
+          <BarChart
+            data={sorted}
+            layout="vertical"
+            margin={{ left: 24 }}
+            accessibilityLayer={false}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis
               type="number"

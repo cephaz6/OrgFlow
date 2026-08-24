@@ -28,6 +28,12 @@ function aggregateByPeriod(volume: VolumeBucket[]): PeriodTotal[] {
 // pairs the chart with a visually-hidden table carrying the same numbers
 // (WCAG 2.2 AA non-text content), rather than the chart being the only
 // place the data exists.
+//
+// accessibilityLayer is off deliberately. Recharts 3 turns it on by
+// default, which puts tabIndex={0} on the chart surface; inside this
+// aria-hidden wrapper that produces a focus stop announcing nothing, which
+// axe reports as aria-hidden-focus (serious). The table below is the
+// accessible path, so the chart has no business being in the tab order.
 export function VolumeChart({ volume }: VolumeChartProps) {
   const totals = aggregateByPeriod(volume);
 
@@ -39,7 +45,7 @@ export function VolumeChart({ volume }: VolumeChartProps) {
     <div>
       <div aria-hidden="true" className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={totals}>
+          <BarChart data={totals} accessibilityLayer={false}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis
               dataKey="periodStart"
