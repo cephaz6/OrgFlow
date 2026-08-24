@@ -3707,7 +3707,7 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises WorkersStack with no 
           "S3Bucket": {
             "Fn::Sub": "cdk-hnb659fds-assets-\${AWS::AccountId}-eu-west-2",
           },
-          "S3Key": "891ad230d7fae1d002d114ccca1f592901d68773f48d964110088e56490acd81.zip",
+          "S3Key": "0fdaac10591d664a87bc8000a5d73dde3851b8635fa094d112ba73db8d20fa07.zip",
         },
         "Environment": {
           "Variables": {
