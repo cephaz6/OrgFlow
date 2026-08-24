@@ -16,3 +16,16 @@ export interface OrganisationMember {
   joinedAt: IsoDateTimeString;
   updatedAt: IsoDateTimeString;
 }
+
+// A member as the administration screens need to show one: the membership
+// facts above, plus the identity behind them. `users` carries no
+// organisation_id and is therefore outside Row-Level Security, so the join
+// that produces this is bounded by the membership side alone. Kept separate
+// from OrganisationMember rather than widening it, because every existing
+// caller (the engine's directory lookups, notification recipients) wants
+// the membership without paying for a join it does not read.
+export interface OrganisationMemberSummary extends OrganisationMember {
+  email: string;
+  displayName: string;
+  lineManagerName: string | null;
+}

@@ -969,3 +969,44 @@ The practical rule this sets: a local end-to-end run that is meant to be believe
 - **Leave the development server on webpack.** Rejected: the slowness was the reported problem, and it is real rather than a matter of taste.
 - **Move the production build to Turbopack as well, so the two match.** Not rejected on merit, deferred deliberately. It would remove the divergence, but changing how the deployed artefact is built is a materially larger decision than changing how a developer runs the app locally, and `CLAUDE.md` §8 puts it in a different risk class. Worth revisiting as its own piece of work rather than as a side effect of a speed fix.
 - **Rewrite the theme specs to compare parsed colours instead of serialised strings, so they pass under both.** Rejected for now: the assertions exist because ADR-0021 wanted a drift back to a lifted grey to fail a test, and loosening them to accommodate a development-only bundler difference weakens that guard to fix something CI never sees.
+
+## ADR-0024: Member removal is a status change, and an organisation always keeps one active owner
+
+**Date:** 2026-08-24
+**Status:** Accepted
+**Deciders:** Project operator (in absence; flagged for review on return)
+
+**Context**
+`PRD.md` §11.2 lists `DELETE /members/:userId` as "Remove member" and `PATCH /members/:userId` as "Update roles, department, line manager". §12.2 gives "manage members" to `admin` and `owner` and to nobody below them. Building those two endpoints forced three questions the specification does not answer, each of which is an authorisation or data-retention decision rather than a detail.
+
+What "remove" means physically. `cases.submitted_by_user_id`, `case_tasks.assignee_user_id`, `case_transitions.actor_user_id` and every `audit_events` row reference a user permanently, and `PRD.md` §2's own check constraint on `organisation_members.status` already admits `'removed'` alongside `'active'` and `'suspended'`.
+
+What stops an organisation being stranded. Nothing outside the product can grant the `owner` role back. An administrator who demotes or removes the last owner therefore locks every remaining member out of organisation settings, with no in-product recovery and no support tooling to appeal to.
+
+Whether an administrator may edit their own membership. Self-demotion is not wrong in principle, but it is indistinguishable from the mistake of demoting yourself out of the screen you are standing in.
+
+**Decision**
+Removal writes `status = 'removed'`. No row is deleted. `GET /members` can filter by status, so a removed member is still listable and still resolves to a name wherever history refers to them.
+
+An organisation must always retain at least one member who is both `active` and holds `owner`. `countActiveOwnersForCurrentTenant` lives in `packages/db` and the guard reads it inside the same transaction as the write it protects, so the count cannot move between the check and the update. A change that would take the count to zero is refused with `409`, not `403`: the caller has the right to manage members, and the request is refused because of the organisation's state rather than the caller's permissions.
+
+An administrator may not change their own roles, and may not remove themselves. Both refuse with `403`. Every other field on their own membership stays editable, so this restricts the two operations that can lock somebody out rather than making self-service editing impossible.
+
+The endpoints refuse a caller without `admin` or `owner` with `403` rather than `404`. `/members` is not itself a tenant secret, only the directory behind it is role-gated, which is how `GET /reports/approver-load` already answers under ADR-0022. Cross-tenant access keeps `404`, per §11.10 and ADR-0015: Row-Level Security makes another organisation's membership invisible, so the update matches no row and "not yours" is indistinguishable from "does not exist".
+
+**Consequences**
+The audit trail stays complete through a departure, which is the property that matters most here: a case decided by somebody who has since left still names them.
+
+A removed member's row keeps occupying the `UNIQUE (organisation_id, user_id)` constraint, so re-admitting somebody is a status change back to `active` rather than a fresh insert. That is the correct shape (their history rejoins them) but it means an invitation flow, which Phase 9 has not built yet, must look for an existing row before creating one rather than assuming a new membership.
+
+The last-owner guard costs one `count(*)` on every role or status change that touches an active owner, and nothing at all on any other update, since the guard returns before counting when the target is not an active owner.
+
+Refusing self-role-edits means an owner who is the only administrator cannot hand their own role away in one step; they grant `admin` or `owner` to somebody else first, and that person performs the change. That is one extra step in exchange for making the lockout unreachable.
+
+**Alternatives rejected**
+
+- **Hard `DELETE` on the membership row.** Rejected: it either violates the foreign keys that cases, tasks, transitions and audit rows hold, or it cascades and destroys exactly the evidence `GOV-STANDARDS.md` requires the audit trail to preserve. The schema's own `'removed'` status shows this was already the intended shape.
+- **Delete the membership but keep the `users` row.** Rejected: `organisation_members` is where roles, department and line manager live, so dropping it loses the answer to "what was this person's department when they submitted that case", which the engine's own `$submitter.department` condition depends on.
+- **No last-owner guard, on the grounds that an administrator should be trusted.** Rejected: the failure is unrecoverable from inside the product, and trust is not the issue. The same administrator who is trusted is also the one who can make the mistake at three in the morning.
+- **Enforce the guard in the web client only.** Rejected outright: the API is the boundary, and `PRD.md` §12.3 already states client-side checks are presentation only.
+- **Refuse the last-owner change with `403`.** Rejected: the caller does hold the permission, and reporting it as a permissions failure sends whoever hits it to check their own roles rather than to grant the role to somebody else, which is the actual remedy. `409` says the request conflicts with the organisation's current state, which is what is true.

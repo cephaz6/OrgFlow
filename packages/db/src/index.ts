@@ -5,13 +5,20 @@ export { withTenantTransaction } from './tenant-transaction.js';
 export { generateId } from './uuid.js';
 export type { Database } from './schema.js';
 export {
+  countActiveOwnersForCurrentTenant,
   findActiveMembersWithRole,
+  findMemberDirectoryForCurrentTenant,
   findOrganisationMemberByUserId,
   findOrganisationMembersForCurrentTenant,
   insertOrganisationMember,
   setLineManager,
+  updateOrganisationMember,
 } from './repositories/organisation-members.js';
-export type { InsertOrganisationMemberInput } from './repositories/organisation-members.js';
+export type {
+  InsertOrganisationMemberInput,
+  MemberDirectoryFilter,
+  UpdateOrganisationMemberInput,
+} from './repositories/organisation-members.js';
 export {
   ensureGroup,
   ensureGroupMember,
