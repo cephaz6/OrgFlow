@@ -1,0 +1,24 @@
+# Findings verified as false positives, one fingerprint per line.
+#
+# A fingerprint is commit, file, rule and line specific, so an entry here
+# silences exactly one finding in one historical commit. It cannot hide a
+# different secret, a later one, or the same pattern anywhere else: those
+# produce different fingerprints and still fail the scan.
+#
+# Never add a fingerprint without first confirming the value is genuinely
+# not a credential. If a real secret ever reaches a commit, the answer is to
+# rotate it, not to list it here.
+
+# A CDK asset key: the SHA-256 of the bundled notification Lambda, recorded
+# in the CloudFormation snapshot that infra/test/stacks.test.ts writes.
+# It is a public build fingerprint that appears in every synthesised
+# template and grants nothing. Gitleaks matched it on entropy alone
+# (generic-api-key, entropy 4.02) rather than on any credential-shaped
+# context.
+#
+# The snapshots no longer record these hashes at all: stacks.test.ts
+# normalises them to ASSET_CONTENT_HASH.zip, precisely so this cannot recur.
+# This entry exists only because the value is already in the history of
+# commit 5802ff6, where it cannot be removed without rewriting published
+# history.
+5802ff65fc02ce9ad7699e0f0301b768c552e5fc:infra/test/__snapshots__/stacks.test.ts.snap:generic-api-key:3710
