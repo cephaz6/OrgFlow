@@ -28,7 +28,7 @@ export async function canCreateProcessDefinitions(
 
 // Who may edit or publish a specific definition's draft: the processOwner
 // who created it, a processOwner who belongs to its owning group
-// (ADR-0026), or admin/owner. Not every processOwner in the organisation,
+// (ADR-0027), or admin/owner. Not every processOwner in the organisation,
 // the same narrowing canViewCase applies to "owned processes" for case
 // visibility, so that one processOwner cannot rewrite another's process
 // unless a group deliberately puts them both in charge of it.

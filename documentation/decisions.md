@@ -1080,3 +1080,28 @@ Every future route that needs a platform-wide (not organisation-wide) authorisat
 - **A special "platform" organisation whose members are platform admins**, reusing the existing role/membership machinery instead of a new column. Rejected: it stretches "organisation" to mean two different things in the same schema (a real tenant, and a bag of platform-level permissions), and every place that already reasons about "the current organisation" would need to specifically exclude this one, which is exactly the kind of implicit special case the flat, uniform tenant model was built to avoid.
 - **A grant/revoke API for the flag, built now.** Considered, not built: nothing in this codebase yet needs a second platform admin, and the manual path is trivially reversible if that changes, unlike the schema or route design itself.
 - **Nested/child organisations**, so DWP Digital's internal arms could be their own tenants under a shared parent. Rejected on discussion: the operator confirmed "different templates, same organisation" is the actual ceiling for this use case, and nested tenancy is a substantially larger schema and authorisation-model change than anything this decision needed. `ADR-0027` gives IT and Finance what they actually asked for, group-scoped template ownership, without it.
+
+## ADR-0027: A process definition may name an owning group, widening ADR-0015's creator-only management rule
+
+**Date:** 2026-08-25
+**Status:** Accepted
+**Deciders:** Project operator (raised the DWP Digital worked example directly; the rest decided and flagged for review)
+
+**Context**
+The operator's DWP Digital example: one organisation with several internal arms (IT, Finance) that each manage their own templates, and no reason a Finance process owner should be able to rewrite an IT one, or the reverse. `groups` (ADR-0014) already exists for exactly this kind of internal sub-unit, built for task-assignment resolution (`groupKey` in a workflow step). Nothing today lets a group also scope who may manage a process definition.
+
+ADR-0015 narrowed process-definition management to "the processOwner who created it, or admin/owner", precisely to stop one processOwner from editing another's work by accident. That decision is still correct for the case it was written for (an organisation with one undifferentiated pool of process owners); it is simply too narrow for an organisation whose process owners are already organised into groups with distinct remits.
+
+**Decision**
+`process_definitions` gains a nullable `owning_group_id UUID REFERENCES groups(group_id)`. Null (the default, and every existing row) means the definition behaves exactly as ADR-0015 specified: only its creator, or admin/owner, may manage it. When set, a processOwner who is also a member of that group may manage the definition alongside its creator, checked in `canManageProcessDefinition` (`apps/api/src/processes/permissions.ts`) via the same `findGroupIdsForUser` lookup `groups`'s task-assignment path already uses, re-queried fresh from the database rather than trusted from the session (ADR-0010).
+
+The scoping applies only to managing an existing definition, not to creating one: `canCreateProcessDefinitions` is unchanged, since deciding who may start a new process is a different, coarser question than deciding who may edit one that already names a group. The owning group can be set at creation (`POST /process-definitions`) or changed later (`PATCH /process-definitions/:id/draft`, alongside the rest of the definition's metadata); the builder's UI currently only exposes the former, as an optional select populated from `GET /groups` (new, read-only, any signed-in member of the organisation).
+
+**Consequences**
+An organisation with no groups, or that never sets `owningGroupId`, sees no behavioural change: this is additive, not a breaking change to ADR-0015. `GET /groups` is a new, minimal, read-only endpoint; there is still no group management API (creating, renaming or populating a group remains a manual `ensureGroup`/`ensureGroupMember` operation, matching how `groups` already worked before this decision). A definition can only be managed by members of the one group it names, not several; a process genuinely owned by two different arms would need to name a group that itself contains members from both, rather than the schema supporting a list of owning groups.
+
+**Alternatives rejected**
+
+- **A many-to-many `process_definition_owners` table (groups or users).** Rejected as more schema and query surface than the stated need: DWP's example is "one arm owns this template," not "several arms co-own it." A single nullable foreign key says exactly that, and widening to many-to-many is a strictly additive migration if a real case for it appears later.
+- **Reuse `category` (a free-text string) as an informal ownership signal.** Rejected: `category` is not a foreign key, is not validated against `groups`, and using a display field to also carry an authorisation decision would make the permission check dependent on string matching a tenant-authored value, exactly the kind of implicit coupling the rest of this codebase's permission functions avoid.
+- **Make group membership itself sufficient, without also requiring the `processOwner` role.** Rejected: it would let an ordinary member manage a definition merely by being placed in a group for task-assignment purposes, a purpose that has nothing to do with process ownership. The two checks stay independent: `processOwner` (or admin/owner) gates process management at all, group membership only widens which definitions a processOwner specifically may reach.

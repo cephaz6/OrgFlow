@@ -11,7 +11,7 @@ export interface GroupsDeps {
 }
 
 // Read-only picklist for now: any signed-in member can see the
-// organisation's groups (ADR-0026's owning-group select needs this),
+// organisation's groups (ADR-0027's owning-group select needs this),
 // creating or renaming a group is not yet a product surface.
 export function createGroupsRouter(deps: GroupsDeps): Router {
   const router = Router();

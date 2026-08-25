@@ -29,7 +29,7 @@ export interface Group {
 }
 
 // Every group in the current tenant, for the owning-group select on a
-// process definition (ADR-0026). Ordered by name since this is a picklist,
+// process definition (ADR-0027). Ordered by name since this is a picklist,
 // not an audit trail.
 export async function findGroupsForOrganisation(trx: Transaction<Database>): Promise<Group[]> {
   const rows = await trx

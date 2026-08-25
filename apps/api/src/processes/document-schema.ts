@@ -271,7 +271,7 @@ export const definitionDocumentBodySchema = z.object({
   description: z.string().max(2000).optional(),
   category: z.string().max(200).optional(),
   icon: z.string().max(100).optional(),
-  // ADR-0026: absent or null means no owning group, unchanged from before
+  // ADR-0027: absent or null means no owning group, unchanged from before
   // this existed. Validated only as a UUID here; that it names a real
   // group in this organisation is a database foreign-key concern, not a
   // body-shape one.
@@ -316,7 +316,7 @@ export const createProcessDefinitionBodySchema = z.object({
     .max(10)
     .regex(/^[A-Z]+$/, 'Use two to ten uppercase letters, e.g. LAP.'),
   retentionDays: z.number().int().positive().optional(),
-  // ADR-0026: same optional/nullable UUID as definitionDocumentBodySchema.
+  // ADR-0027: same optional/nullable UUID as definitionDocumentBodySchema.
   owningGroupId: z.string().uuid().nullable().optional(),
 });
 

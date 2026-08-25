@@ -284,9 +284,9 @@ describe('process definitions write API against real Postgres and Mongo', () => 
     ).toBe(false);
   });
 
-  // ADR-0026: a definition's owning group is the second way a process owner
+  // ADR-0027: a definition's owning group is the second way a process owner
   // may manage a definition they did not create, alongside creatorship.
-  describe('group-scoped ownership (ADR-0026)', () => {
+  describe('group-scoped ownership (ADR-0027)', () => {
     it('lets a process owner who belongs to the owning group manage a colleague-created definition', async () => {
       const creator = await buildMember(['processOwner']);
       const groupMate = await buildMember(['processOwner'], creator.organisationId);
