@@ -275,6 +275,24 @@ export interface DelegationsTable {
   created_at: Generated<Date>;
 }
 
+export interface AttachmentsTable {
+  attachment_id: string;
+  organisation_id: string;
+  case_id: string;
+  field_key: string;
+  filename: string;
+  declared_mime_type: string;
+  sniffed_mime_type: string | null;
+  size_bytes: string;
+  storage_key: string;
+  scan_status: Generated<string>;
+  uploaded_by_user_id: string;
+  confirmed_at: Date | null;
+  scanned_at: Date | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   organisations: OrganisationsTable;
   users: UsersTable;
@@ -295,4 +313,5 @@ export interface Database {
   notifications: NotificationsTable;
   sla_timers: SlaTimersTable;
   delegations: DelegationsTable;
+  attachments: AttachmentsTable;
 }

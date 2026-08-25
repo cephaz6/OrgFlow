@@ -21,9 +21,13 @@ const ALLOWED_ORGFLOW_IMPORTS = {
   // workers (notification delivery) so the transport cannot diverge between
   // them.
   email: [],
+  // No @orgflow dependency of its own, same reasoning and shape as email:
+  // a third-party integration (S3) behind an interface, consumed by both
+  // api (presigning) and workers (the scan Lambda's object reads/moves).
+  storage: [],
   ui: ['types'],
-  api: ['types', 'core', 'db', 'documents', 'events', 'email'],
-  workers: ['types', 'core', 'db', 'documents', 'events', 'email'],
+  api: ['types', 'core', 'db', 'documents', 'events', 'email', 'storage'],
+  workers: ['types', 'core', 'db', 'documents', 'events', 'email', 'storage'],
   // ADR-0018: core is included deliberately. The rule's purpose is that web
   // never imports server code, and packages/core is not server code: it
   // performs no I/O by mandate (CLAUDE.md §3), so it is isomorphic. The form
@@ -40,6 +44,7 @@ const PACKAGE_DIR = {
   documents: 'packages/documents',
   events: 'packages/events',
   email: 'packages/email',
+  storage: 'packages/storage',
   ui: 'packages/ui',
   api: 'apps/api',
   workers: 'workers',

@@ -154,6 +154,17 @@ export {
 } from './repositories/delegations.js';
 export type { CreateDelegationInput } from './repositories/delegations.js';
 export {
+  countConfirmedAttachmentsForField,
+  createAttachment,
+  findAttachmentById,
+  markAttachmentConfirmed,
+  markAttachmentScanned,
+} from './repositories/attachments.js';
+export type {
+  CreateAttachmentInput,
+  MarkAttachmentScannedInput,
+} from './repositories/attachments.js';
+export {
   findApproverLoad,
   findBottlenecksAcrossDefinitions,
   findEscalationAndReturnRates,
