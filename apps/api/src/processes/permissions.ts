@@ -1,4 +1,4 @@
-import { findOrganisationMemberByUserId } from '@orgflow/db';
+import { findGroupIdsForUser, findOrganisationMemberByUserId } from '@orgflow/db';
 import type { Database } from '@orgflow/db';
 import type { ProcessDefinition } from '@orgflow/types';
 import type { Transaction } from 'kysely';
@@ -27,10 +27,11 @@ export async function canCreateProcessDefinitions(
 }
 
 // Who may edit or publish a specific definition's draft: the processOwner
-// who created it, or admin/owner. Not every processOwner in the
-// organisation, the same narrowing canViewCase applies to "owned processes"
-// for case visibility, so that one processOwner cannot rewrite another's
-// process.
+// who created it, a processOwner who belongs to its owning group
+// (ADR-0026), or admin/owner. Not every processOwner in the organisation,
+// the same narrowing canViewCase applies to "owned processes" for case
+// visibility, so that one processOwner cannot rewrite another's process
+// unless a group deliberately puts them both in charge of it.
 export async function canManageProcessDefinition(
   trx: Transaction<Database>,
   session: RequestSession,
@@ -43,5 +44,15 @@ export async function canManageProcessDefinition(
   if (member.roles.includes('admin') || member.roles.includes('owner')) {
     return true;
   }
-  return member.roles.includes('processOwner') && definition.createdByUserId === session.userId;
+  if (!member.roles.includes('processOwner')) {
+    return false;
+  }
+  if (definition.createdByUserId === session.userId) {
+    return true;
+  }
+  if (!definition.owningGroupId) {
+    return false;
+  }
+  const groupIds = await findGroupIdsForUser(trx, session.userId);
+  return groupIds.includes(definition.owningGroupId);
 }

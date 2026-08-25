@@ -25,8 +25,9 @@ export {
   findGroupIdsByKeyForCurrentTenant,
   findGroupIdsForUser,
   findGroupMemberUserIds,
+  findGroupsForOrganisation,
 } from './repositories/groups.js';
-export type { EnsureGroupInput } from './repositories/groups.js';
+export type { EnsureGroupInput, Group } from './repositories/groups.js';
 export {
   buildIdempotencyKey,
   claimNotification,

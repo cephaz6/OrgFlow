@@ -138,6 +138,9 @@ export interface ProcessDefinitionsTable {
   // loss a JS number would suffer past 2^53. The repository parses it.
   reference_counter: Generated<string>;
   retention_days: number | null;
+  // ADR-0026: optional, additive. A processOwner who is also a member of
+  // this group may manage the definition, alongside its creator.
+  owning_group_id: string | null;
   created_by_user_id: string;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;

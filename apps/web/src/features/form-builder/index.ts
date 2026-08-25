@@ -3,5 +3,6 @@
 export { fetchDraft, fetchManagedDefinitions } from './api-server';
 export { Builder } from './builder';
 export { CreateProcessForm } from './create-process-form';
+export type { CreateProcessFormProps } from './create-process-form';
 export { ManageList } from './manage-list';
 export type { DraftDetail, ManagedDefinition } from './types';
