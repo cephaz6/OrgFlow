@@ -8,6 +8,8 @@ export interface User {
   displayName: string;
   avatarUrl: string | null;
   status: UserStatus;
+  // ADR-0026: global, not organisation-scoped. Gates POST /organisations.
+  isPlatformAdmin: boolean;
   lastLoginAt: IsoDateTimeString | null;
   createdAt: IsoDateTimeString;
   updatedAt: IsoDateTimeString;

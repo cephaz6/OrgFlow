@@ -15,6 +15,7 @@ function toDomain(row: Selectable<UsersTable>): User {
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
     status: row.status as UserStatus,
+    isPlatformAdmin: row.is_platform_admin,
     lastLoginAt: row.last_login_at ? row.last_login_at.toISOString() : null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -80,6 +81,21 @@ export async function createUserWithIdentity(
 
     return toDomain(userRow);
   });
+}
+
+// No API path grants this (ADR-0026 defers that deliberately); the only
+// caller today is the dev seed, so the seeded local identity behaves as
+// the platform admin the operator described.
+export async function ensurePlatformAdmin(
+  db: Kysely<Database> | Transaction<Database>,
+  userId: string,
+): Promise<void> {
+  await db
+    .updateTable('users')
+    .set({ is_platform_admin: true, updated_at: new Date() })
+    .where('user_id', '=', userId)
+    .where('is_platform_admin', '=', false)
+    .execute();
 }
 
 export async function touchLastLogin(

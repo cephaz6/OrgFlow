@@ -50,8 +50,12 @@ export {
   createOrganisation,
   findOrganisationById,
   findOrganisationBySlug,
+  updateOrganisation,
 } from './repositories/organisations.js';
-export type { CreateOrganisationInput } from './repositories/organisations.js';
+export type {
+  CreateOrganisationInput,
+  UpdateOrganisationInput,
+} from './repositories/organisations.js';
 export {
   createInvitation,
   findInvitationByTokenHash,
@@ -62,6 +66,7 @@ export {
 export type { CreateInvitationInput } from './repositories/invitations.js';
 export {
   createUserWithIdentity,
+  ensurePlatformAdmin,
   findUserByEmail,
   findUserByIdentity,
   findUserById,
