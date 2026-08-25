@@ -13,7 +13,7 @@ export interface ManagedDefinition {
   icon: string | null;
   status: string;
   currentVersionId: string | null;
-  // ADR-0026: null means no owning group, unchanged from before this
+  // ADR-0027: null means no owning group, unchanged from before this
   // existed.
   owningGroupId: string | null;
   createdByUserId: string;

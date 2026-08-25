@@ -1,5 +1,5 @@
 -- Up Migration
--- ADR-0026: process definitions gain an optional owning group.
+-- ADR-0027: process definitions gain an optional owning group.
 --
 -- Supersedes ADR-0015's ownership rule in part: "process owner of the
 -- definition" was defined narrowly as holding the processOwner role and

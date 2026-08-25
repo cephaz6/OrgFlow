@@ -17,7 +17,7 @@ export interface ProcessDefinition {
   referencePrefix: string;
   referenceCounter: number;
   retentionDays: number | null;
-  // ADR-0026: optional, additive. A processOwner who is also a member of
+  // ADR-0027: optional, additive. A processOwner who is also a member of
   // this group may manage the definition, alongside its creator.
   owningGroupId: Uuid | null;
   createdByUserId: Uuid;
