@@ -5,6 +5,7 @@ import Link from 'next/link';
 
 import { getSession } from '../../../features/auth';
 import { fetchManagedDefinitions, ManageList } from '../../../features/form-builder';
+import { fetchGroups } from '../../../features/groups';
 import { PageHeader } from '../../../features/shell';
 
 export const metadata: Metadata = {
@@ -32,7 +33,7 @@ export default async function ProcessesPage() {
     );
   }
 
-  const definitions = await fetchManagedDefinitions();
+  const [definitions, groups] = await Promise.all([fetchManagedDefinitions(), fetchGroups()]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,7 +49,7 @@ export default async function ProcessesPage() {
           </Button>
         }
       />
-      <ManageList definitions={definitions} />
+      <ManageList definitions={definitions} groups={groups} />
     </div>
   );
 }

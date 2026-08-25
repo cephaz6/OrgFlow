@@ -21,6 +21,31 @@ export async function findGroupIdsByKeyForCurrentTenant(
   return Object.fromEntries(rows.map((row) => [row.key, row.group_id]));
 }
 
+export interface Group {
+  groupId: string;
+  key: string;
+  name: string;
+  description: string | null;
+}
+
+// Every group in the current tenant, for the owning-group select on a
+// process definition (ADR-0026). Ordered by name since this is a picklist,
+// not an audit trail.
+export async function findGroupsForOrganisation(trx: Transaction<Database>): Promise<Group[]> {
+  const rows = await trx
+    .selectFrom('groups')
+    .select(['group_id', 'key', 'name', 'description'])
+    .orderBy('name', 'asc')
+    .execute();
+
+  return rows.map((row) => ({
+    groupId: row.group_id,
+    key: row.key,
+    name: row.name,
+    description: row.description,
+  }));
+}
+
 export interface EnsureGroupInput {
   organisationId: string;
   key: string;

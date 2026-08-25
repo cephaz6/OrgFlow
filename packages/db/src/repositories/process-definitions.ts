@@ -25,6 +25,7 @@ function toDefinitionDomain(row: Selectable<ProcessDefinitionsTable>): ProcessDe
     // per-definition case count, far below Number.MAX_SAFE_INTEGER.
     referenceCounter: Number(row.reference_counter),
     retentionDays: row.retention_days,
+    owningGroupId: row.owning_group_id,
     createdByUserId: row.created_by_user_id,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -56,6 +57,7 @@ export interface CreateProcessDefinitionInput {
   icon?: string | null;
   referencePrefix: string;
   retentionDays?: number | null;
+  owningGroupId?: string | null;
   createdByUserId: string;
 }
 
@@ -75,6 +77,7 @@ export async function createProcessDefinition(
       icon: input.icon ?? null,
       reference_prefix: input.referencePrefix,
       retention_days: input.retentionDays ?? null,
+      owning_group_id: input.owningGroupId ?? null,
       created_by_user_id: input.createdByUserId,
     })
     .returningAll()
@@ -143,6 +146,7 @@ export interface UpdateProcessDefinitionMetadataInput {
   description?: string | null;
   category?: string | null;
   icon?: string | null;
+  owningGroupId?: string | null;
 }
 
 // Definition-level metadata (name, description, category, icon), separate
@@ -162,6 +166,7 @@ export async function updateProcessDefinitionMetadata(
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.category !== undefined ? { category: input.category } : {}),
       ...(input.icon !== undefined ? { icon: input.icon } : {}),
+      ...(input.owningGroupId !== undefined ? { owning_group_id: input.owningGroupId } : {}),
       updated_at: new Date(),
     })
     .where('definition_id', '=', definitionId)

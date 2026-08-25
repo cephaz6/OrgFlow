@@ -2,6 +2,8 @@ import {
   createDb,
   createOrganisation,
   createUserWithIdentity,
+  ensureGroup,
+  ensureGroupMember,
   generateId,
   insertOrganisationMember,
   withTenantTransaction,
@@ -280,5 +282,104 @@ describe('process definitions write API against real Postgres and Mongo', () => 
         (entry: { definitionId: string }) => entry.definitionId === definitionId,
       ),
     ).toBe(false);
+  });
+
+  // ADR-0026: a definition's owning group is the second way a process owner
+  // may manage a definition they did not create, alongside creatorship.
+  describe('group-scoped ownership (ADR-0026)', () => {
+    it('lets a process owner who belongs to the owning group manage a colleague-created definition', async () => {
+      const creator = await buildMember(['processOwner']);
+      const groupMate = await buildMember(['processOwner'], creator.organisationId);
+      const app = buildApp();
+
+      const groupId = await withTenantTransaction(db, creator.organisationId, async (trx) => {
+        const id = await ensureGroup(trx, {
+          organisationId: creator.organisationId,
+          key: `finance-${generateId()}`,
+          name: 'Finance',
+        });
+        await ensureGroupMember(trx, {
+          organisationId: creator.organisationId,
+          groupId: id,
+          userId: groupMate.userId,
+        });
+        return id;
+      });
+
+      const created = await request(app)
+        .post('/api/v1/process-definitions')
+        .set('Cookie', creator.cookie)
+        .send(createBody({ owningGroupId: groupId }));
+      expect(created.status).toBe(201);
+      const definitionId = created.body.definition.definitionId as string;
+
+      const draft = await request(app)
+        .get(`/api/v1/process-definitions/${definitionId}/draft`)
+        .set('Cookie', groupMate.cookie);
+      expect(draft.status).toBe(200);
+
+      const edit = await request(app)
+        .patch(`/api/v1/process-definitions/${definitionId}/draft`)
+        .set('Cookie', groupMate.cookie)
+        .send({
+          name: 'Edited by group mate',
+          form: { titleFieldKey: '', sections: [] },
+          workflow: { startStepKey: '$completed', steps: [] },
+        });
+      expect(edit.status).toBe(200);
+      expect(edit.body.document.name).toBe('Edited by group mate');
+
+      const manageList = await request(app)
+        .get('/api/v1/process-definitions/manage')
+        .set('Cookie', groupMate.cookie);
+      expect(
+        manageList.body.data.some(
+          (entry: { definitionId: string }) => entry.definitionId === definitionId,
+        ),
+      ).toBe(true);
+    });
+
+    it('still refuses an unrelated process owner even when the definition has an owning group', async () => {
+      const creator = await buildMember(['processOwner']);
+      const outsider = await buildMember(['processOwner'], creator.organisationId);
+      const app = buildApp();
+
+      const groupId = await withTenantTransaction(db, creator.organisationId, (trx) =>
+        ensureGroup(trx, {
+          organisationId: creator.organisationId,
+          key: `it-${generateId()}`,
+          name: 'IT',
+        }),
+      );
+
+      const created = await request(app)
+        .post('/api/v1/process-definitions')
+        .set('Cookie', creator.cookie)
+        .send(createBody({ owningGroupId: groupId }));
+      const definitionId = created.body.definition.definitionId as string;
+
+      const draft = await request(app)
+        .get(`/api/v1/process-definitions/${definitionId}/draft`)
+        .set('Cookie', outsider.cookie);
+      expect(draft.status).toBe(404);
+    });
+
+    it('leaves ADR-0015 creator-only behaviour unchanged when no owning group is set', async () => {
+      const creator = await buildMember(['processOwner']);
+      const colleague = await buildMember(['processOwner'], creator.organisationId);
+      const app = buildApp();
+
+      const created = await request(app)
+        .post('/api/v1/process-definitions')
+        .set('Cookie', creator.cookie)
+        .send(createBody());
+      expect(created.body.definition.owningGroupId).toBeNull();
+      const definitionId = created.body.definition.definitionId as string;
+
+      const draft = await request(app)
+        .get(`/api/v1/process-definitions/${definitionId}/draft`)
+        .set('Cookie', colleague.cookie);
+      expect(draft.status).toBe(404);
+    });
   });
 });

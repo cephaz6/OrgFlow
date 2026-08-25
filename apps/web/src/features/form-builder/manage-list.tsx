@@ -2,14 +2,17 @@ import { Button, Card, CardContent, EmptyState } from '@orgflow/ui';
 import { ChartNoAxesCombined, FilePlus2, Wrench } from 'lucide-react';
 import Link from 'next/link';
 
+import type { Group } from '../groups';
 import { DefinitionStatusBadge } from './definition-status-badge';
 import type { ManagedDefinition } from './types';
 
 export interface ManageListProps {
   definitions: ManagedDefinition[];
+  groups: Group[];
 }
 
-export function ManageList({ definitions }: ManageListProps) {
+export function ManageList({ definitions, groups }: ManageListProps) {
+  const groupNameById = new Map(groups.map((group) => [group.groupId, group.name]));
   if (definitions.length === 0) {
     return (
       <EmptyState
@@ -42,6 +45,11 @@ export function ManageList({ definitions }: ManageListProps) {
               </Link>
               {definition.description ? (
                 <p className="text-sm text-muted-foreground">{definition.description}</p>
+              ) : null}
+              {definition.owningGroupId ? (
+                <p className="text-sm text-muted-foreground">
+                  Owning group: {groupNameById.get(definition.owningGroupId) ?? 'Unknown group'}
+                </p>
               ) : null}
             </div>
             {/* A draft has never been published, so no case has ever run

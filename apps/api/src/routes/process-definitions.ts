@@ -172,6 +172,7 @@ function documentFromBody(
 function toManagementEntry(definition: ProcessDefinition) {
   return {
     ...toCatalogueEntry(definition),
+    owningGroupId: definition.owningGroupId,
     createdByUserId: definition.createdByUserId,
     createdAt: definition.createdAt,
     updatedAt: definition.updatedAt,
@@ -284,6 +285,7 @@ export function createProcessDefinitionsRouter(deps: ProcessDefinitionDeps): Rou
           icon: body.icon ?? null,
           referencePrefix: body.referencePrefix,
           retentionDays: body.retentionDays ?? null,
+          owningGroupId: body.owningGroupId ?? null,
           createdByUserId: session.userId,
         });
 
@@ -395,6 +397,12 @@ export function createProcessDefinitionsRouter(deps: ProcessDefinitionDeps): Rou
           description: body.description ?? null,
           category: body.category ?? null,
           icon: body.icon ?? null,
+          // Omitted (not merely absent-with-a-value) means "leave it as is":
+          // the builder's ordinary save never sends this field at all, so
+          // treating a missing key the same as an explicit null would wipe
+          // out the owning group on every edit that is not the group
+          // picker's own change.
+          ...(body.owningGroupId !== undefined ? { owningGroupId: body.owningGroupId } : {}),
         });
 
         const existingDraft = await findDraftProcessVersion(trx, definitionId);

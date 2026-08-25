@@ -1,19 +1,25 @@
 'use client';
 
-import { Alert, Button, Card, CardContent, Input, Label } from '@orgflow/ui';
+import { Alert, Button, Card, CardContent, Input, Label, Select } from '@orgflow/ui';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import type { Group } from '../groups';
 import { createDefinition } from './api-client';
 
 type Status = { kind: 'idle' } | { kind: 'creating' } | { kind: 'error'; message: string };
 
-export function CreateProcessForm() {
+export interface CreateProcessFormProps {
+  groups: Group[];
+}
+
+export function CreateProcessForm({ groups }: CreateProcessFormProps) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [referencePrefix, setReferencePrefix] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
+  const [owningGroupId, setOwningGroupId] = useState('');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
   async function onSubmit(event: React.FormEvent) {
@@ -25,6 +31,7 @@ export function CreateProcessForm() {
         referencePrefix: referencePrefix.toUpperCase(),
         ...(description ? { description } : {}),
         ...(category ? { category } : {}),
+        ...(owningGroupId ? { owningGroupId } : {}),
       });
       router.push(`/processes/${result.definition.definitionId}`);
     } catch (err) {
@@ -82,6 +89,28 @@ export function CreateProcessForm() {
               onChange={(event) => setDescription(event.target.value)}
             />
           </div>
+
+          {groups.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="process-owning-group">Owning group (optional)</Label>
+              <p className="text-sm text-muted-foreground">
+                A member of this group may manage the process alongside you. Leave unset if only you
+                should.
+              </p>
+              <Select
+                id="process-owning-group"
+                value={owningGroupId}
+                onChange={(event) => setOwningGroupId(event.target.value)}
+              >
+                <option value="">No owning group</option>
+                {groups.map((group) => (
+                  <option key={group.groupId} value={group.groupId}>
+                    {group.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
 
           {status.kind === 'error' ? <Alert variant="destructive">{status.message}</Alert> : null}
 

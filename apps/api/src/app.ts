@@ -16,6 +16,7 @@ import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createCasesRouter } from './routes/cases.js';
 import { createDelegationsRouter } from './routes/delegations.js';
+import { createGroupsRouter } from './routes/groups.js';
 import { createHealthRouter } from './routes/health.js';
 import { createInvitationsRouter } from './routes/invitations.js';
 import { createProcessDefinitionsRouter } from './routes/process-definitions.js';
@@ -119,6 +120,14 @@ export function createApp(deps: CreateAppDeps): Express {
   app.use(
     '/api/v1',
     createMembersRouter({
+      db: deps.db,
+      sessionSecret: deps.sessionSecret,
+    }),
+  );
+
+  app.use(
+    '/api/v1',
+    createGroupsRouter({
       db: deps.db,
       sessionSecret: deps.sessionSecret,
     }),
