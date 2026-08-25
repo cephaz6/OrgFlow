@@ -75,3 +75,33 @@ export async function createOrganisation(
 
   return toDomain(row);
 }
+
+export interface UpdateOrganisationInput {
+  name?: string | undefined;
+  branding?: Record<string, unknown> | undefined;
+  settings?: Record<string, unknown> | undefined;
+}
+
+// Unscoped like every other function in this file: organisations has no
+// organisation_id column of its own to scope by. The caller
+// (PATCH /organisations/current) is what confines this to the requester's
+// own organisation, by only ever passing session.organisationId.
+export async function updateOrganisation(
+  db: Kysely<Database>,
+  organisationId: string,
+  input: UpdateOrganisationInput,
+): Promise<Organisation | null> {
+  const row = await db
+    .updateTable('organisations')
+    .set({
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.branding !== undefined ? { branding: input.branding } : {}),
+      ...(input.settings !== undefined ? { settings: input.settings } : {}),
+      updated_at: new Date(),
+    })
+    .where('organisation_id', '=', organisationId)
+    .returningAll()
+    .executeTakeFirst();
+
+  return row ? toDomain(row) : null;
+}

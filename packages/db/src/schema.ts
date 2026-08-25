@@ -24,6 +24,8 @@ export interface UsersTable {
   display_name: string;
   avatar_url: string | null;
   status: Generated<string>;
+  // ADR-0026: global, not organisation-scoped. Gates POST /organisations.
+  is_platform_admin: Generated<boolean>;
   last_login_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;

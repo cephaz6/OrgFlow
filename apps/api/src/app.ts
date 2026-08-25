@@ -18,6 +18,7 @@ import { createCasesRouter } from './routes/cases.js';
 import { createDelegationsRouter } from './routes/delegations.js';
 import { createHealthRouter } from './routes/health.js';
 import { createInvitationsRouter } from './routes/invitations.js';
+import { createOrganisationsRouter } from './routes/organisations.js';
 import { createProcessDefinitionsRouter } from './routes/process-definitions.js';
 import { createMembersRouter } from './routes/members.js';
 import { createReportsRouter } from './routes/reports.js';
@@ -134,6 +135,17 @@ export function createApp(deps: CreateAppDeps): Express {
       logger: deps.logger,
       isLocal: deps.isLocal,
       webUrl: deps.corsOrigin,
+    }),
+  );
+
+  app.use(
+    '/api/v1',
+    createOrganisationsRouter({
+      db: deps.db,
+      sessionSecret: deps.sessionSecret,
+      publisher: deps.publisher,
+      logger: deps.logger,
+      isLocal: deps.isLocal,
     }),
   );
 
