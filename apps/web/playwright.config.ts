@@ -20,7 +20,39 @@ export default defineConfig({
     baseURL: process.env.ORGFLOW_E2E_BASE_URL ?? 'http://localhost:3000',
     trace: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // members.spec.ts's role editor and invitations.spec.ts's accept flow
+  // both mutate the seeded manager account's roles: it is the only second
+  // identity dev-login offers, so both files are forced to share it for
+  // anything that edits somebody else's membership. Run against each other
+  // at full parallelism, the two files raced their PATCH calls
+  // last-write-wins (observed directly: invitations.spec.ts's post-accept
+  // assertion failing because members.spec.ts's own write landed in
+  // between). A per-project workers cap is Playwright's own documented
+  // mechanism for exactly this, "tests from a project share a single
+  // resource like a test account": everything else keeps full parallelism
+  // in the default project, and only these two files, which share the
+  // manager account, are limited to one worker so they can never overlap.
+  projects: [
+    {
+      name: 'shared-manager-account',
+      testMatch: ['members.spec.ts', 'invitations.spec.ts'],
+      workers: 1,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      // Depends on the project above rather than merely running alongside
+      // it: approvals.spec.ts and dashboard.spec.ts sign in as the same
+      // manager account and read its Approver role, so they must not run
+      // while that role is mid-mutation either, not only avoid mutating it
+      // themselves. `dependencies` blocks this project from starting until
+      // shared-manager-account has fully finished and every test in it has
+      // restored the account to its seeded state.
+      name: 'chromium',
+      testIgnore: ['members.spec.ts', 'invitations.spec.ts'],
+      dependencies: ['shared-manager-account'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
   // ORGFLOW_E2E_BASE_URL points the suite at an already-built server on
   // another port. Worth knowing why that option exists: a long-lived `next
   // dev` process can end up serving an empty stylesheet after globals.css is

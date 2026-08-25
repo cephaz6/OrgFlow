@@ -1,27 +1,23 @@
-import { EmptyState } from '@orgflow/ui';
-import { ShieldOff } from 'lucide-react';
+import { Card, CardContent, EmptyState } from '@orgflow/ui';
+import { ChevronRight, Mail, ShieldOff, UserPlus, Users } from 'lucide-react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
-import { getSession } from '../../../../features/auth';
-import { fetchMembers, MemberList } from '../../../../features/members';
+import { fetchInvitations } from '../../../../features/invitations';
+import { fetchMembers } from '../../../../features/members';
 import { PageHeader } from '../../../../features/shell';
 
 export const metadata: Metadata = {
   title: 'Members: OrgFlow',
 };
 
-interface PageProps {
-  searchParams: Promise<{ query?: string }>;
-}
-
-export default async function MembersPage({ searchParams }: PageProps) {
-  const { query } = await searchParams;
-  const session = await getSession();
-
-  // The API is the authority (PRD.md §12.3), so this asks it rather than
-  // deciding from the session's roles claim, which ADR-0010 leaves up to
-  // twelve hours stale. A null answer is its 403.
-  const members = await fetchMembers(query);
+// Three destinations rather than one page carrying all of it inline: invite,
+// invitations and the directory used to be three sections stacked on top of
+// each other, which read as one long, busy screen and buried the directory
+// (the thing most visits are actually for) below a form and a table most
+// visits do not need. Same row-link pattern /settings itself already uses.
+export default async function MembersPage() {
+  const [members, invitations] = await Promise.all([fetchMembers(), fetchInvitations()]);
 
   if (members === null) {
     return (
@@ -36,36 +32,68 @@ export default async function MembersPage({ searchParams }: PageProps) {
     );
   }
 
+  const pendingCount = (invitations ?? []).filter(
+    (invitation) => !invitation.acceptedAt && !invitation.revokedAt,
+  ).length;
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
         title="Members"
         description="Everyone in this organisation, the roles they hold, and who they report to."
       />
 
-      <form method="get" className="flex max-w-md gap-2" role="search">
-        <label htmlFor="member-search" className="sr-only">
-          Search members by name or email
-        </label>
-        <input
-          id="member-search"
-          name="query"
-          type="search"
-          defaultValue={query ?? ''}
-          placeholder="Search by name or email"
-          className="h-10 w-full rounded-md border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        <button
-          type="submit"
-          className="h-10 rounded-md border border-input px-4 text-sm hover:bg-accent hover:text-accent-foreground"
-        >
-          Search
-        </button>
-      </form>
-
-      {/* getSession() cannot be null here: the (app) layout redirects when
-          there is no session, and this is what tells the compiler so. */}
-      <MemberList members={members} currentUserId={session!.user.userId} />
+      <Card>
+        <CardContent className="flex flex-col p-0">
+          <SectionLink
+            href="/settings/members/invite"
+            icon={UserPlus}
+            title="Invite a member"
+            description="Send an invitation by email."
+          />
+          <SectionLink
+            href="/settings/members/invitations"
+            icon={Mail}
+            title="Invitations"
+            description={
+              pendingCount === 0
+                ? 'None pending right now.'
+                : `${pendingCount} pending invitation${pendingCount === 1 ? '' : 's'}.`
+            }
+          />
+          <SectionLink
+            href="/settings/members/directory"
+            icon={Users}
+            title="Active members"
+            description={`${members.length} member${members.length === 1 ? '' : 's'} in this organisation.`}
+            last
+          />
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+interface SectionLinkProps {
+  href: string;
+  icon: typeof UserPlus;
+  title: string;
+  description: string;
+  last?: boolean;
+}
+
+function SectionLink({ href, icon: Icon, title, description, last }: SectionLinkProps) {
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-3 px-6 py-4 transition-colors hover:bg-accent ${last ? '' : 'border-b border-divider'}`}
+    >
+      <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="flex flex-1 flex-col gap-0.5">
+        <span className="text-sm font-medium">{title}</span>
+        <span className="text-sm text-muted-foreground">{description}</span>
+      </span>
+      <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
+    </Link>
   );
 }
