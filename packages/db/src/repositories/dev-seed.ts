@@ -4,7 +4,7 @@ import type { OrganisationMember, User } from '@orgflow/types';
 import type { Database } from '../schema.js';
 import { generateId } from '../uuid.js';
 import { createOrganisation, findOrganisationBySlug } from './organisations.js';
-import { createUserWithIdentity, findUserByIdentity } from './users.js';
+import { createUserWithIdentity, ensurePlatformAdmin, findUserByIdentity } from './users.js';
 
 // Only ever invoked from the /auth/dev-login route, itself guarded to fail
 // closed outside ORGFLOW_ENV=local (GOV-STANDARDS.md §6.2). Idempotent:
@@ -28,6 +28,11 @@ export async function ensureDevUser(db: Kysely<Database>): Promise<DevSeedResult
       issuer: DEV_ISSUER,
       subject: DEV_SUBJECT,
     }));
+
+  // The seeded local identity is the operator's own "entire superadmin"
+  // stand-in, so it needs the platform-admin flag ADR-0026 gates
+  // organisation creation behind, not only membership of one organisation.
+  await ensurePlatformAdmin(db, user.userId);
 
   let organisation = await findOrganisationBySlug(db, DEV_ORG_SLUG);
   organisation ??= await createOrganisation(db, {

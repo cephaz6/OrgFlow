@@ -340,7 +340,16 @@ export function createAuthRouter(deps: AuthDeps): Router {
       }
 
       res.status(200).json({
-        user: { userId: user.userId, email: user.email, displayName: user.displayName },
+        user: {
+          userId: user.userId,
+          email: user.email,
+          displayName: user.displayName,
+          // ADR-0026: read fresh from the database rather than carried in
+          // the session claims, the same staleness reasoning every other
+          // authorisation check in this codebase already follows (a
+          // session can be up to twelve hours old under ADR-0010).
+          isPlatformAdmin: user.isPlatformAdmin,
+        },
         organisationId: claims.organisationId,
         roles: claims.roles,
       });

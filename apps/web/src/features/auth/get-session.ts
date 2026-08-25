@@ -15,6 +15,8 @@ export interface SessionUser {
   userId: string;
   email: string;
   displayName: string;
+  // ADR-0026: global, not organisation-scoped. Gates /organisations/new.
+  isPlatformAdmin: boolean;
 }
 
 export interface Session {
