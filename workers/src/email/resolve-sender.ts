@@ -1,8 +1,7 @@
+import { createDummyEmailSender, createSesSender, type EmailSender } from '@orgflow/email';
+
 import type { WorkerConfig } from '../config/env.js';
 import type { Logger } from '../logger.js';
-import { createDummyEmailSender } from './dummy-sender.js';
-import type { EmailSender } from './sender.js';
-import { createSesSender } from './ses-sender.js';
 
 // ADR-0008 and the 3pservice pattern: the transport is a construction-time
 // choice behind one interface. Shared by main.ts (the local poll loop) and

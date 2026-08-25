@@ -34,6 +34,24 @@ export async function findOrganisationBySlug(
   return row ? toDomain(row) : null;
 }
 
+// No withTenantTransaction, and none is needed: organisations carries no
+// organisation_id column of its own (the primary key is the tenant
+// boundary), so it has no RLS policy to satisfy. Used by the invitation
+// preview screen, which has to name the organisation before the caller has
+// signed in to anything.
+export async function findOrganisationById(
+  db: Kysely<Database>,
+  organisationId: string,
+): Promise<Organisation | null> {
+  const row = await db
+    .selectFrom('organisations')
+    .selectAll()
+    .where('organisation_id', '=', organisationId)
+    .executeTakeFirst();
+
+  return row ? toDomain(row) : null;
+}
+
 export interface CreateOrganisationInput {
   name: string;
   slug: string;

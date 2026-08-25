@@ -21,8 +21,8 @@ import type { DomainEvent } from '@orgflow/types';
 import type { Kysely } from 'kysely';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { createDummyEmailSender, type DummyEmailSender } from './email/dummy-sender.js';
-import type { EmailSender } from './email/sender.js';
+import { createDummyEmailSender, type DummyEmailSender } from '@orgflow/email';
+import type { EmailSender } from '@orgflow/email';
 import { createLogger } from './logger.js';
 import { dispatchDomainEvent } from './notifications/dispatch.js';
 import { handleTaskCreated, type NotificationDeps } from './notifications/handle-task-created.js';

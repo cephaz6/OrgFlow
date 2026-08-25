@@ -45,8 +45,20 @@ export type {
   CreateIdentityProviderInput,
   IdentityProviderRecord,
 } from './repositories/identity-providers.js';
-export { createOrganisation, findOrganisationBySlug } from './repositories/organisations.js';
+export {
+  createOrganisation,
+  findOrganisationById,
+  findOrganisationBySlug,
+} from './repositories/organisations.js';
 export type { CreateOrganisationInput } from './repositories/organisations.js';
+export {
+  createInvitation,
+  findInvitationByTokenHash,
+  findInvitationsForCurrentTenant,
+  markInvitationAccepted,
+  revokeInvitation,
+} from './repositories/invitations.js';
+export type { CreateInvitationInput } from './repositories/invitations.js';
 export {
   createUserWithIdentity,
   findUserByEmail,

@@ -15,9 +15,9 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
-    "@aws-sdk/client-ses": "^3.1111.0",
     "@aws-sdk/client-sqs": "^3.1111.0",
     "@orgflow/db": "workspace:^",
+    "@orgflow/email": "workspace:^",
     "@orgflow/events": "workspace:^",
     "@orgflow/types": "workspace:^",
     "kysely": "^0.29.5",

@@ -1,4 +1,5 @@
 import type { Database } from '@orgflow/db';
+import type { EmailSender } from '@orgflow/email';
 import type { DomainEventPublisher } from '@orgflow/events';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -16,6 +17,7 @@ import { createAuthRouter } from './routes/auth.js';
 import { createCasesRouter } from './routes/cases.js';
 import { createDelegationsRouter } from './routes/delegations.js';
 import { createHealthRouter } from './routes/health.js';
+import { createInvitationsRouter } from './routes/invitations.js';
 import { createProcessDefinitionsRouter } from './routes/process-definitions.js';
 import { createMembersRouter } from './routes/members.js';
 import { createReportsRouter } from './routes/reports.js';
@@ -25,6 +27,7 @@ export interface CreateAppDeps {
   db: Kysely<Database>;
   mongoClient: MongoClient;
   publisher: DomainEventPublisher;
+  emailSender: EmailSender;
   corsOrigin: string;
   logger: Logger;
   sessionSecret: string;
@@ -118,6 +121,19 @@ export function createApp(deps: CreateAppDeps): Express {
     createMembersRouter({
       db: deps.db,
       sessionSecret: deps.sessionSecret,
+    }),
+  );
+
+  app.use(
+    '/api/v1',
+    createInvitationsRouter({
+      db: deps.db,
+      sessionSecret: deps.sessionSecret,
+      publisher: deps.publisher,
+      emailSender: deps.emailSender,
+      logger: deps.logger,
+      isLocal: deps.isLocal,
+      webUrl: deps.corsOrigin,
     }),
   );
 

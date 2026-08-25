@@ -10,6 +10,7 @@ import {
   type Database,
 } from '@orgflow/db';
 import { createMongoClient, ensureIndexes, readCaseValues } from '@orgflow/documents';
+import { createDummyEmailSender } from '@orgflow/email';
 import { createDummyPublisher } from '@orgflow/events';
 import type { OrganisationRole } from '@orgflow/types';
 import type { Kysely } from 'kysely';
@@ -76,6 +77,7 @@ describe('cross-tenant isolation', () => {
       db,
       mongoClient,
       publisher: createDummyPublisher(),
+      emailSender: createDummyEmailSender(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: SESSION_SECRET,

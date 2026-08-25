@@ -15,7 +15,7 @@ import {
 import type { DomainEvent, Notification } from '@orgflow/types';
 import type { Kysely } from 'kysely';
 
-import type { EmailSender } from '../email/sender.js';
+import type { EmailSender } from '@orgflow/email';
 import type { Logger } from '../logger.js';
 import {
   buildTaskAssignedEmail,

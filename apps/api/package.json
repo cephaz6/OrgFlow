@@ -18,6 +18,7 @@
     "@orgflow/core": "workspace:^",
     "@orgflow/db": "workspace:^",
     "@orgflow/documents": "workspace:^",
+    "@orgflow/email": "workspace:^",
     "@orgflow/events": "workspace:^",
     "@orgflow/types": "workspace:^",
     "cookie-parser": "^1.4.7",

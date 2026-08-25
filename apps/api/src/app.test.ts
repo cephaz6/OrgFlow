@@ -1,4 +1,5 @@
 import type { Database } from '@orgflow/db';
+import { createDummyEmailSender } from '@orgflow/email';
 import { createDummyPublisher } from '@orgflow/events';
 import type { Kysely } from 'kysely';
 import type { MongoClient } from 'mongodb';
@@ -16,6 +17,7 @@ function buildApp() {
     db: {} as Kysely<Database>,
     mongoClient: {} as MongoClient,
     publisher: createDummyPublisher(),
+    emailSender: createDummyEmailSender(),
     corsOrigin: 'http://localhost:3000',
     logger: createLogger('silent'),
     sessionSecret: '0'.repeat(64),
@@ -57,6 +59,7 @@ describe('POST /auth/dev-login', () => {
       db: {} as Kysely<Database>,
       mongoClient: {} as MongoClient,
       publisher: createDummyPublisher(),
+      emailSender: createDummyEmailSender(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: '0'.repeat(64),

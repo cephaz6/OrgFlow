@@ -1,6 +1,6 @@
 import type { TaskType } from '@orgflow/types';
 
-import type { EmailMessage } from '../email/sender.js';
+import type { EmailMessage } from '@orgflow/email';
 
 export interface TaskNotificationFacts {
   reference: string;

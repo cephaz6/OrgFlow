@@ -8,6 +8,7 @@ import {
   type Database,
 } from '@orgflow/db';
 import { createMongoClient } from '@orgflow/documents';
+import { createDummyEmailSender } from '@orgflow/email';
 import { createDummyPublisher } from '@orgflow/events';
 import type { OrganisationRole } from '@orgflow/types';
 import type { Kysely } from 'kysely';
@@ -144,6 +145,7 @@ describe('members API against real Postgres', () => {
       db,
       mongoClient,
       publisher: createDummyPublisher(),
+      emailSender: createDummyEmailSender(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: SESSION_SECRET,
