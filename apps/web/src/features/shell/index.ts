@@ -3,3 +3,4 @@
 export { AppShell, type AppShellProps } from './app-shell';
 export { OrgFlowLogo, OrgFlowMark, type LogoProps } from './orgflow-logo';
 export { PageHeader, type PageHeaderProps } from './page-header';
+export { SectionTabs, type SectionTabItem, type SectionTabsProps } from './section-tabs';

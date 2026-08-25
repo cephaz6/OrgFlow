@@ -15,9 +15,15 @@ const ALLOWED_ORGFLOW_IMPORTS = {
   db: ['types', 'core'],
   documents: ['types', 'core'],
   events: ['types', 'core'],
+  // No @orgflow dependency of its own: a third-party integration behind an
+  // interface (ADR-0008's 3pservice pattern), the same shape as db,
+  // documents and events, consumed by both api (invitation delivery) and
+  // workers (notification delivery) so the transport cannot diverge between
+  // them.
+  email: [],
   ui: ['types'],
-  api: ['types', 'core', 'db', 'documents', 'events'],
-  workers: ['types', 'core', 'db', 'documents', 'events'],
+  api: ['types', 'core', 'db', 'documents', 'events', 'email'],
+  workers: ['types', 'core', 'db', 'documents', 'events', 'email'],
   // ADR-0018: core is included deliberately. The rule's purpose is that web
   // never imports server code, and packages/core is not server code: it
   // performs no I/O by mandate (CLAUDE.md §3), so it is isomorphic. The form
@@ -33,6 +39,7 @@ const PACKAGE_DIR = {
   db: 'packages/db',
   documents: 'packages/documents',
   events: 'packages/events',
+  email: 'packages/email',
   ui: 'packages/ui',
   api: 'apps/api',
   workers: 'workers',

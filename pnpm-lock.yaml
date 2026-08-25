@@ -65,6 +65,9 @@ importers:
       '@orgflow/documents':
         specifier: workspace:^
         version: link:../../packages/documents
+      '@orgflow/email':
+        specifier: workspace:^
+        version: link:../../packages/email
       '@orgflow/events':
         specifier: workspace:^
         version: link:../../packages/events
@@ -303,6 +306,16 @@ importers:
         specifier: ^12.1.0
         version: 12.1.0
 
+  packages/email:
+    dependencies:
+      '@aws-sdk/client-ses':
+        specifier: ^3.1111.0
+        version: 3.1111.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22
+        version: 22.20.1
+
   packages/events:
     dependencies:
       '@aws-sdk/client-sns':
@@ -363,15 +376,15 @@ importers:
 
   workers:
     dependencies:
-      '@aws-sdk/client-ses':
-        specifier: ^3.1111.0
-        version: 3.1111.0
       '@aws-sdk/client-sqs':
         specifier: ^3.1111.0
         version: 3.1111.0
       '@orgflow/db':
         specifier: workspace:^
         version: link:../packages/db
+      '@orgflow/email':
+        specifier: workspace:^
+        version: link:../packages/email
       '@orgflow/events':
         specifier: workspace:^
         version: link:../packages/events

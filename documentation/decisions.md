@@ -1010,3 +1010,39 @@ Refusing self-role-edits means an owner who is the only administrator cannot han
 - **No last-owner guard, on the grounds that an administrator should be trusted.** Rejected: the failure is unrecoverable from inside the product, and trust is not the issue. The same administrator who is trusted is also the one who can make the mistake at three in the morning.
 - **Enforce the guard in the web client only.** Rejected outright: the API is the boundary, and `PRD.md` §12.3 already states client-side checks are presentation only.
 - **Refuse the last-owner change with `403`.** Rejected: the caller does hold the permission, and reporting it as a permissions failure sends whoever hits it to check their own roles rather than to grant the role to somebody else, which is the actual remedy. `409` says the request conflicts with the organisation's current state, which is what is true.
+
+## ADR-0025: Invitations send email directly from the API, and acceptance is a general session's other route into an organisation
+
+**Date:** 2026-08-25
+**Status:** Accepted
+**Deciders:** Project operator (asked directly on the notification-pipeline question; the rest decided and flagged for review)
+
+**Context**
+`PRD.md` §11.2 lists the four invitation endpoints as a row in the API table and nothing more: `POST /invitations`, `GET /invitations`, `DELETE /invitations/:id`, `POST /invitations/:token/accept`. Building them surfaced three questions the table does not answer, each expensive to reverse.
+
+First, delivery. `member.invited` (§10) is documented as firing when an invitation is sent, and the event catalogue names it, but the existing notification pipeline (ADR-0016) claims a row in `notifications`, whose `recipient_user_id` is `NOT NULL` referencing `users`. An invited person has no `users` row until they accept: there is nothing for that column to reference. The general-purpose, queued, idempotent pipeline built for case and task notifications cannot deliver this one as it stands.
+
+Second, identity. Every other tenant-scoped route in this codebase assumes a session already carries an organisation (`requireSession` 403s otherwise). Accepting an invitation is necessarily the moment a session that does not yet belong to this organisation, or belongs to none at all, is given one. `PRD.md` §12.1 step 7 already produces exactly this shape: a session with `organisationId: null` when sign-in resolves to zero or several memberships. Nothing before this feature made that session state useful for anything.
+
+Third, the screen. `PRD.md` §13.1 lists `/invitations/:token` as a route, but the API table in §11.2 lists only its accept, not a way to read the invitation first. A screen cannot render an organisation's name, an inviter's name, or an expiry before asking somebody to commit to signing in.
+
+**Decision**
+Delivery: `POST /invitations` sends the email synchronously, in the request, using an `EmailSender` extracted to a new package, `packages/email` (the interface, its dummy, and its SES implementation, moved out of `workers/src/email`). `workers` and `apps/api` both depend on it and cannot diverge on which transport is constructed, matching ADR-0008's 3pservice pattern. The row is committed before the send is attempted, and a delivery failure is logged rather than turning a genuinely created invitation into an error response, the same reasoning `cases.ts`'s `publishOrLog` already applies to domain events. The raw invitation link is also returned in the response body, since it is the only place the raw token is ever available: the database holds only its SHA-256, by the same reasoning a session secret is never stored in the clear.
+
+Identity: a new middleware, `requireUserSession`, sits beside `requireSession` and admits a session with `organisationId: null`. It gates only `POST /invitations/:token/accept`. Accepting checks the signed-in user's verified email against the invitation's, case-insensitively, then creates or reactivates the membership and reissues the session with the new organisation and roles, exactly ADR-0010's rotation-on-privilege-change applied to the other event that changes what a session may do.
+
+The screen: `GET /invitations/:token` is added, unauthenticated, returning a narrower `InvitationPreview` (organisation and inviter name, email, roles, expiry, and a derived status) rather than the full `Invitation`, since it is reachable by anybody holding the link before they have proven anything.
+
+**Consequences**
+A delivery failure is now something an administrator only learns about from the returned link and this codebase's logs, not from a retry: there is no queue behind it, no idempotency key, no second attempt if SES is briefly unavailable. That is a real gap against the case and task notification pipeline's guarantees, accepted because a general recipient-less notification concept was judged a bigger, riskier change to a shared, idempotency-critical table (ADR-0016) than this feature needed to force.
+
+`requireUserSession` is a second, narrower session gate that every future route has to choose correctly between. It exists for exactly one endpoint today; a second null-organisation use case (`/auth/switch-organisation`, still unbuilt) would be the point to confirm the shape still fits rather than growing a third gate beside it.
+
+The invitation email is not appended to `member.invited`. The event still fires, for anything downstream (an audit view, a future in-app notification) that only needs to know an invitation happened, not how the email was delivered.
+
+**Alternatives rejected**
+
+- **Extend `notifications` with a nullable `recipient_email` alongside `recipient_user_id`.** Would keep one delivery pipeline for everything. Rejected: a schema change to a shared, idempotency-critical table, for one feature, when the direct-send path needed no queue, no redelivery and no claim semantics that table exists to provide (accepting is itself the domain-level idempotency: a token accepted twice is refused by its own status, not by the notification layer).
+- **Duplicate the email sender inside `apps/api` rather than extracting a package.** Rejected: two SES implementations to keep in step, for a transport the dependency direction already had a slot for (`db`, `documents` and `events` are the same shape: a package below `api`/`workers`, depended on by both).
+- **A dedicated `/organisations/select` or reuse of the unbuilt `/auth/switch-organisation` for acceptance.** Considered, since both would also turn a null-organisation session into a real one. Rejected for this feature: switching to an organisation you already belong to and joining one via a token are different operations with different authorisation questions (membership already exists versus is about to be created), and conflating them would make the unbuilt switch endpoint carry invitation semantics it does not need.
+- **Leave `GET /invitations/:token` out and require sign-in before showing anything.** Rejected: sending somebody through OIDC before they know which organisation, or whose invitation, they are accepting is a worse experience for no security benefit, since the token itself is already the secret; naming what it unlocks is not a further disclosure.

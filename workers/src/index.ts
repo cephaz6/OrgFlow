@@ -6,11 +6,12 @@ export { handleTaskCreated } from './notifications/handle-task-created.js';
 export type { NotificationDeps } from './notifications/handle-task-created.js';
 export { buildTaskAssignedEmail, buildTaskClaimableEmail } from './notifications/templates.js';
 export type { TaskNotificationFacts } from './notifications/templates.js';
-export { createDummyEmailSender } from './email/dummy-sender.js';
-export type { DummyEmailSender } from './email/dummy-sender.js';
-export { createSesSender } from './email/ses-sender.js';
-export type { SesSenderConfig } from './email/ses-sender.js';
-export type { EmailMessage, EmailSender } from './email/sender.js';
+export { resolveEmailSender } from './email/resolve-sender.js';
+// The sender interface, its dummy and its SES implementation moved to
+// @orgflow/email, since apps/api needs the same construction-time choice
+// for invitation delivery and could not reach it while it lived only here
+// (CLAUDE.md §3 dependency direction: api and workers are peers). Import
+// from @orgflow/email directly rather than through this re-export.
 export { createSqsClient, parseDomainEvent, pollOnce, runConsumer } from './sqs/consumer.js';
 export type { ConsumerConfig, PollResult } from './sqs/consumer.js';
 export { createLogger } from './logger.js';

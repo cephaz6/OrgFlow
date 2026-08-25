@@ -1,5 +1,6 @@
 import { createDb, type Database } from '@orgflow/db';
 import { createMongoClient } from '@orgflow/documents';
+import { createDummyEmailSender } from '@orgflow/email';
 import { createDummyPublisher } from '@orgflow/events';
 import type { Kysely } from 'kysely';
 import type { MongoClient } from 'mongodb';
@@ -32,6 +33,7 @@ describe('apps/api against real Postgres and Mongo', () => {
       db,
       mongoClient,
       publisher: createDummyPublisher(),
+      emailSender: createDummyEmailSender(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: SESSION_SECRET,

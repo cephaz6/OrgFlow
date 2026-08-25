@@ -67,3 +67,61 @@ export function sessionOf(req: Request): RequestSession {
   }
   return req.session;
 }
+
+export interface RequestUserSession {
+  userId: string;
+  organisationId: string | null;
+  roles: OrganisationRole[];
+}
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      userSession?: RequestUserSession;
+    }
+  }
+}
+
+// requireSession's counterpart for the one route that genuinely cannot
+// demand an organisation: accepting an invitation is how a session first
+// gets one. PRD.md §12.1 step 7 already produces a session with
+// organisationId: null when sign-in resolves to zero or several
+// memberships, and nothing currently lets that session go anywhere, since
+// /auth/switch-organisation is unbuilt scope. Accepting an invitation is
+// the other way a null-organisation session becomes a real one.
+//
+// Still requires a genuine, verified session; only the organisationId
+// check requireSession makes is skipped. An invitation cannot be accepted
+// by an anonymous request, only by one that has already completed sign-in
+// (PRD.md §12.1 steps 1-7 by way of a real identity provider, or the
+// seeded dev-login locally).
+export function requireUserSession(sessionSecret: string): RequestHandler {
+  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const token = req.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
+      const claims = token ? await verifySessionToken(sessionSecret, token) : null;
+
+      if (!claims) {
+        throw new HttpProblemError(401, 'Unauthorized', 'No active session.');
+      }
+
+      req.userSession = {
+        userId: claims.userId,
+        organisationId: claims.organisationId,
+        roles: claims.roles,
+      };
+
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+export function userSessionOf(req: Request): RequestUserSession {
+  if (!req.userSession) {
+    throw new Error('requireUserSession must be mounted before this handler.');
+  }
+  return req.userSession;
+}

@@ -35,6 +35,11 @@ const envSchema = z.object({
   ORGFLOW_OIDC_ISSUER_URL: optionalString(z.string().url()),
   ORGFLOW_OIDC_CLIENT_ID: optionalString(z.string().min(1)),
   ORGFLOW_OIDC_CLIENT_SECRET: optionalString(z.string().min(1)),
+  // Same variable workers/src/config/env.ts reads for outbound notification
+  // email; the invitation route is the API process's only outbound email
+  // path, and it needs the identical construction-time choice (real SES or
+  // the dummy sender) the workers already make.
+  ORGFLOW_SES_FROM_ADDRESS: optionalString(z.string().email()),
 });
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>>;
