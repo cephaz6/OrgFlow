@@ -17,9 +17,9 @@ export const metadata: Metadata = {
 // (the thing most visits are actually for) below a form and a table most
 // visits do not need. Same row-link pattern /settings itself already uses.
 export default async function MembersPage() {
-  const [members, invitations] = await Promise.all([fetchMembers(), fetchInvitations()]);
+  const [memberPage, invitationPage] = await Promise.all([fetchMembers(), fetchInvitations()]);
 
-  if (members === null) {
+  if (memberPage === null) {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader title="Members" />
@@ -32,9 +32,13 @@ export default async function MembersPage() {
     );
   }
 
-  const pendingCount = (invitations ?? []).filter(
+  const invitations = invitationPage?.invitations ?? [];
+  const pendingCount = invitations.filter(
     (invitation) => !invitation.acceptedAt && !invitation.revokedAt,
   ).length;
+  // hasMore means this count only reflects the first page: a "+" is honest
+  // about that rather than presenting a partial count as exact.
+  const pendingCountIsPartial = pendingCount > 0 && (invitationPage?.hasMore ?? false);
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
@@ -58,14 +62,18 @@ export default async function MembersPage() {
             description={
               pendingCount === 0
                 ? 'None pending right now.'
-                : `${pendingCount} pending invitation${pendingCount === 1 ? '' : 's'}.`
+                : `${pendingCount}${pendingCountIsPartial ? '+' : ''} pending invitation${
+                    pendingCount === 1 && !pendingCountIsPartial ? '' : 's'
+                  }.`
             }
           />
           <SectionLink
             href="/settings/members/directory"
             icon={Users}
             title="Active members"
-            description={`${members.length} member${members.length === 1 ? '' : 's'} in this organisation.`}
+            description={`${memberPage.members.length}${memberPage.hasMore ? '+' : ''} member${
+              memberPage.members.length === 1 && !memberPage.hasMore ? '' : 's'
+            } in this organisation.`}
             last
           />
         </CardContent>
