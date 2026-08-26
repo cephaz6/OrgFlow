@@ -5,6 +5,7 @@ export * from './components/dropdown-menu.js';
 export * from './components/empty-state.js';
 export * from './components/input.js';
 export * from './components/label.js';
+export * from './components/pagination.js';
 export * from './components/select.js';
 export * from './components/skip-link.js';
 export * from './components/status-badge.js';

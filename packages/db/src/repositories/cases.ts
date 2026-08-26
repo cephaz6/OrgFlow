@@ -1,6 +1,7 @@
 import type { Case, CaseOutcome, CaseStatus } from '@orgflow/types';
 import type { Selectable, Transaction } from 'kysely';
 
+import { clampPageSize } from '../pagination.js';
 import type { CasesTable, Database } from '../schema.js';
 import { generateId } from '../uuid.js';
 
@@ -107,14 +108,11 @@ export interface CasePage {
   hasMore: boolean;
 }
 
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 200;
-
 export async function findCasesForCurrentTenant(
   trx: Transaction<Database>,
   filter: FindCasesFilter = {},
 ): Promise<CasePage> {
-  const limit = Math.min(Math.max(filter.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+  const limit = clampPageSize(filter.limit);
 
   let query = trx.selectFrom('cases').selectAll();
 
