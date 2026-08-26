@@ -8,17 +8,23 @@ import { fetchCatalogue } from '../../../features/catalogue';
 import { PageHeader } from '../../../features/shell';
 
 export const metadata: Metadata = {
-  title: 'My requests — OrgFlow',
+  title: 'My requests: OrgFlow',
 };
 
 export default async function MyCasesPage() {
   // The catalogue supplies process names, which the case list projection
   // does not carry. Fetched in parallel rather than in sequence: neither
-  // depends on the other, and the page cannot render until both arrive.
-  const [cases, catalogue] = await Promise.all([fetchMyCases(), fetchCatalogue()]);
+  // depends on the other, and the page cannot render until both arrive. A
+  // large, unpaginated limit: this is an id-to-name lookup, not a browsable
+  // list, so it wants effectively everything rather than a first page an
+  // organisation with more processes than that would silently truncate.
+  const [cases, cataloguePage] = await Promise.all([
+    fetchMyCases(),
+    fetchCatalogue({ limit: 200 }),
+  ]);
 
   const processNames = Object.fromEntries(
-    catalogue.map((entry) => [entry.definitionId, entry.name]),
+    cataloguePage.data.map((entry) => [entry.definitionId, entry.name]),
   );
 
   return (

@@ -93,6 +93,16 @@ describe('process definitions write API against real Postgres and Mongo', () => 
     };
   }
 
+  // referencePrefix must be letters only (createProcessDefinitionBodySchema's
+  // regex), so generateId()'s hex characters cannot be used directly the way
+  // other unique-enough-string needs in this file do.
+  let prefixCounter = 0;
+  function letterPrefix(): string {
+    prefixCounter += 1;
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return `X${letters[prefixCounter % 26]}${letters[Math.floor(prefixCounter / 26) % 26]}`;
+  }
+
   function createBody(overrides: Partial<Record<string, unknown>> = {}) {
     return {
       name: `Expense claim ${generateId()}`,
@@ -380,6 +390,153 @@ describe('process definitions write API against real Postgres and Mongo', () => 
         .get(`/api/v1/process-definitions/${definitionId}/draft`)
         .set('Cookie', colleague.cookie);
       expect(draft.status).toBe(404);
+    });
+  });
+
+  describe('pagination and search on the catalogue and manage list', () => {
+    it('paginates the catalogue by name without repeating or skipping a definition', async () => {
+      const owner = await buildMember(['processOwner']);
+      const app = buildApp();
+      const prefix = `catalogue-page-${generateId()}`;
+      const names = ['A', 'B', 'C'].map((letter) => `${prefix}-${letter}`);
+
+      for (const name of names) {
+        const created = await request(app)
+          .post('/api/v1/process-definitions')
+          .set('Cookie', owner.cookie)
+          .send(createBody({ name, referencePrefix: letterPrefix() }));
+        await request(app)
+          .post(`/api/v1/process-definitions/${created.body.definition.definitionId}/draft/publish`)
+          .set('Cookie', owner.cookie)
+          .send({});
+      }
+
+      const first = await request(app)
+        .get('/api/v1/process-definitions')
+        .query({ query: prefix, limit: 2 })
+        .set('Cookie', owner.cookie);
+      expect(first.status).toBe(200);
+      expect(first.body.data).toHaveLength(2);
+      expect(first.body.hasMore).toBe(true);
+      expect(first.body.data.map((d: { name: string }) => d.name)).toEqual([names[0], names[1]]);
+
+      const second = await request(app)
+        .get('/api/v1/process-definitions')
+        .query({ query: prefix, limit: 2, cursor: first.body.nextCursor })
+        .set('Cookie', owner.cookie);
+      expect(second.status).toBe(200);
+      expect(second.body.data).toHaveLength(1);
+      expect(second.body.hasMore).toBe(false);
+      expect(second.body.data[0].name).toBe(names[2]);
+    });
+
+    it('filters the catalogue by a free-text name query', async () => {
+      const owner = await buildMember(['processOwner']);
+      const app = buildApp();
+      const name = `findable-catalogue-${generateId()}`;
+
+      const created = await request(app)
+        .post('/api/v1/process-definitions')
+        .set('Cookie', owner.cookie)
+        .send(createBody({ name }));
+      await request(app)
+        .post(`/api/v1/process-definitions/${created.body.definition.definitionId}/draft/publish`)
+        .set('Cookie', owner.cookie)
+        .send({});
+
+      const found = await request(app)
+        .get('/api/v1/process-definitions')
+        .query({ query: name })
+        .set('Cookie', owner.cookie);
+      expect(found.status).toBe(200);
+      expect(found.body.data).toHaveLength(1);
+      expect(found.body.data[0].name).toBe(name);
+      expect(typeof found.body.data[0].createdAt).toBe('string');
+    });
+
+    it('paginates the manage list without repeating or skipping a definition the caller may manage', async () => {
+      const owner = await buildMember(['processOwner']);
+      const app = buildApp();
+      const prefix = `manage-page-${generateId()}`;
+      const names = ['A', 'B', 'C'].map((letter) => `${prefix}-${letter}`);
+
+      for (const name of names) {
+        await request(app)
+          .post('/api/v1/process-definitions')
+          .set('Cookie', owner.cookie)
+          .send(createBody({ name, referencePrefix: letterPrefix() }));
+      }
+
+      const first = await request(app)
+        .get('/api/v1/process-definitions/manage')
+        .query({ query: prefix, limit: 2 })
+        .set('Cookie', owner.cookie);
+      expect(first.status).toBe(200);
+      expect(first.body.data).toHaveLength(2);
+      expect(first.body.hasMore).toBe(true);
+
+      const second = await request(app)
+        .get('/api/v1/process-definitions/manage')
+        .query({ query: prefix, limit: 2, cursor: first.body.nextCursor })
+        .set('Cookie', owner.cookie);
+      expect(second.status).toBe(200);
+      expect(second.body.data).toHaveLength(1);
+      expect(second.body.hasMore).toBe(false);
+
+      const seenNames = new Set([
+        ...(first.body.data as Array<{ name: string }>).map((d) => d.name),
+        ...(second.body.data as Array<{ name: string }>).map((d) => d.name),
+      ]);
+      expect(seenNames).toEqual(new Set(names));
+    });
+
+    it('never lets pagination surface a definition the caller may not manage', async () => {
+      // The permission filter runs before pagination is applied (route-level,
+      // not SQL), so this proves paging through a mixed set of "mine" and
+      // "somebody else's" definitions never leaks the latter onto a page.
+      const owner = await buildMember(['processOwner']);
+      const colleague = await buildMember(['processOwner'], owner.organisationId);
+      const app = buildApp();
+      const prefix = `manage-mixed-${generateId()}`;
+
+      for (let i = 0; i < 3; i += 1) {
+        await request(app)
+          .post('/api/v1/process-definitions')
+          .set('Cookie', owner.cookie)
+          .send(
+            createBody({
+              name: `${prefix}-owner-${i}`,
+              referencePrefix: letterPrefix(),
+            }),
+          );
+      }
+      await request(app)
+        .post('/api/v1/process-definitions')
+        .set('Cookie', colleague.cookie)
+        .send(
+          createBody({
+            name: `${prefix}-colleague`,
+            referencePrefix: letterPrefix(),
+          }),
+        );
+
+      const collected: string[] = [];
+      let cursor: string | undefined;
+      for (;;) {
+        const response = await request(app)
+          .get('/api/v1/process-definitions/manage')
+          .query({ query: prefix, limit: 2, ...(cursor ? { cursor } : {}) })
+          .set('Cookie', owner.cookie);
+        expect(response.status).toBe(200);
+        collected.push(...(response.body.data as Array<{ name: string }>).map((d) => d.name));
+        if (!response.body.hasMore) {
+          break;
+        }
+        cursor = response.body.nextCursor as string;
+      }
+
+      expect(collected).toHaveLength(3);
+      expect(collected.every((name) => name.includes('-owner-'))).toBe(true);
     });
   });
 });

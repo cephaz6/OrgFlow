@@ -87,6 +87,28 @@ test.describe('form builder', () => {
     await expectNoAccessibilityViolations(page);
   });
 
+  test('finds a process by name, and shows pagination controls disabled on a single page', async ({
+    page,
+  }) => {
+    await signIn(page);
+    const name = `Search target ${Date.now()}`;
+
+    await page.goto('/processes/new');
+    await page.getByLabel('Process name').fill(name);
+    await page.getByLabel('Reference prefix').fill('stg');
+    await page.getByRole('button', { name: 'Create and open the builder' }).click();
+    await page.waitForURL(/\/processes\/[0-9a-f-]{36}$/);
+
+    await page.goto('/processes');
+    await page.getByLabel(/Search processes/).fill(name);
+    await page.getByRole('search').getByRole('button', { name: 'Search' }).click();
+    await expect(page.getByRole('link', { name })).toBeVisible();
+
+    const pagination = page.getByRole('navigation', { name: 'Pagination' });
+    await expect(pagination.getByText('Previous')).toHaveAttribute('aria-disabled', 'true');
+    await expect(pagination.getByText('Next')).toHaveAttribute('aria-disabled', 'true');
+  });
+
   test('shows the Processes nav item for a process-owning session', async ({ page }) => {
     // dev-login signs in holding every role (packages/db/src/repositories/
     // dev-seed.ts), processOwner included, which is what nav.ts's

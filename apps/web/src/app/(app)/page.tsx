@@ -15,18 +15,24 @@ import {
 import { PageHeader } from '../../features/shell';
 
 export const metadata: Metadata = {
-  title: 'Dashboard — OrgFlow',
+  title: 'Dashboard: OrgFlow',
 };
 
 export default async function DashboardPage() {
   // In parallel: none of the three depends on another, and the page cannot
   // render until all have arrived, so sequencing them would only add their
   // latencies together.
-  const [approvals, cases, catalogue] = await Promise.all([
+  const [approvals, cases, cataloguePage] = await Promise.all([
     fetchMyQueue(),
     fetchMyCases(),
-    fetchCatalogue(),
+    // A large, unpaginated limit rather than the catalogue page's own
+    // default: this widget only ever builds an id-to-name lookup and a
+    // "is there anything at all" check, not a browsable list, so it wants
+    // effectively everything rather than a first page an organisation with
+    // more processes than that would silently truncate.
+    fetchCatalogue({ limit: 200 }),
   ]);
+  const catalogue = cataloguePage.data;
 
   // One instant for the whole page, so two rows cannot disagree about
   // whether the same deadline has passed.

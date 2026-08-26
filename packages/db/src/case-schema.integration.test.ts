@@ -232,8 +232,9 @@ describe('process and case schema', () => {
       findPublishedProcessDefinitions(trx),
     );
 
-    expect(forA).toHaveLength(1);
-    expect(forA[0]?.definitionId).toBe(tenantA.definition.definitionId);
+    expect(forA.definitions).toHaveLength(1);
+    expect(forA.definitions[0]?.definitionId).toBe(tenantA.definition.definitionId);
+    expect(forA.hasMore).toBe(false);
   });
 
   it('rejects a case update whose expected row version has moved', async () => {

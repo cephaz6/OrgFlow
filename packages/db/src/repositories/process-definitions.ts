@@ -6,6 +6,7 @@ import type {
 } from '@orgflow/types';
 import { sql, type Selectable, type Transaction } from 'kysely';
 
+import { clampPageSize, decodeCompositeCursor, encodeCompositeCursor } from '../pagination.js';
 import type { Database, ProcessDefinitionsTable, ProcessVersionsTable } from '../schema.js';
 import { generateId } from '../uuid.js';
 
@@ -112,31 +113,104 @@ export async function findProcessDefinitionById(
   return row ? toDefinitionDomain(row) : null;
 }
 
+export interface FindPublishedProcessDefinitionsFilter {
+  category?: string | undefined;
+  // Free text over name. Absent means no filter rather than an empty
+  // search, which would otherwise match nothing.
+  query?: string | undefined;
+  limit?: number | undefined;
+  cursor?: string | undefined;
+}
+
+export interface ProcessDefinitionPage {
+  definitions: ProcessDefinition[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+interface CatalogueCursor extends Record<string, string> {
+  name: string;
+  id: string;
+}
+
+// A catalogue is browsed alphabetically, not by when a template happened
+// to be published, so this is ordered and cursor-paginated by name, the
+// same composite (name, id) cursor findMemberDirectoryForCurrentTenant
+// uses and for the same reason: name alone is not unique enough to be a
+// cursor on its own.
 export async function findPublishedProcessDefinitions(
   trx: Transaction<Database>,
-): Promise<ProcessDefinition[]> {
-  const rows = await trx
-    .selectFrom('process_definitions')
-    .selectAll()
-    .where('status', '=', 'published')
+  filter: FindPublishedProcessDefinitionsFilter = {},
+): Promise<ProcessDefinitionPage> {
+  let query = trx.selectFrom('process_definitions').selectAll().where('status', '=', 'published');
+
+  if (filter.category) {
+    query = query.where('category', '=', filter.category);
+  }
+
+  if (filter.query) {
+    query = query.where('name', 'ilike', `%${filter.query}%`);
+  }
+
+  const cursor = filter.cursor
+    ? decodeCompositeCursor<CatalogueCursor>(filter.cursor, ['name', 'id'])
+    : null;
+  if (cursor) {
+    query = query.where(sql<boolean>`(name, definition_id) > (${cursor.name}, ${cursor.id})`);
+  }
+
+  const limit = clampPageSize(filter.limit);
+
+  const rows = await query
     .orderBy('name', 'asc')
+    .orderBy('definition_id', 'asc')
+    .limit(limit + 1)
     .execute();
 
-  return rows.map(toDefinitionDomain);
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+
+  return {
+    definitions: page.map(toDefinitionDomain),
+    nextCursor:
+      hasMore && last
+        ? encodeCompositeCursor<CatalogueCursor>({ name: last.name, id: last.definition_id })
+        : null,
+    hasMore,
+  };
+}
+
+export interface FindProcessDefinitionsForOrganisationFilter {
+  // Free text over name. Absent means no filter rather than an empty
+  // search, which would otherwise match nothing.
+  query?: string | undefined;
 }
 
 // Every status, for the builder's "manage processes" list (PRD.md §13.1's
 // /processes route). findPublishedProcessDefinitions above is deliberately
 // narrower: the catalogue a requester browses must never show a draft, but
 // a process owner managing their own definitions needs to see one.
+//
+// Unpaginated here deliberately: the route filters this result by an async
+// per-row permission check (canManageProcessDefinition) that cannot be
+// expressed as a WHERE clause, so pagination has to happen after that
+// filter, in the route, over whatever survives it.
 export async function findProcessDefinitionsForOrganisation(
   trx: Transaction<Database>,
+  filter: FindProcessDefinitionsForOrganisationFilter = {},
 ): Promise<ProcessDefinition[]> {
-  const rows = await trx
-    .selectFrom('process_definitions')
-    .selectAll()
-    .orderBy('updated_at', 'desc')
-    .execute();
+  let query = trx.selectFrom('process_definitions').selectAll();
+
+  if (filter.query) {
+    query = query.where('name', 'ilike', `%${filter.query}%`);
+  }
+
+  // A definition_id tiebreak makes this a total order: two definitions
+  // updated in the same instant would otherwise tie on updated_at alone,
+  // which the route's own JS-side pagination (see process-definitions.ts's
+  // GET /process-definitions/manage) depends on for a stable cursor.
+  const rows = await query.orderBy('updated_at', 'desc').orderBy('definition_id', 'desc').execute();
 
   return rows.map(toDefinitionDomain);
 }
