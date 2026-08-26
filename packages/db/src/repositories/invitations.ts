@@ -1,6 +1,7 @@
 import type { Kysely, Selectable, Transaction } from 'kysely';
 import type { Invitation, OrganisationRole } from '@orgflow/types';
 
+import { clampPageSize } from '../pagination.js';
 import type { Database, InvitationsTable } from '../schema.js';
 import { generateId } from '../uuid.js';
 
@@ -54,16 +55,54 @@ export async function createInvitation(
   return toDomain(row);
 }
 
+export interface FindInvitationsFilter {
+  // Free text over email. Absent means no filter rather than an empty
+  // search, which would otherwise match nothing.
+  query?: string | undefined;
+  limit?: number | undefined;
+  cursor?: string | undefined;
+}
+
+export interface InvitationPage {
+  invitations: Invitation[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 export async function findInvitationsForCurrentTenant(
   trx: Transaction<Database>,
-): Promise<Invitation[]> {
-  const rows = await trx
-    .selectFrom('invitations')
-    .selectAll()
-    .orderBy('created_at', 'desc')
+  filter: FindInvitationsFilter = {},
+): Promise<InvitationPage> {
+  let query = trx.selectFrom('invitations').selectAll();
+
+  if (filter.query) {
+    query = query.where('email', 'ilike', `%${filter.query}%`);
+  }
+
+  if (filter.cursor) {
+    query = query.where('invitation_id', '<', filter.cursor);
+  }
+
+  const limit = clampPageSize(filter.limit);
+
+  // ORDER BY invitation_id, not created_at: ADR-0003's UUID v7 ids are
+  // time-sortable, so this produces the exact same order as created_at
+  // descending did, while letting the id itself be the cursor, matching
+  // findCasesForCurrentTenant's pattern (one row beyond the page, so
+  // hasMore is answered without a second count query).
+  const rows = await query
+    .orderBy('invitation_id', 'desc')
+    .limit(limit + 1)
     .execute();
 
-  return rows.map(toDomain);
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+
+  return {
+    invitations: page.map(toDomain),
+    nextCursor: hasMore ? (page[page.length - 1]?.invitation_id ?? null) : null,
+    hasMore,
+  };
 }
 
 // Scoped by RLS like every other tenant read in this file: a token that

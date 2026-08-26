@@ -50,6 +50,33 @@ test.describe('invitations', () => {
     await expect(page.getByRole('row').filter({ hasText: email })).toContainText('Revoked');
   });
 
+  test('shows when an invitation was sent, and can be found by searching for its email', async ({
+    page,
+  }) => {
+    // Not "search" in the local part: the Revoke button's accessible name
+    // ("Revoke invitation to <email>") would then itself match a
+    // substring lookup for the Search button below.
+    const email = `e2e-findme-${Date.now()}@example.invalid`;
+
+    await page.goto('/settings/members/invite');
+    await page.getByLabel('Work email').fill(email);
+    await page.getByRole('button', { name: 'Send invitation' }).click();
+    await expect(page.getByRole('status')).toContainText(email);
+
+    await page.goto('/settings/members/invitations');
+    const row = page.getByRole('row').filter({ hasText: email });
+    // "Sent" is a real date, not blank: the column exists and the
+    // createdAt value the API already returned is actually rendered.
+    // Columns after the email row-header are Roles, Status, Sent, Actions.
+    await expect(row.getByRole('cell').nth(2)).not.toBeEmpty();
+
+    const searchForm = page.getByRole('search');
+    await searchForm.getByLabel(/Search invitations/).fill(email);
+    await searchForm.getByRole('button', { name: 'Search' }).click();
+    await expect(page.getByRole('row').filter({ hasText: email })).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: '@example.invalid' })).toHaveCount(1);
+  });
+
   test('has no accessibility violations on the invite form or the invitations list', async ({
     page,
   }) => {

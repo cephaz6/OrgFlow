@@ -1,5 +1,6 @@
 import {
   countActiveOwnersForCurrentTenant,
+  findMemberDirectoryEntryByUserId,
   findMemberDirectoryForCurrentTenant,
   findOrganisationMemberByUserId,
   updateOrganisationMember,
@@ -27,6 +28,9 @@ const listQuerySchema = z.object({
   query: z.string().min(1).optional(),
   status: z.enum(['active', 'suspended', 'removed']).optional(),
   role: z.enum(ROLES).optional(),
+  // PRD.md §11.10: cursor-based pagination, ?limit&cursor.
+  limit: z.coerce.number().int().positive().optional(),
+  cursor: z.string().min(1).optional(),
 });
 
 // Every field optional, but at least one present: a PATCH carrying nothing
@@ -84,7 +88,7 @@ export function createMembersRouter(deps: MembersDeps): Router {
       const session = sessionOf(req);
       const filter = parseBody(listQuerySchema, req.query as Record<string, unknown>);
 
-      const members = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
+      const page = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
         if (!(await isAdministrator(trx, session))) {
           throw new HttpProblemError(
             403,
@@ -96,7 +100,11 @@ export function createMembersRouter(deps: MembersDeps): Router {
         return findMemberDirectoryForCurrentTenant(trx, filter);
       });
 
-      res.status(200).json({ members: members.map(toBody) });
+      res.status(200).json({
+        members: page.members.map(toBody),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      });
     } catch (err) {
       next(err);
     }
@@ -146,8 +154,7 @@ export function createMembersRouter(deps: MembersDeps): Router {
         // the joined identity, including a line manager name that may have
         // just changed. The row exists by construction: the update above
         // returned it inside this same transaction.
-        const directory = await findMemberDirectoryForCurrentTenant(trx, {});
-        const summary = directory.find((row) => row.userId === targetUserId);
+        const summary = await findMemberDirectoryEntryByUserId(trx, targetUserId);
         if (!summary) {
           throw new HttpProblemError(404, 'Not Found', 'No such member.');
         }

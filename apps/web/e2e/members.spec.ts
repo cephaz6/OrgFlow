@@ -116,6 +116,23 @@ test.describe('members', () => {
     await expect(page.getByRole('button', { name: 'Save roles' })).toHaveCount(0);
   });
 
+  test('shows pagination controls on the directory, disabled on a single page', async ({
+    page,
+  }) => {
+    await page.goto('/settings/members/directory');
+
+    // The seeded organisation has too few members to force a second page,
+    // so this asserts the controls render and are correctly disabled at
+    // the boundary, rather than exercising a real Next/Previous round trip
+    // (which would need seeding dozens of throwaway members into the
+    // shared local database to trigger).
+    const pagination = page.getByRole('navigation', { name: 'Pagination' });
+    await expect(pagination.getByRole('link', { name: /Previous/ })).toHaveCount(0);
+    await expect(pagination.getByText('Previous')).toHaveAttribute('aria-disabled', 'true');
+    await expect(pagination.getByRole('link', { name: /Next/ })).toHaveCount(0);
+    await expect(pagination.getByText('Next')).toHaveAttribute('aria-disabled', 'true');
+  });
+
   test('has no accessibility violations on the overview or the directory', async ({ page }) => {
     await page.goto('/settings/members');
     await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible();

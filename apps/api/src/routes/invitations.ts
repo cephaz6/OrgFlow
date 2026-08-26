@@ -49,6 +49,13 @@ export interface InvitationsDeps {
 const ROLES = ['member', 'approver', 'processOwner', 'admin', 'owner'] as const;
 const INVITATION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
+const listQuerySchema = z.object({
+  query: z.string().min(1).optional(),
+  // PRD.md §11.10: cursor-based pagination, ?limit&cursor.
+  limit: z.coerce.number().int().positive().optional(),
+  cursor: z.string().min(1).optional(),
+});
+
 const createSchema = z.object({
   email: z.string().email(),
   // No .min(1): inviting somebody as a plain member, with no additional
@@ -282,23 +289,24 @@ export function createInvitationsRouter(deps: InvitationsDeps): Router {
   router.get('/invitations', requireSession(deps.sessionSecret), async (req, res, next) => {
     try {
       const session = sessionOf(req);
+      const filter = parseBody(listQuerySchema, req.query as Record<string, unknown>);
 
-      const invitations = await withTenantTransaction(
-        deps.db,
-        session.organisationId,
-        async (trx) => {
-          if (!(await isAdministrator(trx, session))) {
-            throw new HttpProblemError(
-              403,
-              'Forbidden',
-              'Managing invitations requires the admin or owner role.',
-            );
-          }
-          return findInvitationsForCurrentTenant(trx);
-        },
-      );
+      const page = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
+        if (!(await isAdministrator(trx, session))) {
+          throw new HttpProblemError(
+            403,
+            'Forbidden',
+            'Managing invitations requires the admin or owner role.',
+          );
+        }
+        return findInvitationsForCurrentTenant(trx, filter);
+      });
 
-      res.status(200).json({ invitations: invitations.map(toBody) });
+      res.status(200).json({
+        invitations: page.invitations.map(toBody),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      });
     } catch (err) {
       next(err);
     }
