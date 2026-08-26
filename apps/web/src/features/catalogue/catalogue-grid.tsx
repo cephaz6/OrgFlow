@@ -2,6 +2,7 @@ import { Card } from '@orgflow/ui';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
+import { formatDate } from '../../lib/format';
 import type { CatalogueEntry } from './api';
 import { ProcessIcon } from './process-icon';
 
@@ -40,6 +41,9 @@ export function CatalogueGrid({ entries }: CatalogueGridProps) {
                     {entry.category}
                   </span>
                 ) : null}
+                <span className="text-xs text-muted-foreground">
+                  Added {formatDate(entry.createdAt)}
+                </span>
               </span>
               <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
             </Link>

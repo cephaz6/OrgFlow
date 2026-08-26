@@ -14,6 +14,24 @@ test.describe('catalogue and form runtime', () => {
     await expectNoAccessibilityViolations(page);
   });
 
+  test('finds a process by name, and shows pagination controls disabled on a single page', async ({
+    page,
+  }) => {
+    await page.goto('/catalogue');
+
+    await page.getByLabel(/Search the catalogue/).fill('Laptop request');
+    await page.getByRole('search').getByRole('button', { name: 'Search' }).click();
+    await expect(page.getByRole('link', { name: 'Laptop request' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Expense claim' })).toHaveCount(0);
+
+    // The seeded catalogue is far smaller than one page, so this asserts
+    // the controls render and are correctly disabled at the boundary,
+    // rather than a real Next/Previous round trip.
+    const pagination = page.getByRole('navigation', { name: 'Pagination' });
+    await expect(pagination.getByText('Previous')).toHaveAttribute('aria-disabled', 'true');
+    await expect(pagination.getByText('Next')).toHaveAttribute('aria-disabled', 'true');
+  });
+
   test('shows what happens after submitting, with no accessibility violations', async ({
     page,
   }) => {

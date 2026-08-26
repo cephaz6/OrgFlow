@@ -2,6 +2,7 @@ import { Button, Card, CardContent, EmptyState } from '@orgflow/ui';
 import { ChartNoAxesCombined, FilePlus2, Wrench } from 'lucide-react';
 import Link from 'next/link';
 
+import { formatDate } from '../../lib/format';
 import type { Group } from '../groups';
 import { DefinitionStatusBadge } from './definition-status-badge';
 import type { ManagedDefinition } from './types';
@@ -51,6 +52,9 @@ export function ManageList({ definitions, groups }: ManageListProps) {
                   Owning group: {groupNameById.get(definition.owningGroupId) ?? 'Unknown group'}
                 </p>
               ) : null}
+              <p className="text-xs text-muted-foreground">
+                Created {formatDate(definition.createdAt)}
+              </p>
             </div>
             {/* A draft has never been published, so no case has ever run
                 against it and its report would be nothing but empty states.

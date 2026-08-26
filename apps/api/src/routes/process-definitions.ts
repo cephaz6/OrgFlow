@@ -1,6 +1,9 @@
 import {
+  clampPageSize,
   createProcessDefinition,
   createProcessVersion,
+  decodeCompositeCursor,
+  encodeCompositeCursor,
   findDraftProcessVersion,
   findLatestVersionNumber,
   findProcessDefinitionById,
@@ -55,8 +58,21 @@ function toCatalogueEntry(definition: ProcessDefinition) {
     icon: definition.icon,
     status: definition.status,
     currentVersionId: definition.currentVersionId,
+    createdAt: definition.createdAt,
   };
 }
+
+// PRD.md §11.10: cursor-based pagination, ?limit&cursor, plus a free-text
+// name search shared by the catalogue and the manage list.
+const listQuerySchema = z.object({
+  query: z.string().min(1).optional(),
+  limit: z.coerce.number().int().positive().optional(),
+  cursor: z.string().min(1).optional(),
+});
+
+const catalogueQuerySchema = listQuerySchema.extend({
+  category: z.string().min(1).optional(),
+});
 
 // Turns a Zod failure into the RFC 7807 shape PRD.md §11.10 specifies,
 // matching the pattern every other route file uses.
@@ -208,19 +224,17 @@ export function createProcessDefinitionsRouter(deps: ProcessDefinitionDeps): Rou
   router.get('/process-definitions', async (req, res, next) => {
     try {
       const session = sessionOf(req);
-      const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+      const filter = parseBody(catalogueQuerySchema, req.query as Record<string, unknown>);
 
-      const definitions = await withTenantTransaction(deps.db, session.organisationId, (trx) =>
-        findPublishedProcessDefinitions(trx),
+      const page = await withTenantTransaction(deps.db, session.organisationId, (trx) =>
+        findPublishedProcessDefinitions(trx, filter),
       );
 
-      const filtered = category
-        ? definitions.filter((definition) => definition.category === category)
-        : definitions;
-
-      res
-        .status(200)
-        .json({ data: filtered.map(toCatalogueEntry), nextCursor: null, hasMore: false });
+      res.status(200).json({
+        data: page.definitions.map(toCatalogueEntry),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      });
     } catch (err) {
       next(err);
     }
@@ -234,12 +248,15 @@ export function createProcessDefinitionsRouter(deps: ProcessDefinitionDeps): Rou
   router.get('/process-definitions/manage', async (req, res, next) => {
     try {
       const session = sessionOf(req);
+      const filter = parseBody(listQuerySchema, req.query as Record<string, unknown>);
 
-      const definitions = await withTenantTransaction(
+      const permitted = await withTenantTransaction(
         deps.db,
         session.organisationId,
         async (trx) => {
-          const all = await findProcessDefinitionsForOrganisation(trx);
+          const all = await findProcessDefinitionsForOrganisation(trx, {
+            ...(filter.query !== undefined ? { query: filter.query } : {}),
+          });
           const flags = await Promise.all(
             all.map((definition) => canManageProcessDefinition(trx, session, definition)),
           );
@@ -247,9 +264,37 @@ export function createProcessDefinitionsRouter(deps: ProcessDefinitionDeps): Rou
         },
       );
 
-      res
-        .status(200)
-        .json({ data: definitions.map(toManagementEntry), nextCursor: null, hasMore: false });
+      // Pagination happens here, over the array, rather than in SQL: the
+      // permission filter above is an async per-row check that cannot be
+      // expressed as a WHERE clause, so it has to run first. `permitted`
+      // is already a total order (updated_at desc, definition_id desc, per
+      // the repository's own ORDER BY), which is what makes "everything
+      // strictly after the cursor's position" the same set whether found
+      // by index or, as here, by comparing each row against the cursor.
+      const cursor = filter.cursor
+        ? decodeCompositeCursor<{ updatedAt: string; id: string }>(filter.cursor, [
+            'updatedAt',
+            'id',
+          ])
+        : null;
+      const afterCursor = cursor
+        ? permitted.filter((definition) =>
+            definition.updatedAt === cursor.updatedAt
+              ? definition.definitionId < cursor.id
+              : definition.updatedAt < cursor.updatedAt,
+          )
+        : permitted;
+
+      const limit = clampPageSize(filter.limit);
+      const hasMore = afterCursor.length > limit;
+      const page = hasMore ? afterCursor.slice(0, limit) : afterCursor;
+      const last = page[page.length - 1];
+      const nextCursor =
+        hasMore && last
+          ? encodeCompositeCursor({ updatedAt: last.updatedAt, id: last.definitionId })
+          : null;
+
+      res.status(200).json({ data: page.map(toManagementEntry), nextCursor, hasMore });
     } catch (err) {
       next(err);
     }

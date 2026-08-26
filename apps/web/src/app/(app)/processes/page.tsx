@@ -1,4 +1,4 @@
-import { Button, EmptyState } from '@orgflow/ui';
+import { Button, EmptyState, Pagination } from '@orgflow/ui';
 import { FilePlus2, ShieldOff } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -7,14 +7,20 @@ import { getSession } from '../../../features/auth';
 import { fetchManagedDefinitions, ManageList } from '../../../features/form-builder';
 import { fetchGroups } from '../../../features/groups';
 import { PageHeader } from '../../../features/shell';
+import { buildNextHref, buildPrevHref } from '../../../lib/pagination';
 
 export const metadata: Metadata = {
-  title: 'Processes — OrgFlow',
+  title: 'Processes: OrgFlow',
 };
 
 const MANAGE_ROLES = new Set(['processOwner', 'admin', 'owner']);
+const BASE_PATH = '/processes';
 
-export default async function ProcessesPage() {
+interface PageProps {
+  searchParams: Promise<{ query?: string; cursor?: string; history?: string }>;
+}
+
+export default async function ProcessesPage({ searchParams }: PageProps) {
   // getSession() cannot return null here: the (app) layout already redirects
   // when there is no session, and this is what tells the compiler that.
   const session = await getSession();
@@ -33,7 +39,13 @@ export default async function ProcessesPage() {
     );
   }
 
-  const [definitions, groups] = await Promise.all([fetchManagedDefinitions(), fetchGroups()]);
+  const resolvedSearchParams = await searchParams;
+  const { query, cursor } = resolvedSearchParams;
+
+  const [page, groups] = await Promise.all([
+    fetchManagedDefinitions({ query, cursor }),
+    fetchGroups(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -49,7 +61,37 @@ export default async function ProcessesPage() {
           </Button>
         }
       />
-      <ManageList definitions={definitions} groups={groups} />
+
+      <form method="get" className="flex max-w-md gap-2" role="search">
+        <label htmlFor="process-search" className="sr-only">
+          Search processes by name
+        </label>
+        <input
+          id="process-search"
+          name="query"
+          type="search"
+          defaultValue={query ?? ''}
+          placeholder="Search by name"
+          className="h-10 w-full rounded-md border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <button
+          type="submit"
+          className="h-10 rounded-md border border-input px-4 text-sm hover:bg-accent hover:text-accent-foreground"
+        >
+          Search
+        </button>
+      </form>
+
+      <ManageList definitions={page.data} groups={groups} />
+
+      <Pagination
+        prevHref={buildPrevHref(BASE_PATH, resolvedSearchParams)}
+        nextHref={
+          page.hasMore && page.nextCursor
+            ? buildNextHref(BASE_PATH, resolvedSearchParams, page.nextCursor)
+            : null
+        }
+      />
     </div>
   );
 }

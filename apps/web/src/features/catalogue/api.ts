@@ -14,6 +14,7 @@ export interface CatalogueEntry {
   icon: string | null;
   status: string;
   currentVersionId: string | null;
+  createdAt: string;
 }
 
 export interface DefinitionDetail {
@@ -27,15 +28,37 @@ export interface DefinitionDetail {
   document: ProcessDefinitionDocument;
 }
 
-interface CataloguePage {
+export interface CataloguePage {
   data: CatalogueEntry[];
   nextCursor: string | null;
   hasMore: boolean;
 }
 
-export async function fetchCatalogue(): Promise<CatalogueEntry[]> {
-  const page = await apiGet<CataloguePage>('/process-definitions');
-  return page.data;
+export interface FetchCatalogueParams {
+  query?: string | undefined;
+  category?: string | undefined;
+  cursor?: string | undefined;
+  limit?: number | undefined;
+}
+
+export async function fetchCatalogue(params?: FetchCatalogueParams): Promise<CataloguePage> {
+  const search = new URLSearchParams();
+  if (params?.query) {
+    search.set('query', params.query);
+  }
+  if (params?.category) {
+    search.set('category', params.category);
+  }
+  if (params?.cursor) {
+    search.set('cursor', params.cursor);
+  }
+  if (params?.limit) {
+    search.set('limit', String(params.limit));
+  }
+  const queryString = search.toString();
+  const path = queryString ? `/process-definitions?${queryString}` : '/process-definitions';
+
+  return apiGet<CataloguePage>(path);
 }
 
 // Returns null rather than throwing on 404, so a page can render notFound()
