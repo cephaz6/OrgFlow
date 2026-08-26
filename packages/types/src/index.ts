@@ -5,6 +5,7 @@ export type * from './common.js';
 export type * from './condition.js';
 export type * from './definition-document.js';
 export type * from './delegation.js';
+export type * from './attachment.js';
 export type * from './engine.js';
 export type * from './events.js';
 export type * from './invitations.js';
