@@ -93,6 +93,9 @@ export interface FindCasesFilter {
   submittedByUserId?: string;
   status?: CaseStatus;
   definitionId?: string;
+  // Free text over reference or title. Absent means no filter rather than
+  // an empty search, which would otherwise match nothing.
+  query?: string;
   // PRD.md §11.10: cursor-based pagination. The cursor is the case_id of
   // the last row of the previous page. Ordering is by case_id descending
   // rather than created_at, which is what makes a single opaque cursor
@@ -124,6 +127,16 @@ export async function findCasesForCurrentTenant(
   }
   if (filter.definitionId) {
     query = query.where('definition_id', '=', filter.definitionId);
+  }
+  if (filter.query) {
+    // Wrapped in its own group so it cannot widen the filters above: without
+    // the callback the OR would associate across them and a status/definition
+    // filter would stop applying to reference/title matches, the same
+    // reasoning findMemberDirectoryForCurrentTenant's own search uses.
+    const term = `%${filter.query}%`;
+    query = query.where((eb) =>
+      eb.or([eb('reference', 'ilike', term), eb('title', 'ilike', term)]),
+    );
   }
   if (filter.cursor) {
     query = query.where('case_id', '<', filter.cursor);

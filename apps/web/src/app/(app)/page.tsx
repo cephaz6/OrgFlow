@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   // In parallel: none of the three depends on another, and the page cannot
   // render until all have arrived, so sequencing them would only add their
   // latencies together.
-  const [approvals, cases, cataloguePage] = await Promise.all([
+  const [queuePage, casePage, cataloguePage] = await Promise.all([
     fetchMyQueue(),
     fetchMyCases(),
     // A large, unpaginated limit rather than the catalogue page's own
@@ -32,6 +32,8 @@ export default async function DashboardPage() {
     // more processes than that would silently truncate.
     fetchCatalogue({ limit: 200 }),
   ]);
+  const approvals = queuePage.data;
+  const cases = casePage.data;
   const catalogue = cataloguePage.data;
 
   // One instant for the whole page, so two rows cannot disagree about

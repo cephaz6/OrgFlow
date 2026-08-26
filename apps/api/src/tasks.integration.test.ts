@@ -145,6 +145,57 @@ describe('tasks API against real Postgres and Mongo', () => {
     expect(entry.caseTitle).toBe('mbp14');
   });
 
+  it('paginates the assigned queue without repeating or skipping a task', async () => {
+    const cases = await Promise.all([submitCase(701), submitCase(702), submitCase(703)]);
+    const managerCookie = await cookieFor(cases[0]!.managerTask.assigneeUserId, [
+      'member',
+      'approver',
+    ]);
+
+    const seen = new Set<string>();
+    let cursor: string | undefined;
+    for (;;) {
+      const response = await request(buildApp())
+        .get('/api/v1/tasks')
+        .query({ limit: 2, ...(cursor ? { cursor } : {}) })
+        .set('Cookie', managerCookie);
+      expect(response.status).toBe(200);
+      for (const task of response.body.data as Array<{ taskId: string }>) {
+        expect(seen.has(task.taskId)).toBe(false);
+        seen.add(task.taskId);
+      }
+      if (!response.body.hasMore) {
+        break;
+      }
+      cursor = response.body.nextCursor as string;
+    }
+
+    for (const { managerTask } of cases) {
+      expect(seen.has(managerTask.taskId)).toBe(true);
+    }
+  });
+
+  it('finds an assigned task by a substring of its case reference', async () => {
+    const { reference, managerTask } = await submitCase(704);
+    const managerCookie = await cookieFor(managerTask.assigneeUserId, ['member', 'approver']);
+
+    const found = await request(buildApp())
+      .get('/api/v1/tasks')
+      .query({ query: reference.slice(-4) })
+      .set('Cookie', managerCookie);
+    expect(found.status).toBe(200);
+    expect(
+      (found.body.data as Array<{ taskId: string }>).some((t) => t.taskId === managerTask.taskId),
+    ).toBe(true);
+
+    const notFound = await request(buildApp())
+      .get('/api/v1/tasks')
+      .query({ query: `no-such-reference-${generateId()}` })
+      .set('Cookie', managerCookie);
+    expect(notFound.status).toBe(200);
+    expect(notFound.body.data).toEqual([]);
+  });
+
   it('carries requester context on the decision screen', async () => {
     // PRD.md §13.2: the decision screen must hold everything needed to
     // decide, on one screen, without navigating away. Requester name,

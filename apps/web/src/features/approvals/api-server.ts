@@ -1,6 +1,27 @@
 import { ApiError } from '../../lib/api-error';
 import { apiGet } from '../../lib/api-server';
-import type { TaskDetail, TaskQueueEntry, TaskQueuePage } from './types';
+import type { TaskDetail, TaskQueuePage } from './types';
+
+export interface FetchQueueParams {
+  query?: string | undefined;
+  cursor?: string | undefined;
+  limit?: number | undefined;
+}
+
+function buildQueuePath(base: string, params?: FetchQueueParams): string {
+  const search = new URLSearchParams();
+  if (params?.query) {
+    search.set('query', params.query);
+  }
+  if (params?.cursor) {
+    search.set('cursor', params.cursor);
+  }
+  if (params?.limit) {
+    search.set('limit', String(params.limit));
+  }
+  const queryString = search.toString();
+  return queryString ? `${base}?${queryString}` : base;
+}
 
 // Assigned to me, and claimable by me. Two calls because they answer two
 // different questions and the API keeps them apart: one is work somebody
@@ -8,14 +29,12 @@ import type { TaskDetail, TaskQueueEntry, TaskQueuePage } from './types';
 // No status filter: the repository already defaults to pending and claimed,
 // which is what "waiting on me" means. Passing a status here would have to
 // name a single one, and there are two.
-export async function fetchMyQueue(): Promise<TaskQueueEntry[]> {
-  const page = await apiGet<TaskQueuePage>('/tasks');
-  return page.data;
+export async function fetchMyQueue(params?: FetchQueueParams): Promise<TaskQueuePage> {
+  return apiGet<TaskQueuePage>(buildQueuePath('/tasks', params));
 }
 
-export async function fetchClaimableQueue(): Promise<TaskQueueEntry[]> {
-  const page = await apiGet<TaskQueuePage>('/tasks/available');
-  return page.data;
+export async function fetchClaimableQueue(params?: FetchQueueParams): Promise<TaskQueuePage> {
+  return apiGet<TaskQueuePage>(buildQueuePath('/tasks/available', params));
 }
 
 export async function fetchTask(taskId: string): Promise<TaskDetail | null> {

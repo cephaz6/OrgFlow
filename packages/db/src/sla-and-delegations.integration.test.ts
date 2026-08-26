@@ -190,7 +190,7 @@ describe('cross-tenant isolation on sla_timers and delegations', () => {
         (trx) => findDelegationsForUser(trx, tenantA.user.userId),
       );
 
-      expect(visibleToB).toHaveLength(0);
+      expect(visibleToB.delegations).toHaveLength(0);
     });
 
     it('returns organisation A delegations to a session scoped to organisation A', async () => {
@@ -200,9 +200,9 @@ describe('cross-tenant isolation on sla_timers and delegations', () => {
         (trx) => findDelegationsForUser(trx, tenantA.user.userId),
       );
 
-      expect(visibleToA).toHaveLength(1);
-      expect(visibleToA[0]?.fromUserId).toBe(tenantA.user.userId);
-      expect(visibleToA[0]?.toUserId).toBe(tenantA.otherUser.userId);
+      expect(visibleToA.delegations).toHaveLength(1);
+      expect(visibleToA.delegations[0]?.fromUserId).toBe(tenantA.user.userId);
+      expect(visibleToA.delegations[0]?.toUserId).toBe(tenantA.otherUser.userId);
     });
 
     it('resolves an active delegate only within the delegating organisation', async () => {
@@ -261,8 +261,8 @@ describe('cross-tenant isolation on sla_timers and delegations', () => {
         (trx) => findDelegationsForUser(trx, tenantA.user.userId),
       );
 
-      expect(remainingInB).toHaveLength(0);
-      expect(remainingInA).toHaveLength(1);
+      expect(remainingInB.delegations).toHaveLength(0);
+      expect(remainingInA.delegations).toHaveLength(1);
     });
   });
 });

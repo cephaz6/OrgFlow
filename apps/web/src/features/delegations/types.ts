@@ -14,6 +14,8 @@ export interface DelegationEntry {
 
 export interface DelegationPage {
   data: DelegationEntry[];
+  nextCursor: string | null;
+  hasMore: boolean;
 }
 
 export interface CreateDelegationInput {

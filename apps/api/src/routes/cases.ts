@@ -314,6 +314,7 @@ export function createCasesRouter(deps: CasesDeps): Router {
           ...(typeof req.query.definitionId === 'string'
             ? { definitionId: req.query.definitionId }
             : {}),
+          ...(typeof req.query.query === 'string' ? { query: req.query.query } : {}),
           ...(limit !== undefined ? { limit } : {}),
           ...(typeof req.query.cursor === 'string' ? { cursor: req.query.cursor } : {}),
         }),

@@ -205,6 +205,27 @@ describe('cases API against real Postgres and Mongo', () => {
     expect(task.status).toBe('pending');
   });
 
+  it('finds a submitted case by a substring of its reference', async () => {
+    const agent = await signInAsDevUser();
+    const draft = await createDraft(agent, laptopValues(850));
+    const submitted = await agent.post(`/api/v1/cases/${draft.caseId}/submit`);
+    const reference = submitted.body.case.reference as string;
+
+    const found = await agent
+      .get('/api/v1/cases')
+      .query({ view: 'mine', query: reference.slice(-4) });
+    expect(found.status).toBe(200);
+    expect(
+      (found.body.data as Array<{ reference: string }>).some((c) => c.reference === reference),
+    ).toBe(true);
+
+    const notFound = await agent
+      .get('/api/v1/cases')
+      .query({ view: 'mine', query: `no-such-reference-${generateId()}` });
+    expect(notFound.status).toBe(200);
+    expect(notFound.body.data).toEqual([]);
+  });
+
   it('writes the case, task, transition and audit row in the same transaction', async () => {
     const agent = await signInAsDevUser();
     const draft = await createDraft(agent, laptopValues(850));

@@ -147,6 +147,7 @@ export type {
   RecordTaskDecisionInput,
   TaskQueueEntry,
   TaskQueueFilter,
+  TaskQueuePage,
 } from './repositories/case-tasks.js';
 export {
   appendCaseTransition,
@@ -168,7 +169,11 @@ export {
   findDelegationById,
   findDelegationsForUser,
 } from './repositories/delegations.js';
-export type { CreateDelegationInput } from './repositories/delegations.js';
+export type {
+  CreateDelegationInput,
+  DelegationPage,
+  FindDelegationsForUserFilter,
+} from './repositories/delegations.js';
 export {
   countConfirmedAttachmentsForField,
   createAttachment,

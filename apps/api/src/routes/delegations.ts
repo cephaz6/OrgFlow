@@ -144,15 +144,24 @@ export function createDelegationsRouter(deps: DelegationsDeps): Router {
         );
       }
 
-      const delegations = await withTenantTransaction(deps.db, session.organisationId, (trx) =>
-        findDelegationsForUser(trx, session.userId),
+      const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined;
+      if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
+        throw new HttpProblemError(400, 'Bad Request', 'limit must be a positive integer.');
+      }
+
+      const page = await withTenantTransaction(deps.db, session.organisationId, (trx) =>
+        findDelegationsForUser(trx, session.userId, {
+          ...(typeof req.query.query === 'string' ? { query: req.query.query } : {}),
+          ...(limit !== undefined ? { limit } : {}),
+          ...(typeof req.query.cursor === 'string' ? { cursor: req.query.cursor } : {}),
+        }),
       );
 
       const data = await Promise.all(
-        delegations.map((delegation) => toResponse(deps, session.userId, delegation)),
+        page.delegations.map((delegation) => toResponse(deps, session.userId, delegation)),
       );
 
-      res.status(200).json({ data, nextCursor: null, hasMore: false });
+      res.status(200).json({ data, nextCursor: page.nextCursor, hasMore: page.hasMore });
     } catch (err) {
       next(err);
     }

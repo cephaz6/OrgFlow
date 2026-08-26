@@ -67,6 +67,26 @@ describe('buildPrevHref', () => {
   });
 });
 
+describe('keyPrefix namespaces two independent lists on one page', () => {
+  it('uses prefixed keys instead of the bare ones', () => {
+    const href = buildNextHref('/approvals', {}, 'c2', 'mine');
+    expect(href).toBe('/approvals?mineCursor=c2&mineHistory=');
+  });
+
+  it('two prefixes on the same URL do not interfere with each other', () => {
+    const params = { mineCursor: 'm2', mineHistory: '', claimCursor: 'c2', claimHistory: '' };
+
+    const mineNext = buildNextHref('/approvals', params, 'm3', 'mine');
+    const url = new URL(`https://x${mineNext}`);
+    // The claim* params must survive a next-page navigation on the mine list.
+    expect(url.searchParams.get('claimCursor')).toBe('c2');
+    expect(url.searchParams.get('mineCursor')).toBe('m3');
+
+    const claimPrev = buildPrevHref('/approvals', params, 'claim');
+    expect(claimPrev).toBe('/approvals?mineCursor=m2&mineHistory=');
+  });
+});
+
 describe('next then prev round-trips back to the original page', () => {
   it('page 1 -> next -> prev returns to page 1', () => {
     const page1: Record<string, string | undefined> = {};
