@@ -3,6 +3,7 @@ export type { DbConnectionConfig } from './connection.js';
 export { pingDatabase } from './health.js';
 export { withTenantTransaction } from './tenant-transaction.js';
 export { generateId } from './uuid.js';
+export { clampPageSize, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './pagination.js';
 export type { Database } from './schema.js';
 export {
   countActiveOwnersForCurrentTenant,
