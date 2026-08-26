@@ -5,6 +5,7 @@ import { Ban, Clock, MailCheck, MailX, UserPlus, type LucideIcon } from 'lucide-
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { formatDate } from '../../lib/format';
 import { revokeInvitation } from './api-client';
 import type { InvitationEntry } from './types';
 
@@ -76,6 +77,9 @@ export function PendingInvitationsList({ invitations }: PendingInvitationsListPr
                 Status
               </th>
               <th scope="col" className="px-4 py-3 font-medium">
+                Sent
+              </th>
+              <th scope="col" className="px-4 py-3 font-medium">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -96,6 +100,9 @@ export function PendingInvitationsList({ invitations }: PendingInvitationsListPr
                   <td className="px-4 py-3">{invitation.roles.join(', ')}</td>
                   <td className="px-4 py-3">
                     <StatusBadge tone={status.tone} icon={status.icon} label={status.label} />
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {formatDate(invitation.createdAt)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {canRevoke ? (

@@ -6,6 +6,7 @@ import { CircleSlash, Pencil, UserMinus, UserRound, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { formatDate } from '../../lib/format';
 import { removeMember, updateMember } from './api-client';
 import { ASSIGNABLE_ROLES, type MemberEntry } from './types';
 
@@ -88,6 +89,9 @@ export function MemberList({ members, currentUserId }: MemberListProps) {
                 Status
               </th>
               <th scope="col" className="px-4 py-3 font-medium">
+                Joined
+              </th>
+              <th scope="col" className="px-4 py-3 font-medium">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -122,6 +126,7 @@ export function MemberList({ members, currentUserId }: MemberListProps) {
                       label={presentation.label}
                     />
                   </td>
+                  <td className="px-4 py-3 text-muted-foreground">{formatDate(member.joinedAt)}</td>
                   <td className="px-4 py-3">
                     {isSelf || isRemoved ? null : (
                       <span className="flex justify-end gap-2">

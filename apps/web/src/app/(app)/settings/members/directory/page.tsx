@@ -1,10 +1,11 @@
-import { EmptyState } from '@orgflow/ui';
+import { EmptyState, Pagination } from '@orgflow/ui';
 import { ShieldOff } from 'lucide-react';
 import type { Metadata } from 'next';
 
 import { getSession } from '../../../../../features/auth';
 import { fetchMembers, MemberList } from '../../../../../features/members';
 import { PageHeader, SectionTabs } from '../../../../../features/shell';
+import { buildNextHref, buildPrevHref } from '../../../../../lib/pagination';
 
 export const metadata: Metadata = {
   title: 'Active members: OrgFlow',
@@ -16,20 +17,23 @@ const TABS = [
   { href: '/settings/members/directory', label: 'Active members' },
 ];
 
+const BASE_PATH = '/settings/members/directory';
+
 interface PageProps {
-  searchParams: Promise<{ query?: string }>;
+  searchParams: Promise<{ query?: string; cursor?: string; history?: string }>;
 }
 
 export default async function MemberDirectoryPage({ searchParams }: PageProps) {
-  const { query } = await searchParams;
+  const resolvedSearchParams = await searchParams;
+  const { query, cursor } = resolvedSearchParams;
   const session = await getSession();
 
   // The API is the authority (PRD.md §12.3), so this asks it rather than
   // deciding from the session's roles claim, which ADR-0010 leaves up to
   // twelve hours stale. A null answer is its 403.
-  const members = await fetchMembers(query);
+  const page = await fetchMembers({ query, cursor });
 
-  if (members === null) {
+  if (page === null) {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader title="Active members" />
@@ -73,7 +77,16 @@ export default async function MemberDirectoryPage({ searchParams }: PageProps) {
 
       {/* getSession() cannot be null here: the (app) layout redirects when
           there is no session, and this is what tells the compiler so. */}
-      <MemberList members={members} currentUserId={session!.user.userId} />
+      <MemberList members={page.members} currentUserId={session!.user.userId} />
+
+      <Pagination
+        prevHref={buildPrevHref(BASE_PATH, resolvedSearchParams)}
+        nextHref={
+          page.hasMore && page.nextCursor
+            ? buildNextHref(BASE_PATH, resolvedSearchParams, page.nextCursor)
+            : null
+        }
+      />
     </div>
   );
 }

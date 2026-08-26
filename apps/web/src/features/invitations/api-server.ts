@@ -2,12 +2,38 @@ import { ApiError } from '../../lib/api-error';
 import { apiGet } from '../../lib/api-server';
 import type { InvitationEntry, InvitationPreview } from './types';
 
+export interface FetchInvitationsParams {
+  query?: string | undefined;
+  cursor?: string | undefined;
+  limit?: number | undefined;
+}
+
+export interface InvitationsPageResult {
+  invitations: InvitationEntry[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 // Same 403-to-null narrowing as features/members: an administration screen
 // asking whether the viewer may manage invitations, not an error.
-export async function fetchInvitations(): Promise<InvitationEntry[] | null> {
+export async function fetchInvitations(
+  params?: FetchInvitationsParams,
+): Promise<InvitationsPageResult | null> {
+  const search = new URLSearchParams();
+  if (params?.query) {
+    search.set('query', params.query);
+  }
+  if (params?.cursor) {
+    search.set('cursor', params.cursor);
+  }
+  if (params?.limit) {
+    search.set('limit', String(params.limit));
+  }
+  const queryString = search.toString();
+  const path = queryString ? `/invitations?${queryString}` : '/invitations';
+
   try {
-    const result = await apiGet<{ invitations: InvitationEntry[] }>('/invitations');
-    return result.invitations;
+    return await apiGet<InvitationsPageResult>(path);
   } catch (err) {
     if (err instanceof ApiError && err.status === 403) {
       return null;

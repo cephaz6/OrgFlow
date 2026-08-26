@@ -173,6 +173,99 @@ describe('members API against real Postgres', () => {
     expect(response.status).toBe(403);
   });
 
+  it('paginates the directory without repeating or skipping a member across pages', async () => {
+    const first = await request(app())
+      .get('/api/v1/members')
+      .query({ limit: 2 })
+      .set('Cookie', adminCookie);
+
+    expect(first.status).toBe(200);
+    expect(first.body.members).toHaveLength(2);
+    expect(first.body.hasMore).toBe(true);
+    expect(typeof first.body.nextCursor).toBe('string');
+
+    const seen = new Set(first.body.members.map((m: { userId: string }) => m.userId));
+    let cursor = first.body.nextCursor as string;
+    let hasMore = true;
+
+    while (hasMore) {
+      const next = await request(app())
+        .get('/api/v1/members')
+        .query({ limit: 2, cursor })
+        .set('Cookie', adminCookie);
+
+      expect(next.status).toBe(200);
+      for (const member of next.body.members as Array<{ userId: string }>) {
+        expect(seen.has(member.userId)).toBe(false);
+        seen.add(member.userId);
+      }
+      hasMore = next.body.hasMore as boolean;
+      cursor = next.body.nextCursor as string;
+    }
+
+    expect(seen.has(plainUserId)).toBe(true);
+    expect(seen.has(adminUserId)).toBe(true);
+    expect(seen.has(ownerUserId)).toBe(true);
+    expect(seen.has(secondOwnerUserId)).toBe(true);
+  });
+
+  it('does not skip or repeat a member when two share the exact same display name', async () => {
+    // The directory orders by display name, not by id (unlike cases.ts's
+    // cursor), so the cursor is a composite of (name, id): this proves the
+    // id half of that composite actually breaks the tie, rather than the
+    // second same-named row being silently dropped or duplicated.
+    const sharedName = `Duplicate Name ${generateId()}`;
+    const twins = await Promise.all(
+      [0, 1].map(async () => {
+        const user = await createUserWithIdentity(db, {
+          email: `twin-${generateId()}@example.invalid`,
+          displayName: sharedName,
+          issuer: 'urn:orgflow:test',
+          subject: `twin-${generateId()}`,
+        });
+        await withTenantTransaction(db, organisationId, (trx) =>
+          insertOrganisationMember(trx, {
+            organisationId,
+            userId: user.userId,
+            roles: ['member'],
+          }),
+        );
+        return user.userId;
+      }),
+    );
+
+    const first = await request(app())
+      .get('/api/v1/members')
+      .query({ query: sharedName, limit: 1 })
+      .set('Cookie', adminCookie);
+    expect(first.status).toBe(200);
+    expect(first.body.members).toHaveLength(1);
+    expect(first.body.hasMore).toBe(true);
+
+    const second = await request(app())
+      .get('/api/v1/members')
+      .query({ query: sharedName, limit: 1, cursor: first.body.nextCursor })
+      .set('Cookie', adminCookie);
+    expect(second.status).toBe(200);
+    expect(second.body.members).toHaveLength(1);
+    expect(second.body.hasMore).toBe(false);
+
+    const seenIds = [first.body.members[0].userId, second.body.members[0].userId];
+    expect(new Set(seenIds)).toEqual(new Set(twins));
+  });
+
+  it('filters the directory by a free-text query over name or email', async () => {
+    const response = await request(app())
+      .get('/api/v1/members')
+      .query({ query: 'members-plain' })
+      .set('Cookie', adminCookie);
+
+    expect(response.status).toBe(200);
+    const listed = response.body.members as Array<{ userId: string }>;
+    expect(listed.map((m) => m.userId)).toEqual([plainUserId]);
+    expect(response.body.hasMore).toBe(false);
+  });
+
   it('filters by role and by free text', async () => {
     const byRole = await request(app())
       .get('/api/v1/members?role=owner')

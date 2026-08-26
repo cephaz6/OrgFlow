@@ -8,6 +8,7 @@ export type { Database } from './schema.js';
 export {
   countActiveOwnersForCurrentTenant,
   findActiveMembersWithRole,
+  findMemberDirectoryEntryByUserId,
   findMemberDirectoryForCurrentTenant,
   findOrganisationMemberByUserId,
   findOrganisationMembersForCurrentTenant,
@@ -18,6 +19,7 @@ export {
 export type {
   InsertOrganisationMemberInput,
   MemberDirectoryFilter,
+  MemberDirectoryPage,
   UpdateOrganisationMemberInput,
 } from './repositories/organisation-members.js';
 export {
@@ -64,7 +66,11 @@ export {
   markInvitationAccepted,
   revokeInvitation,
 } from './repositories/invitations.js';
-export type { CreateInvitationInput } from './repositories/invitations.js';
+export type {
+  CreateInvitationInput,
+  FindInvitationsFilter,
+  InvitationPage,
+} from './repositories/invitations.js';
 export {
   createUserWithIdentity,
   ensurePlatformAdmin,

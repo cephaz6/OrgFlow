@@ -210,6 +210,64 @@ describe('invitations API against real Postgres', () => {
     expect(revokedAgain.status).toBe(404);
   });
 
+  it('paginates invitations without repeating or skipping one across pages', async () => {
+    const prefix = `page-test-${generateId()}`;
+    const emails = [0, 1, 2].map((n) => `${prefix}-${n}@example.invalid`);
+    for (const email of emails) {
+      const created = await request(app())
+        .post('/api/v1/invitations')
+        .set('Cookie', adminCookie)
+        .send({ email, roles: ['member'] });
+      expect(created.status).toBe(201);
+    }
+
+    const first = await request(app())
+      .get('/api/v1/invitations')
+      .query({ query: prefix, limit: 2 })
+      .set('Cookie', adminCookie);
+    expect(first.status).toBe(200);
+    expect(first.body.invitations).toHaveLength(2);
+    expect(first.body.hasMore).toBe(true);
+
+    const second = await request(app())
+      .get('/api/v1/invitations')
+      .query({ query: prefix, limit: 2, cursor: first.body.nextCursor })
+      .set('Cookie', adminCookie);
+    expect(second.status).toBe(200);
+    expect(second.body.invitations).toHaveLength(1);
+    expect(second.body.hasMore).toBe(false);
+
+    const seenEmails = new Set([
+      ...(first.body.invitations as Array<{ email: string }>).map((row) => row.email),
+      ...(second.body.invitations as Array<{ email: string }>).map((row) => row.email),
+    ]);
+    expect(seenEmails).toEqual(new Set(emails));
+  });
+
+  it('filters invitations by a free-text query over email', async () => {
+    const email = `findable-${generateId()}@example.invalid`;
+    const created = await request(app())
+      .post('/api/v1/invitations')
+      .set('Cookie', adminCookie)
+      .send({ email, roles: ['member'] });
+    expect(created.status).toBe(201);
+
+    const found = await request(app())
+      .get('/api/v1/invitations')
+      .query({ query: email })
+      .set('Cookie', adminCookie);
+    expect(found.status).toBe(200);
+    expect(found.body.invitations).toHaveLength(1);
+    expect(found.body.invitations[0].email).toBe(email);
+
+    const notFound = await request(app())
+      .get('/api/v1/invitations')
+      .query({ query: `no-such-address-${generateId()}` })
+      .set('Cookie', adminCookie);
+    expect(notFound.status).toBe(200);
+    expect(notFound.body.invitations).toHaveLength(0);
+  });
+
   it('previews an invitation by token without requiring a session', async () => {
     const email = `preview-${generateId()}@example.invalid`;
     const created = await request(app())
