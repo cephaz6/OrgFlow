@@ -130,6 +130,19 @@ async function deleteMessage(client: SQSClient, queueUrl: string, message: Messa
   }
 }
 
+const BACKOFF_BASE_MS = 2000;
+const BACKOFF_MAX_MS = 30_000;
+
+// Exponential, capped: a receive failure right after one success waits
+// briefly, in case it was momentary (a network blip, a throttle), but one
+// that keeps failing backs off up to BACKOFF_MAX_MS rather than hammering
+// the queue, or AWS itself, at a flat interval forever. Exported so the
+// shape of the ramp can be asserted directly, without needing a real SQS
+// failure to spin the loop for it.
+export function computeBackoffDelayMs(consecutiveFailures: number): number {
+  return Math.min(BACKOFF_BASE_MS * 2 ** consecutiveFailures, BACKOFF_MAX_MS);
+}
+
 // The local development driver. In a deployed environment the same handler
 // runs behind a Lambda event-source mapping (TECH-STACK.md §6), which is
 // the deployment step's job; nothing about the handler changes, only what
@@ -142,18 +155,28 @@ export async function runConsumer(
   shouldContinue: () => boolean = () => true,
 ): Promise<void> {
   logger.info({ queueUrl: config.queueUrl }, 'notification consumer polling');
+  let consecutiveFailures = 0;
 
   while (shouldContinue()) {
     try {
       const result = await pollOnce(client, config, handle, logger);
+      consecutiveFailures = 0;
       if (result.received > 0) {
         logger.info(result, 'poll cycle complete');
       }
     } catch (err) {
       // A receive failure is infrastructure, not a poison message. Log and
-      // keep polling rather than exiting the process.
-      logger.error({ err }, 'failed to poll the queue; retrying');
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // keep polling rather than exiting the process, but back off first:
+      // a queue that does not exist, or an AWS outage, fails identically
+      // on every attempt, and retrying it every 2 seconds forever produces
+      // nothing but a continuous stream of identical stack traces.
+      const delayMs = computeBackoffDelayMs(consecutiveFailures);
+      consecutiveFailures += 1;
+      logger.error(
+        { err, delayMs, consecutiveFailures },
+        'failed to poll the queue; backing off before retrying',
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 }
