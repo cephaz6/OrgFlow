@@ -7,6 +7,7 @@ import { createApp } from './app.js';
 import { loadConfig } from './config/env.js';
 import { resolveEmailSender } from './email/resolve-sender.js';
 import { createLogger } from './logger.js';
+import { resolveFileStore } from './storage/resolve-file-store.js';
 import type { Logger } from './logger.js';
 import { startSlaSweep } from './sla/sweep.js';
 
@@ -44,12 +45,14 @@ async function main(): Promise<void> {
 
     const publisher = createPublisher(config, logger);
     const emailSender = resolveEmailSender(config, logger);
+    const fileStore = resolveFileStore(config, logger);
 
     const app = createApp({
       db,
       mongoClient,
       publisher,
       emailSender,
+      fileStore,
       corsOrigin: config.ORGFLOW_WEB_URL,
       logger,
       sessionSecret: config.ORGFLOW_SESSION_SECRET,

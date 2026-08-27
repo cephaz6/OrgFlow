@@ -5,6 +5,7 @@ import {
   findCaseById,
   findCasesForCurrentTenant,
   findCaseTasksForCase,
+  findConfirmedAttachmentsForCase,
   findProcessDefinitionById,
   findProcessVersionById,
   recordTaskDecision,
@@ -330,7 +331,7 @@ export function createCasesRouter(deps: CasesDeps): Router {
     }
   });
 
-  // PRD.md §11.5: the full case. Attachments are Phase 7 and absent.
+  // PRD.md §11.5: the full case.
   router.get('/cases/:caseId', async (req, res, next) => {
     try {
       const session = sessionOf(req);
@@ -338,7 +339,7 @@ export function createCasesRouter(deps: CasesDeps): Router {
 
       const result = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
         const found = await requireVisibleCase(trx, session, caseId);
-        const [tasks, timeline, document] = await Promise.all([
+        const [tasks, timeline, document, attachments] = await Promise.all([
           findCaseTasksForCase(trx, found.caseId),
           buildCaseTimeline(trx, found.caseId),
           // Loaded by version_id, which is the whole point: a case detail
@@ -349,8 +350,9 @@ export function createCasesRouter(deps: CasesDeps): Router {
           // and a read path is no more entitled to ignore it than the
           // engine is.
           loadPinnedDocument(trx, deps.mongoClient, session.organisationId, found.versionId),
+          findConfirmedAttachmentsForCase(trx, found.caseId),
         ]);
-        return { found, tasks, timeline, document };
+        return { found, tasks, timeline, document, attachments };
       });
 
       const values = await readCaseValues(deps.mongoClient, session.organisationId, caseId);
@@ -360,6 +362,15 @@ export function createCasesRouter(deps: CasesDeps): Router {
         values,
         tasks: result.tasks,
         timeline: result.timeline,
+        attachments: result.attachments.map((attachment) => ({
+          attachmentId: attachment.attachmentId,
+          fieldKey: attachment.fieldKey,
+          filename: attachment.filename,
+          sizeBytes: attachment.sizeBytes,
+          scanStatus: attachment.scanStatus,
+          uploadedByUserId: attachment.uploadedByUserId,
+          createdAt: attachment.createdAt,
+        })),
         // The pinned document, so a caller can render the answers against
         // the questions this case was actually asked.
         document: result.document,

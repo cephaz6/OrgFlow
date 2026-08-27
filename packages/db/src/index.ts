@@ -178,8 +178,10 @@ export {
   countConfirmedAttachmentsForField,
   createAttachment,
   findAttachmentById,
+  findConfirmedAttachmentsForCase,
   markAttachmentConfirmed,
   markAttachmentScanned,
+  softDeleteAttachment,
 } from './repositories/attachments.js';
 export type {
   CreateAttachmentInput,

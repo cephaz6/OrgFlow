@@ -1,6 +1,7 @@
 import { createDb, findCaseTasksForCase, withTenantTransaction, type Database } from '@orgflow/db';
 import { createMongoClient, ensureIndexes } from '@orgflow/documents';
 import { createDummyEmailSender } from '@orgflow/email';
+import { createDummyFileStore } from '@orgflow/storage';
 import { createDummyPublisher, type DummyDomainEventPublisher } from '@orgflow/events';
 import type { Kysely } from 'kysely';
 import type { MongoClient } from 'mongodb';
@@ -61,6 +62,7 @@ describe('the SLA sweep against real Postgres and Mongo', () => {
       mongoClient,
       publisher,
       emailSender: createDummyEmailSender(),
+      fileStore: createDummyFileStore(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: '44'.repeat(32),

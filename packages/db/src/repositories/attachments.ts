@@ -2,7 +2,6 @@ import type { Attachment, AttachmentScanStatus } from '@orgflow/types';
 import type { Selectable, Transaction } from 'kysely';
 
 import type { AttachmentsTable, Database } from '../schema.js';
-import { generateId } from '../uuid.js';
 
 function toDomain(row: Selectable<AttachmentsTable>): Attachment {
   return {
@@ -21,12 +20,18 @@ function toDomain(row: Selectable<AttachmentsTable>): Attachment {
     uploadedByUserId: row.uploaded_by_user_id,
     confirmedAt: row.confirmed_at?.toISOString() ?? null,
     scannedAt: row.scanned_at?.toISOString() ?? null,
+    deletedAt: row.deleted_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
 
 export interface CreateAttachmentInput {
+  // Supplied by the caller, not generated here: the route needs the id
+  // before this row exists, to build the S3 storage key
+  // ({organisationId}/cases/{caseId}/{attachmentId}/{filename}) that gets
+  // passed to the presigned upload alongside it.
+  attachmentId: string;
   organisationId: string;
   caseId: string;
   fieldKey: string;
@@ -44,7 +49,7 @@ export async function createAttachment(
   const row = await trx
     .insertInto('attachments')
     .values({
-      attachment_id: generateId(),
+      attachment_id: input.attachmentId,
       organisation_id: input.organisationId,
       case_id: input.caseId,
       field_key: input.fieldKey,
@@ -60,6 +65,10 @@ export async function createAttachment(
   return toDomain(row);
 }
 
+// Soft-deleted rows still arrive here: the confirm and download routes both
+// need to tell "this attachment was deleted" apart from "this attachment
+// never existed," which a filtered-out null would collapse into the same
+// 404 either way.
 export async function findAttachmentById(
   trx: Transaction<Database>,
   attachmentId: string,
@@ -71,6 +80,25 @@ export async function findAttachmentById(
     .executeTakeFirst();
 
   return row ? toDomain(row) : null;
+}
+
+// The case detail view's "attachments on this case" read: confirmed and
+// not soft-deleted, since an abandoned presign or a removed file is not
+// something to show alongside the case's answers.
+export async function findConfirmedAttachmentsForCase(
+  trx: Transaction<Database>,
+  caseId: string,
+): Promise<Attachment[]> {
+  const rows = await trx
+    .selectFrom('attachments')
+    .selectAll()
+    .where('case_id', '=', caseId)
+    .where('confirmed_at', 'is not', null)
+    .where('deleted_at', 'is', null)
+    .orderBy('created_at', 'asc')
+    .execute();
+
+  return rows.map(toDomain);
 }
 
 // A field's declared maxFiles counts confirmed uploads only: an abandoned
@@ -88,6 +116,7 @@ export async function countConfirmedAttachmentsForField(
     .where('case_id', '=', caseId)
     .where('field_key', '=', fieldKey)
     .where('confirmed_at', 'is not', null)
+    .where('deleted_at', 'is', null)
     .executeTakeFirstOrThrow();
 
   return Number(row.count);
@@ -127,6 +156,21 @@ export async function markAttachmentScanned(
       scanned_at: input.scannedAt,
       updated_at: new Date(),
     })
+    .where('attachment_id', '=', attachmentId)
+    .returningAll()
+    .executeTakeFirstOrThrow();
+
+  return toDomain(row);
+}
+
+export async function softDeleteAttachment(
+  trx: Transaction<Database>,
+  attachmentId: string,
+  deletedAt: Date,
+): Promise<Attachment> {
+  const row = await trx
+    .updateTable('attachments')
+    .set({ deleted_at: deletedAt, updated_at: new Date() })
     .where('attachment_id', '=', attachmentId)
     .returningAll()
     .executeTakeFirstOrThrow();

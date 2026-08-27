@@ -71,6 +71,9 @@ importers:
       '@orgflow/events':
         specifier: workspace:^
         version: link:../../packages/events
+      '@orgflow/storage':
+        specifier: workspace:^
+        version: link:../../packages/storage
       '@orgflow/types':
         specifier: workspace:^
         version: link:../../packages/types

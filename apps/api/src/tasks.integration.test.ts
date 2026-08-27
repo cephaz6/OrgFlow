@@ -10,6 +10,7 @@ import {
 } from '@orgflow/db';
 import { createMongoClient, ensureIndexes } from '@orgflow/documents';
 import { createDummyEmailSender } from '@orgflow/email';
+import { createDummyFileStore } from '@orgflow/storage';
 import { createDummyPublisher, type DummyDomainEventPublisher } from '@orgflow/events';
 import type { OrganisationRole } from '@orgflow/types';
 import type { Kysely } from 'kysely';
@@ -68,6 +69,7 @@ describe('tasks API against real Postgres and Mongo', () => {
       mongoClient,
       publisher,
       emailSender: createDummyEmailSender(),
+      fileStore: createDummyFileStore(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: SESSION_SECRET,

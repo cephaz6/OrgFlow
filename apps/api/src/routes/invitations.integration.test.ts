@@ -8,6 +8,7 @@ import {
   type Database,
 } from '@orgflow/db';
 import { createDummyEmailSender, type DummyEmailSender } from '@orgflow/email';
+import { createDummyFileStore } from '@orgflow/storage';
 import { createMongoClient } from '@orgflow/documents';
 import { createDummyPublisher, type DummyDomainEventPublisher } from '@orgflow/events';
 import type { OrganisationRole } from '@orgflow/types';
@@ -106,6 +107,7 @@ describe('invitations API against real Postgres', () => {
       mongoClient,
       publisher,
       emailSender,
+      fileStore: createDummyFileStore(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: SESSION_SECRET,

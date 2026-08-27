@@ -40,6 +40,10 @@ const envSchema = z.object({
   // path, and it needs the identical construction-time choice (real SES or
   // the dummy sender) the workers already make.
   ORGFLOW_SES_FROM_ADDRESS: optionalString(z.string().email()),
+  // Blank means attachments go to the dummy file store instead of S3:
+  // presigned URLs are fabricated and never actually reachable, acceptable
+  // locally and in CI where nothing needs to exercise a real upload yet.
+  ORGFLOW_S3_BUCKET: optionalString(z.string().min(1)),
 });
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>>;
