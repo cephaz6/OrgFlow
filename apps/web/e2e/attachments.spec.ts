@@ -2,9 +2,23 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { expectNoAccessibilityViolations, signIn } from './support';
 
+// A harmless no-op whenever ORGFLOW_S3_BUCKET is set (this suite's own
+// local run, against real LocalStack S3): no request ever goes to this
+// host. In CI, where it is unset, the upload targets the dummy file
+// store's fabricated URL instead, which resolves to nothing real, so this
+// intercepts and fulfils it the same way packages/storage's own
+// DummyFileStore doc comment describes a test standing in for "the client
+// already uploaded to S3".
+async function interceptDummyUpload(page: Page): Promise<void> {
+  await page.route('https://dummy-file-store.invalid/**', (route) =>
+    route.fulfill({ status: 204 }),
+  );
+}
+
 // Above £1,000, which is what makes the seeded "quote" field
 // (packages/documents/src/seed/laptop-request.ts) visible at all.
 async function startAboveThresholdRequest(page: Page): Promise<void> {
+  await interceptDummyUpload(page);
   await page.goto('/cases/new/laptop-request');
   await expect(page.getByText('Preparing your request...')).toHaveCount(0, { timeout: 15_000 });
   await page.getByLabel(/Which model do you need/).selectOption('mbp16');
