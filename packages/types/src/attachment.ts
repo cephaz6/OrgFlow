@@ -20,6 +20,7 @@ export interface Attachment {
   uploadedByUserId: Uuid;
   confirmedAt: IsoDateTimeString | null;
   scannedAt: IsoDateTimeString | null;
+  deletedAt: IsoDateTimeString | null;
   createdAt: IsoDateTimeString;
   updatedAt: IsoDateTimeString;
 }

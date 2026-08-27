@@ -5,8 +5,10 @@ import {
   countConfirmedAttachmentsForField,
   createAttachment,
   findAttachmentById,
+  findConfirmedAttachmentsForCase,
   markAttachmentConfirmed,
   markAttachmentScanned,
+  softDeleteAttachment,
 } from './repositories/attachments.js';
 import { createCase } from './repositories/cases.js';
 import { createOrganisation } from './repositories/organisations.js';
@@ -86,6 +88,7 @@ describe('attachments repository against real Postgres', () => {
   it('creates a pending attachment and reads it back', async () => {
     const created = await withTenantTransaction(db, tenantA.organisation.organisationId, (trx) =>
       createAttachment(trx, {
+        attachmentId: generateId(),
         organisationId: tenantA.organisation.organisationId,
         caseId: tenantA.caseRow.caseId,
         fieldKey: 'quote',
@@ -110,6 +113,7 @@ describe('attachments repository against real Postgres', () => {
   it('hides organisation A attachments from a session scoped to organisation B', async () => {
     const created = await withTenantTransaction(db, tenantA.organisation.organisationId, (trx) =>
       createAttachment(trx, {
+        attachmentId: generateId(),
         organisationId: tenantA.organisation.organisationId,
         caseId: tenantA.caseRow.caseId,
         fieldKey: 'quote',
@@ -132,6 +136,7 @@ describe('attachments repository against real Postgres', () => {
     await expect(
       withTenantTransaction(db, tenantA.organisation.organisationId, (trx) =>
         createAttachment(trx, {
+          attachmentId: generateId(),
           organisationId: tenantB.organisation.organisationId,
           caseId: tenantB.caseRow.caseId,
           fieldKey: 'quote',
@@ -150,6 +155,7 @@ describe('attachments repository against real Postgres', () => {
 
     const pending = await withTenantTransaction(db, tenantA.organisation.organisationId, (trx) =>
       createAttachment(trx, {
+        attachmentId: generateId(),
         organisationId: tenantA.organisation.organisationId,
         caseId: tenantA.caseRow.caseId,
         fieldKey,
@@ -162,6 +168,7 @@ describe('attachments repository against real Postgres', () => {
     );
     const confirmed = await withTenantTransaction(db, tenantA.organisation.organisationId, (trx) =>
       createAttachment(trx, {
+        attachmentId: generateId(),
         organisationId: tenantA.organisation.organisationId,
         caseId: tenantA.caseRow.caseId,
         fieldKey,
@@ -188,6 +195,7 @@ describe('attachments repository against real Postgres', () => {
   it('records the scan outcome, including the sniffed mime type', async () => {
     const created = await withTenantTransaction(db, tenantA.organisation.organisationId, (trx) =>
       createAttachment(trx, {
+        attachmentId: generateId(),
         organisationId: tenantA.organisation.organisationId,
         caseId: tenantA.caseRow.caseId,
         fieldKey: 'quote',
@@ -210,5 +218,60 @@ describe('attachments repository against real Postgres', () => {
     expect(scanned.scanStatus).toBe('clean');
     expect(scanned.sniffedMimeType).toBe('application/pdf');
     expect(scanned.scannedAt).not.toBeNull();
+  });
+
+  it('excludes a soft-deleted attachment from the field count and the case list, but not by id', async () => {
+    const fieldKey = `deletable-${generateId()}`;
+
+    const created = await withTenantTransaction(db, tenantA.organisation.organisationId, (trx) =>
+      createAttachment(trx, {
+        attachmentId: generateId(),
+        organisationId: tenantA.organisation.organisationId,
+        caseId: tenantA.caseRow.caseId,
+        fieldKey,
+        filename: 'to-be-deleted.pdf',
+        declaredMimeType: 'application/pdf',
+        sizeBytes: 10,
+        storageKey: 'irrelevant-4',
+        uploadedByUserId: tenantA.user.userId,
+      }),
+    );
+    await withTenantTransaction(db, tenantA.organisation.organisationId, (trx) =>
+      markAttachmentConfirmed(trx, created.attachmentId, new Date()),
+    );
+
+    const beforeDelete = await withTenantTransaction(
+      db,
+      tenantA.organisation.organisationId,
+      (trx) => findConfirmedAttachmentsForCase(trx, tenantA.caseRow.caseId),
+    );
+    expect(beforeDelete.some((a) => a.attachmentId === created.attachmentId)).toBe(true);
+
+    const deleted = await withTenantTransaction(db, tenantA.organisation.organisationId, (trx) =>
+      softDeleteAttachment(trx, created.attachmentId, new Date()),
+    );
+    expect(deleted.deletedAt).not.toBeNull();
+
+    const count = await withTenantTransaction(db, tenantA.organisation.organisationId, (trx) =>
+      countConfirmedAttachmentsForField(trx, tenantA.caseRow.caseId, fieldKey),
+    );
+    expect(count).toBe(0);
+
+    const afterDelete = await withTenantTransaction(
+      db,
+      tenantA.organisation.organisationId,
+      (trx) => findConfirmedAttachmentsForCase(trx, tenantA.caseRow.caseId),
+    );
+    expect(afterDelete.some((a) => a.attachmentId === created.attachmentId)).toBe(false);
+
+    // findAttachmentById still returns it: the download route needs to
+    // distinguish "deleted" from "never existed" (both 404 to the caller,
+    // but for different reasons, and only one of them is worth logging).
+    const stillFindableById = await withTenantTransaction(
+      db,
+      tenantA.organisation.organisationId,
+      (trx) => findAttachmentById(trx, created.attachmentId),
+    );
+    expect(stillFindableById?.attachmentId).toBe(created.attachmentId);
   });
 });

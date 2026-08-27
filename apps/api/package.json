@@ -20,6 +20,7 @@
     "@orgflow/documents": "workspace:^",
     "@orgflow/email": "workspace:^",
     "@orgflow/events": "workspace:^",
+    "@orgflow/storage": "workspace:^",
     "@orgflow/types": "workspace:^",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

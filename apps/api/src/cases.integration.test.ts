@@ -18,6 +18,7 @@ import {
   insertProcessDefinitionDocument,
 } from '@orgflow/documents';
 import { createDummyEmailSender } from '@orgflow/email';
+import { createDummyFileStore } from '@orgflow/storage';
 import { createDummyPublisher, type DummyDomainEventPublisher } from '@orgflow/events';
 import type { Kysely } from 'kysely';
 import type { MongoClient } from 'mongodb';
@@ -54,6 +55,7 @@ describe('cases API against real Postgres and Mongo', () => {
   function buildApp() {
     return createApp({
       emailSender: createDummyEmailSender(),
+      fileStore: createDummyFileStore(),
       db,
       mongoClient,
       publisher,

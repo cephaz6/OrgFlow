@@ -10,6 +10,7 @@ import {
   type Database,
 } from '@orgflow/db';
 import { createDummyEmailSender } from '@orgflow/email';
+import { createDummyFileStore } from '@orgflow/storage';
 import { createMongoClient } from '@orgflow/documents';
 import { createDummyPublisher, type DummyDomainEventPublisher } from '@orgflow/events';
 import type { OrganisationRole } from '@orgflow/types';
@@ -61,6 +62,7 @@ describe('organisations API against real Postgres', () => {
       mongoClient,
       publisher,
       emailSender: createDummyEmailSender(),
+      fileStore: createDummyFileStore(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: SESSION_SECRET,

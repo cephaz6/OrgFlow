@@ -1,5 +1,6 @@
 import type { Database } from '@orgflow/db';
 import { createDummyEmailSender } from '@orgflow/email';
+import { createDummyFileStore } from '@orgflow/storage';
 import { createDummyPublisher } from '@orgflow/events';
 import type { Kysely } from 'kysely';
 import type { MongoClient } from 'mongodb';
@@ -18,6 +19,7 @@ function buildApp() {
     mongoClient: {} as MongoClient,
     publisher: createDummyPublisher(),
     emailSender: createDummyEmailSender(),
+    fileStore: createDummyFileStore(),
     corsOrigin: 'http://localhost:3000',
     logger: createLogger('silent'),
     sessionSecret: '0'.repeat(64),
@@ -60,6 +62,7 @@ describe('POST /auth/dev-login', () => {
       mongoClient: {} as MongoClient,
       publisher: createDummyPublisher(),
       emailSender: createDummyEmailSender(),
+      fileStore: createDummyFileStore(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: '0'.repeat(64),

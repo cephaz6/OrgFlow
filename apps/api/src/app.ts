@@ -1,6 +1,7 @@
 import type { Database } from '@orgflow/db';
 import type { EmailSender } from '@orgflow/email';
 import type { DomainEventPublisher } from '@orgflow/events';
+import type { FileStore } from '@orgflow/storage';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { type Express } from 'express';
@@ -13,6 +14,7 @@ import type { OidcProviderConfig } from './auth/oidc-client.js';
 import type { Logger } from './logger.js';
 import { correlationId } from './middleware/correlation-id.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
+import { createAttachmentsRouter } from './routes/attachments.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createCasesRouter } from './routes/cases.js';
 import { createDelegationsRouter } from './routes/delegations.js';
@@ -30,6 +32,7 @@ export interface CreateAppDeps {
   mongoClient: MongoClient;
   publisher: DomainEventPublisher;
   emailSender: EmailSender;
+  fileStore: FileStore;
   corsOrigin: string;
   logger: Logger;
   sessionSecret: string;
@@ -106,6 +109,17 @@ export function createApp(deps: CreateAppDeps): Express {
     '/api/v1',
     createDelegationsRouter({
       db: deps.db,
+      sessionSecret: deps.sessionSecret,
+    }),
+  );
+
+  app.use(
+    '/api/v1',
+    createAttachmentsRouter({
+      db: deps.db,
+      mongoClient: deps.mongoClient,
+      publisher: deps.publisher,
+      fileStore: deps.fileStore,
       sessionSecret: deps.sessionSecret,
     }),
   );

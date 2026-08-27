@@ -10,6 +10,7 @@ import {
 } from '@orgflow/db';
 import { createMongoClient } from '@orgflow/documents';
 import { createDummyEmailSender } from '@orgflow/email';
+import { createDummyFileStore } from '@orgflow/storage';
 import { createDummyPublisher } from '@orgflow/events';
 import type { Kysely } from 'kysely';
 import type { MongoClient } from 'mongodb';
@@ -42,6 +43,7 @@ describe('groups API against real Postgres', () => {
       mongoClient,
       publisher: createDummyPublisher(),
       emailSender: createDummyEmailSender(),
+      fileStore: createDummyFileStore(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: SESSION_SECRET,

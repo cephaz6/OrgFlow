@@ -12,6 +12,7 @@ import {
 } from '@orgflow/db';
 import { createMongoClient, ensureIndexes } from '@orgflow/documents';
 import { createDummyEmailSender } from '@orgflow/email';
+import { createDummyFileStore } from '@orgflow/storage';
 import { createDummyPublisher } from '@orgflow/events';
 import type { OrganisationRole } from '@orgflow/types';
 import type { Kysely } from 'kysely';
@@ -157,6 +158,7 @@ describe('reports API against real Postgres and Mongo', () => {
       mongoClient,
       publisher: createDummyPublisher(),
       emailSender: createDummyEmailSender(),
+      fileStore: createDummyFileStore(),
       corsOrigin: 'http://localhost:3000',
       logger: createLogger('silent'),
       sessionSecret: SESSION_SECRET,

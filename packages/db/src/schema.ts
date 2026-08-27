@@ -289,6 +289,7 @@ export interface AttachmentsTable {
   uploaded_by_user_id: string;
   confirmed_at: Date | null;
   scanned_at: Date | null;
+  deleted_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
