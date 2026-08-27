@@ -1,6 +1,7 @@
 import type { CaseTask, TaskDecision, TaskStatus, TaskType } from '@orgflow/types';
-import type { Selectable, Transaction } from 'kysely';
+import { sql, type Selectable, type Transaction } from 'kysely';
 
+import { clampPageSize, decodeCompositeCursor, encodeCompositeCursor } from '../pagination.js';
 import type { CaseTasksTable, Database } from '../schema.js';
 import { generateId } from '../uuid.js';
 
@@ -191,6 +192,27 @@ export interface TaskQueueFilter {
   // supplied instant rather than now() keeps the query as deterministic as
   // the rest of the stack, and lets a test pin the clock.
   overdueAt?: Date;
+  // Free text over the case's reference or title. Absent means no filter
+  // rather than an empty search, which would otherwise match nothing.
+  query?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface TaskQueuePage {
+  entries: TaskQueueEntry[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+interface QueueCursor extends Record<string, string> {
+  // An ISO timestamp, or the literal string 'infinity': Postgres's
+  // timestamptz type accepts 'infinity' natively and sorts it after every
+  // real timestamp, which is what turns "order by due_at asc, nulls last"
+  // into a cursor comparison that does not need separate null-handling
+  // logic from the one every other list's composite cursor already uses.
+  dueAt: string;
+  id: string;
 }
 
 // PRD.md §11.6 GET /tasks: everything assigned to this user and still open.
@@ -198,7 +220,7 @@ export async function findTaskQueueForAssignee(
   trx: Transaction<Database>,
   assigneeUserId: string,
   filter: TaskQueueFilter = {},
-): Promise<TaskQueueEntry[]> {
+): Promise<TaskQueuePage> {
   let query = trx
     .selectFrom('case_tasks')
     .innerJoin('cases', 'cases.case_id', 'case_tasks.case_id')
@@ -220,9 +242,45 @@ export async function findTaskQueueForAssignee(
   if (filter.overdueAt) {
     query = query.where('case_tasks.due_at', '<', filter.overdueAt);
   }
+  if (filter.query) {
+    const term = `%${filter.query}%`;
+    query = query.where((eb) =>
+      eb.or([eb('cases.reference', 'ilike', term), eb('cases.title', 'ilike', term)]),
+    );
+  }
 
-  const rows = await query.orderBy('case_tasks.due_at', 'asc').execute();
-  return rows.map(toQueueEntry);
+  const cursor = filter.cursor
+    ? decodeCompositeCursor<QueueCursor>(filter.cursor, ['dueAt', 'id'])
+    : null;
+  if (cursor) {
+    query = query.where(
+      sql<boolean>`(COALESCE(case_tasks.due_at, 'infinity'::timestamptz), case_tasks.task_id) > (${cursor.dueAt}::timestamptz, ${cursor.id})`,
+    );
+  }
+
+  const limit = clampPageSize(filter.limit);
+
+  const rows = await query
+    .orderBy(sql`COALESCE(case_tasks.due_at, 'infinity'::timestamptz)`, 'asc')
+    .orderBy('case_tasks.task_id', 'asc')
+    .limit(limit + 1)
+    .execute();
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+
+  return {
+    entries: page.map(toQueueEntry),
+    nextCursor:
+      hasMore && last
+        ? encodeCompositeCursor<QueueCursor>({
+            dueAt: last.due_at ? last.due_at.toISOString() : 'infinity',
+            id: last.task_id,
+          })
+        : null,
+    hasMore,
+  };
 }
 
 // Claimable pool: role- or group-assigned tasks nobody has claimed yet.
@@ -264,9 +322,9 @@ export async function findClaimableTaskQueue(
   roles: string[],
   groupIds: string[],
   filter: TaskQueueFilter = {},
-): Promise<TaskQueueEntry[]> {
+): Promise<TaskQueuePage> {
   if (roles.length === 0 && groupIds.length === 0) {
-    return [];
+    return { entries: [], nextCursor: null, hasMore: false };
   }
 
   let query = trx
@@ -297,9 +355,45 @@ export async function findClaimableTaskQueue(
   if (filter.overdueAt) {
     query = query.where('case_tasks.due_at', '<', filter.overdueAt);
   }
+  if (filter.query) {
+    const term = `%${filter.query}%`;
+    query = query.where((eb) =>
+      eb.or([eb('cases.reference', 'ilike', term), eb('cases.title', 'ilike', term)]),
+    );
+  }
 
-  const rows = await query.orderBy('case_tasks.due_at', 'asc').execute();
-  return rows.map(toQueueEntry);
+  const cursor = filter.cursor
+    ? decodeCompositeCursor<QueueCursor>(filter.cursor, ['dueAt', 'id'])
+    : null;
+  if (cursor) {
+    query = query.where(
+      sql<boolean>`(COALESCE(case_tasks.due_at, 'infinity'::timestamptz), case_tasks.task_id) > (${cursor.dueAt}::timestamptz, ${cursor.id})`,
+    );
+  }
+
+  const limit = clampPageSize(filter.limit);
+
+  const rows = await query
+    .orderBy(sql`COALESCE(case_tasks.due_at, 'infinity'::timestamptz)`, 'asc')
+    .orderBy('case_tasks.task_id', 'asc')
+    .limit(limit + 1)
+    .execute();
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+
+  return {
+    entries: page.map(toQueueEntry),
+    nextCursor:
+      hasMore && last
+        ? encodeCompositeCursor<QueueCursor>({
+            dueAt: last.due_at ? last.due_at.toISOString() : 'infinity',
+            id: last.task_id,
+          })
+        : null,
+    hasMore,
+  };
 }
 
 // Has this user ever held this case's work? PRD.md §12.3 makes a past

@@ -156,11 +156,15 @@ export function createTasksRouter(deps: TasksDeps): Router {
       const session = sessionOf(req);
       const filter = parseQueueFilter(req.query);
 
-      const entries = await withTenantTransaction(deps.db, session.organisationId, (trx) =>
+      const page = await withTenantTransaction(deps.db, session.organisationId, (trx) =>
         findTaskQueueForAssignee(trx, session.userId, filter),
       );
 
-      res.status(200).json({ data: entries.map(toQueueResponse) });
+      res.status(200).json({
+        data: page.entries.map(toQueueResponse),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      });
     } catch (err) {
       next(err);
     }
@@ -173,12 +177,16 @@ export function createTasksRouter(deps: TasksDeps): Router {
       const session = sessionOf(req);
       const filter = parseQueueFilter(req.query);
 
-      const entries = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
+      const page = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
         const pools = await resolveClaimablePools(trx, session.userId);
         return findClaimableTaskQueue(trx, pools.roles, pools.groupIds, filter);
       });
 
-      res.status(200).json({ data: entries.map(toQueueResponse) });
+      res.status(200).json({
+        data: page.entries.map(toQueueResponse),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      });
     } catch (err) {
       next(err);
     }
@@ -494,10 +502,18 @@ function parseQueueFilter(query: Record<string, unknown>) {
     throw new HttpProblemError(400, 'Bad Request', `Unknown task status '${status}'.`);
   }
 
+  const limit = typeof query.limit === 'string' ? Number(query.limit) : undefined;
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
+    throw new HttpProblemError(400, 'Bad Request', 'limit must be a positive integer.');
+  }
+
   return {
     ...(status ? { status: status as TaskStatus } : {}),
     ...(typeof query.definitionId === 'string' ? { definitionId: query.definitionId } : {}),
     ...(query.overdue === 'true' ? { overdueAt: new Date() } : {}),
+    ...(typeof query.query === 'string' ? { query: query.query } : {}),
+    ...(limit !== undefined ? { limit } : {}),
+    ...(typeof query.cursor === 'string' ? { cursor: query.cursor } : {}),
   };
 }
 

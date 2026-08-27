@@ -50,4 +50,6 @@ export interface TaskDetail {
 
 export interface TaskQueuePage {
   data: TaskQueueEntry[];
+  nextCursor: string | null;
+  hasMore: boolean;
 }

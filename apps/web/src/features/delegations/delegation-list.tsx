@@ -5,6 +5,7 @@ import { ArrowLeftRight, Trash2, UserRoundCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { formatDate } from '../../lib/format';
 import { cancelDelegation } from './api-client';
 import type { DelegationEntry } from './types';
 
@@ -20,9 +21,13 @@ function isActive(entry: DelegationEntry): boolean {
 
 export interface DelegationListProps {
   delegations: DelegationEntry[];
+  // Whether the (possibly empty) list already reflects an active search,
+  // so the empty state can say "clear the search" instead of implying
+  // there has never been any delegation at all.
+  hasActiveSearch?: boolean;
 }
 
-export function DelegationList({ delegations }: DelegationListProps) {
+export function DelegationList({ delegations, hasActiveSearch = false }: DelegationListProps) {
   const router = useRouter();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +36,12 @@ export function DelegationList({ delegations }: DelegationListProps) {
     return (
       <EmptyState
         icon={ArrowLeftRight}
-        title="No delegations"
-        description="Delegate your tasks to a colleague while you are away, or see who has delegated to you."
+        title={hasActiveSearch ? 'No delegations match this search' : 'No delegations'}
+        description={
+          hasActiveSearch
+            ? 'Clear the search to see all of your delegations.'
+            : 'Delegate your tasks to a colleague while you are away, or see who has delegated to you.'
+        }
       />
     );
   }
@@ -73,6 +82,9 @@ export function DelegationList({ delegations }: DelegationListProps) {
               <span className="text-sm text-muted-foreground">
                 {formatRange(entry.startsAt, entry.endsAt)}
                 {entry.reason ? `: ${entry.reason}` : ''}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Created {formatDate(entry.createdAt)}
               </span>
             </div>
             {entry.direction === 'outgoing' ? (
