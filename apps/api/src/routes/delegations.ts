@@ -2,6 +2,7 @@ import {
   createDelegation,
   deleteDelegation,
   findDelegationById,
+  findDelegationsForOrganisation,
   findDelegationsForUser,
   findOrganisationMemberByUserId,
   findUserByEmail,
@@ -60,6 +61,29 @@ async function toResponse(deps: DelegationsDeps, sessionUserId: string, delegati
     direction:
       delegation.fromUserId === sessionUserId ? ('outgoing' as const) : ('incoming' as const),
     counterpartName: counterpart?.displayName ?? 'A former member',
+    startsAt: delegation.startsAt,
+    endsAt: delegation.endsAt,
+    reason: delegation.reason,
+    createdAt: delegation.createdAt,
+  };
+}
+
+// The org-wide listing's own shape, not toResponse's: an administrator
+// browsing every delegation in the tenant is not a party to most of them,
+// so "direction" and "counterpart" (both relative to the viewer) do not
+// mean anything here. Both sides are named explicitly instead.
+async function toOrgResponse(deps: DelegationsDeps, delegation: Delegation) {
+  const [from, to] = await Promise.all([
+    findUserById(deps.db, delegation.fromUserId),
+    findUserById(deps.db, delegation.toUserId),
+  ]);
+
+  return {
+    delegationId: delegation.delegationId,
+    fromUserId: delegation.fromUserId,
+    fromUserName: from?.displayName ?? 'A former member',
+    toUserId: delegation.toUserId,
+    toUserName: to?.displayName ?? 'A former member',
     startsAt: delegation.startsAt,
     endsAt: delegation.endsAt,
     reason: delegation.reason,
@@ -149,17 +173,33 @@ export function createDelegationsRouter(deps: DelegationsDeps): Router {
         throw new HttpProblemError(400, 'Bad Request', 'limit must be a positive integer.');
       }
 
-      const page = await withTenantTransaction(deps.db, session.organisationId, (trx) =>
-        findDelegationsForUser(trx, session.userId, {
-          ...(typeof req.query.query === 'string' ? { query: req.query.query } : {}),
-          ...(limit !== undefined ? { limit } : {}),
-          ...(typeof req.query.cursor === 'string' ? { cursor: req.query.cursor } : {}),
-        }),
-      );
+      const filter = {
+        ...(typeof req.query.query === 'string' ? { query: req.query.query } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+        ...(typeof req.query.cursor === 'string' ? { cursor: req.query.cursor } : {}),
+      };
 
-      const data = await Promise.all(
-        page.delegations.map((delegation) => toResponse(deps, session.userId, delegation)),
-      );
+      // Two genuinely different queries, not one query with an admin
+      // escape hatch: findDelegationsForUser is scoped to session.userId
+      // on either side, which is exactly wrong for "every delegation in
+      // the organisation" (mine=false's own stated purpose above).
+      let page;
+      let data;
+      if (mine) {
+        page = await withTenantTransaction(deps.db, session.organisationId, (trx) =>
+          findDelegationsForUser(trx, session.userId, filter),
+        );
+        data = await Promise.all(
+          page.delegations.map((delegation) => toResponse(deps, session.userId, delegation)),
+        );
+      } else {
+        page = await withTenantTransaction(deps.db, session.organisationId, (trx) =>
+          findDelegationsForOrganisation(trx, filter),
+        );
+        data = await Promise.all(
+          page.delegations.map((delegation) => toOrgResponse(deps, delegation)),
+        );
+      }
 
       res.status(200).json({ data, nextCursor: page.nextCursor, hasMore: page.hasMore });
     } catch (err) {

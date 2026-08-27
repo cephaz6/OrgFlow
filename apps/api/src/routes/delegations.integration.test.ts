@@ -27,6 +27,7 @@ describe('delegations API against real Postgres', () => {
   let db: Kysely<Database>;
   let mongoClient: MongoClient;
   let organisationId: string;
+  let ownerCookie: string;
 
   async function cookieFor(userId: string, roles: OrganisationRole[]): Promise<string> {
     const token = await createSessionToken(
@@ -72,6 +73,7 @@ describe('delegations API against real Postgres', () => {
         roles: ['owner', 'admin', 'member'],
       }),
     );
+    ownerCookie = await cookieFor(owner.userId, ['owner', 'admin', 'member']);
   });
 
   afterAll(async () => {
@@ -220,5 +222,70 @@ describe('delegations API against real Postgres', () => {
     }
 
     expect(seen.size).toBe(3);
+  });
+
+  it('refuses mine=false to anyone who is not an administrator', async () => {
+    const member = await memberWithIdentity(
+      'plain',
+      'Plain Member',
+      `plain-${generateId()}@example.invalid`,
+    );
+
+    const response = await request(app())
+      .get('/api/v1/delegations')
+      .query({ mine: 'false' })
+      .set('Cookie', member.cookie);
+
+    expect(response.status).toBe(403);
+  });
+
+  it('lists every delegation in the organisation for an administrator, not only their own', async () => {
+    const from = await memberWithIdentity(
+      'org-from',
+      'Org Sender',
+      `org-sender-${generateId()}@example.invalid`,
+    );
+    const to = await memberWithIdentity(
+      'org-to',
+      'Org Recipient',
+      `org-recipient-${generateId()}@example.invalid`,
+    );
+    const toEmail = (await request(app()).get('/api/v1/auth/session').set('Cookie', to.cookie)).body
+      .user.email as string;
+
+    const created = await request(app())
+      .post('/api/v1/delegations')
+      .set('Cookie', from.cookie)
+      .send({
+        toUserEmail: toEmail,
+        startsAt: new Date(Date.now() - 60_000).toISOString(),
+        endsAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+    expect(created.status).toBe(201);
+
+    // The admin is party to none of this: mine=true (the default) for the
+    // admin's own session must not find it, which is what proves mine=false
+    // is doing something a plain "list mine" call could never do.
+    const asOwnMine = await request(app()).get('/api/v1/delegations').set('Cookie', ownerCookie);
+    expect(
+      asOwnMine.body.data.some(
+        (row: { delegationId: string }) =>
+          row.delegationId === created.body.delegation.delegationId,
+      ),
+    ).toBe(false);
+
+    const orgWide = await request(app())
+      .get('/api/v1/delegations')
+      .query({ mine: 'false' })
+      .set('Cookie', ownerCookie);
+
+    expect(orgWide.status).toBe(200);
+    const row = orgWide.body.data.find(
+      (candidate: { delegationId: string }) =>
+        candidate.delegationId === created.body.delegation.delegationId,
+    );
+    expect(row).toBeDefined();
+    expect(row.fromUserName).toBe('Org Sender');
+    expect(row.toUserName).toBe('Org Recipient');
   });
 });
