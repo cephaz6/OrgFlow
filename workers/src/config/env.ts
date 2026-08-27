@@ -23,6 +23,17 @@ const envSchema = z.object({
   // SNS and SQS path real but stops short of delivering real mail, so this
   // is expected to be blank locally; the worker logs which sender it built.
   ORGFLOW_SES_FROM_ADDRESS: optionalString(z.string().email()),
+  // A separate queue from the one above: attachment-scan-main.ts's own
+  // entry point reads this, never ORGFLOW_NOTIFICATIONS_QUEUE_URL.
+  ORGFLOW_ATTACHMENTS_SCAN_QUEUE_URL: optionalString(z.string().url()),
+  // Blank means attachments go to the dummy file store. Same variable
+  // apps/api reads for the same reason (ADR-0008); this worker needs it to
+  // read the uploaded bytes it scans and to move an infected one to
+  // quarantine.
+  ORGFLOW_S3_BUCKET: optionalString(z.string().min(1)),
+  // Blank means attachment.scanned goes to the dummy publisher and reaches
+  // no consumer. Same variable apps/api reads for the same reason.
+  ORGFLOW_EVENTS_TOPIC_ARN: optionalString(z.string().min(1)),
 });
 
 export type WorkerConfig = Readonly<z.infer<typeof envSchema>>;
