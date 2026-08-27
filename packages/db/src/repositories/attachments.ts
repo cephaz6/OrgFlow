@@ -141,6 +141,11 @@ export interface MarkAttachmentScannedInput {
   scanStatus: AttachmentScanStatus;
   sniffedMimeType: string | null;
   scannedAt: Date;
+  // Set only when the scan moves the object to a quarantine prefix
+  // (PRD.md §16.1): the row must keep pointing at where the object
+  // actually lives, or a later attempt to locate it (an ops tool, a
+  // redaction job) would read a key nothing occupies any more.
+  storageKey?: string;
 }
 
 export async function markAttachmentScanned(
@@ -155,6 +160,7 @@ export async function markAttachmentScanned(
       sniffed_mime_type: input.sniffedMimeType,
       scanned_at: input.scannedAt,
       updated_at: new Date(),
+      ...(input.storageKey !== undefined ? { storage_key: input.storageKey } : {}),
     })
     .where('attachment_id', '=', attachmentId)
     .returningAll()
