@@ -116,19 +116,46 @@ describe('validateFields', () => {
     expect(validateFields(fields, { when: '2026-08-20' }, TODAY)).toEqual({});
   });
 
-  it('blocks submission on a required question the runtime cannot collect', () => {
+  it('blocks submission on a required question the runtime still cannot collect', () => {
+    // `user` (choosing a colleague) has no directory endpoint yet; `file`
+    // used to be here too, until the attachment pipeline shipped.
+    const fields = fieldsOf({
+      key: 'delegate',
+      type: 'user',
+      label: 'Who should cover this?',
+      required: true,
+    });
+    expect(validateFields(fields, {}, TODAY)).toEqual({
+      delegate: 'This question cannot be answered yet, so the request cannot be submitted.',
+    });
+  });
+
+  it('allows an optional question the runtime cannot collect', () => {
+    const fields = fieldsOf({ key: 'delegate', type: 'user', label: 'Who should cover this?' });
+    expect(validateFields(fields, {}, TODAY)).toEqual({});
+  });
+
+  it('blocks submission on a required file field with nothing attached', () => {
     const fields = fieldsOf({
       key: 'quote',
       type: 'file',
       label: 'Supplier quote',
       required: true,
     });
-    expect(validateFields(fields, {}, TODAY)).toEqual({
-      quote: 'This question cannot be answered yet, so the request cannot be submitted.',
-    });
+    expect(validateFields(fields, {}, TODAY)).toEqual({ quote: 'Attach at least one file.' });
   });
 
-  it('allows an optional question the runtime cannot collect', () => {
+  it('accepts a required file field once something is attached', () => {
+    const fields = fieldsOf({
+      key: 'quote',
+      type: 'file',
+      label: 'Supplier quote',
+      required: true,
+    });
+    expect(validateFields(fields, {}, TODAY, { quote: 1 })).toEqual({});
+  });
+
+  it('allows an optional file field with nothing attached', () => {
     // The seeded Laptop Request's quote field is exactly this: optional,
     // and visible only above £1,000. Blocking on it would make every
     // expensive request unsubmittable.

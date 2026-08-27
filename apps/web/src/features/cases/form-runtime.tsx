@@ -2,14 +2,14 @@
 
 import type { OrganisationRole, ProcessDefinitionDocument } from '@orgflow/types';
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle } from '@orgflow/ui';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { resubmitCase, submitNewCase } from './api-client';
-import type { CaseResponse } from './types';
+import { createDraftCase, patchCaseValues, resubmitCase, submitCase } from './api-client';
 import { FieldInput } from './field-input';
+import type { AttachmentResponse, CaseResponse } from './types';
 import { isStaticField, UNSUPPORTED_TYPES, validateFields } from './validate';
 import { visibleFields, visibleSections, type VisibilityInput } from './visibility';
 
@@ -26,6 +26,7 @@ export interface FormRuntimeProps {
   mode: FormRuntimeMode;
   document: ProcessDefinitionDocument;
   initialValues?: Record<string, unknown>;
+  initialAttachments?: AttachmentResponse[];
   userId: string;
   roles: OrganisationRole[];
 }
@@ -36,12 +37,50 @@ type Status =
   | { kind: 'submitted'; result: CaseResponse }
   | { kind: 'failed'; message: string };
 
-export function FormRuntime({ mode, document, initialValues, userId, roles }: FormRuntimeProps) {
+export function FormRuntime({
+  mode,
+  document,
+  initialValues,
+  initialAttachments,
+  userId,
+  roles,
+}: FormRuntimeProps) {
   const router = useRouter();
   const [values, setValues] = useState<Record<string, unknown>>(initialValues ?? {});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<Status>({ kind: 'editing' });
+  const [attachments, setAttachments] = useState<AttachmentResponse[]>(initialAttachments ?? []);
   const summaryRef = useRef<HTMLDivElement>(null);
+
+  // A `file` field needs a caseId to attach to before the form can ever
+  // collect one, but a genuinely new request has no case yet: PRD.md §8.2
+  // still pins the version at submission, so the draft this creates has no
+  // answers on it, only an id for uploads to reference while the requester
+  // fills the rest in. resubmit mode already has a real case, so there is
+  // nothing to create.
+  const [caseId, setCaseId] = useState<string | null>(
+    mode.kind === 'resubmit' ? mode.caseId : null,
+  );
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const draftRequested = useRef(false);
+
+  useEffect(() => {
+    if (mode.kind !== 'new' || draftRequested.current) {
+      return;
+    }
+    draftRequested.current = true;
+
+    createDraftCase(mode.definitionId)
+      .then((created) => setCaseId(created.caseId))
+      .catch((err: unknown) =>
+        setDraftError(
+          err instanceof Error ? err.message : 'This request could not be started. Try again.',
+        ),
+      );
+    // mode.definitionId is fixed for the component's lifetime; this must
+    // run exactly once, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Counts failed attempts rather than watching `errors`, so that a second
   // submission returning the same problems still moves focus back to the
@@ -82,6 +121,14 @@ export function FormRuntime({ mode, document, initialValues, userId, roles }: Fo
     (field) => UNSUPPORTED_TYPES.has(field.type) && field.required,
   );
 
+  const attachmentCountByFieldKey = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const attachment of attachments) {
+      counts[attachment.fieldKey] = (counts[attachment.fieldKey] ?? 0) + 1;
+    }
+    return counts;
+  }, [attachments]);
+
   function setValue(key: string, value: unknown) {
     setValues((current) => ({ ...current, [key]: value }));
     // Clears this field's error only. Revalidating everything on each
@@ -95,10 +142,27 @@ export function FormRuntime({ mode, document, initialValues, userId, roles }: Fo
     });
   }
 
+  function addAttachment(attachment: AttachmentResponse) {
+    setAttachments((current) => [...current, attachment]);
+    setErrors((current) => {
+      if (!(attachment.fieldKey in current)) {
+        return current;
+      }
+      const { [attachment.fieldKey]: _removed, ...rest } = current;
+      return rest;
+    });
+  }
+
+  function removeAttachment(attachmentId: string) {
+    setAttachments((current) =>
+      current.filter((attachment) => attachment.attachmentId !== attachmentId),
+    );
+  }
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
 
-    const found = validateFields(answerable, values, now);
+    const found = validateFields(answerable, values, now, attachmentCountByFieldKey);
     setErrors(found);
 
     if (Object.keys(found).length > 0) {
@@ -122,7 +186,10 @@ export function FormRuntime({ mode, document, initialValues, userId, roles }: Fo
       );
 
       if (mode.kind === 'new') {
-        const result = await submitNewCase(mode.definitionId, payload);
+        // caseId is guaranteed by this point: the form below does not
+        // render, and so cannot be submitted, until the draft exists.
+        await patchCaseValues(caseId!, payload);
+        const result = await submitCase(caseId!);
         setStatus({ kind: 'submitted', result });
         return;
       }
@@ -163,6 +230,21 @@ export function FormRuntime({ mode, document, initialValues, userId, roles }: Fo
               <Link href="/cases">All my requests</Link>
             </Button>
           </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (draftError) {
+    return <Alert variant="destructive">{draftError}</Alert>;
+  }
+
+  if (caseId === null) {
+    return (
+      <Card>
+        <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+          Preparing your request...
         </CardContent>
       </Card>
     );
@@ -219,6 +301,10 @@ export function FormRuntime({ mode, document, initialValues, userId, roles }: Fo
                 value={values[field.key]}
                 error={errors[field.key]}
                 onChange={(value) => setValue(field.key, value)}
+                caseId={caseId}
+                attachments={attachments}
+                onAttachmentAdded={addAttachment}
+                onAttachmentRemoved={removeAttachment}
               />
             ))}
           </CardContent>

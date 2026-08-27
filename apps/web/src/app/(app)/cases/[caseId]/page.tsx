@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import {
+  AttachmentList,
   CancelCase,
   CaseStatusBadge,
   CaseTimeline,
@@ -23,7 +24,7 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { caseId } = await params;
   const detail = await fetchCase(caseId);
-  return { title: detail ? `${detail.case.reference} — OrgFlow` : 'Not found — OrgFlow' };
+  return { title: detail ? `${detail.case.reference}: OrgFlow` : 'Not found: OrgFlow' };
 }
 
 const TERMINAL_STEPS = new Set(['$completed', '$rejected', '$cancelled', '$returnedToRequester']);
@@ -39,7 +40,7 @@ export default async function CaseDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const { case: found, values, tasks, timeline, document } = detail;
+  const { case: found, values, tasks, timeline, document, attachments } = detail;
   const returned = isReturnedToRequester(found);
   const isRequester = session?.user.userId === found.submittedByUserId;
   const isOpen = found.status === 'active' || found.status === 'unassigned';
@@ -139,6 +140,17 @@ export default async function CaseDetailPage({ params }: PageProps) {
           <SubmittedValues document={document} values={values} />
         </CardContent>
       </Card>
+
+      {attachments.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Attachments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AttachmentList attachments={attachments} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

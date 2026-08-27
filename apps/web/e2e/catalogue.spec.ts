@@ -62,10 +62,10 @@ test.describe('catalogue and form runtime', () => {
     // The same £1000 threshold the workflow branches on, so this is the
     // form agreeing with the engine rather than a separate rule.
     await page.getByLabel(/Estimated cost/).fill('900');
-    await expect(page.getByText('Attachments are not available yet')).toBeHidden();
+    await expect(page.getByText('Attach a supplier quote')).toBeHidden();
 
     await page.getByLabel(/Estimated cost/).fill('1500');
-    await expect(page.getByText('Attachments are not available yet')).toBeVisible();
+    await expect(page.getByText('Attach a supplier quote')).toBeVisible();
   });
 
   test('refuses to submit an incomplete request and says what is wrong', async ({ page }) => {

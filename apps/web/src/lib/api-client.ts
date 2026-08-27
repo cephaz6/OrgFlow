@@ -5,6 +5,18 @@ import { toApiError } from './api-error';
 // does because the cookie is httpOnly: no script can read it, and none needs
 // to. credentials: 'include' is required because the API is a different
 // origin from the web application.
+export async function apiGet<T>(path: string): Promise<T> {
+  const response = await fetch(`${config.NEXT_PUBLIC_ORGFLOW_API_URL}${path}`, {
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw await toApiError(response);
+  }
+
+  return (await response.json()) as T;
+}
+
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${config.NEXT_PUBLIC_ORGFLOW_API_URL}${path}`, {
     method: 'POST',
