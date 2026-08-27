@@ -26,6 +26,21 @@ const SCRIPT = `
 })();
 `;
 
+// A plain <script> tag, not next/script: theme.spec.ts's "applies a stored
+// choice before React hydrates, not after" test blocks every Next.js JS
+// chunk and proves the theme still applies, which next/script's
+// beforeInteractive strategy cannot survive (it relies on Next's own
+// runtime to read a queued __next_s entry and execute it, so blocking
+// chunks blocks the script too). A raw inline script has no such
+// dependency: the browser's HTML parser executes it synchronously as it is
+// encountered, before a single byte of JavaScript has to load.
+//
+// suppressHydrationWarning, not next/script, is the fix for the console
+// warning this used to produce: the server- and client-rendered copies of
+// this script are always byte-identical, so there is no real mismatch to
+// report. The warning was a false positive from Next's App Router
+// relocating <head> content before React's hydration diff ever saw it,
+// and this prop is exactly what it exists to silence for a case like this.
 export function ThemeScript() {
-  return <script dangerouslySetInnerHTML={{ __html: SCRIPT }} />;
+  return <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: SCRIPT }} />;
 }
