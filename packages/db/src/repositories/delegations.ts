@@ -169,6 +169,77 @@ export async function findDelegationsForUser(
   };
 }
 
+export interface FindDelegationsForOrganisationFilter {
+  // Free text over either side's name or email: unlike
+  // findDelegationsForUser, there is no "self" to define a counterpart
+  // relative to.
+  query?: string | undefined;
+  limit?: number | undefined;
+  cursor?: string | undefined;
+}
+
+// Every delegation in the organisation, either side, for an administrator
+// auditing the whole tenant rather than their own delegations (PRD.md §7:
+// "?mine=false (admin only) lists every delegation in the organisation").
+// withTenantTransaction's RLS scoping is what confines this to one tenant;
+// there is deliberately no from/to filter here, the one difference from
+// findDelegationsForUser.
+export async function findDelegationsForOrganisation(
+  trx: Transaction<Database>,
+  filter: FindDelegationsForOrganisationFilter = {},
+): Promise<DelegationPage> {
+  let query = trx
+    .selectFrom('delegations')
+    .innerJoin('users as from_user', 'from_user.user_id', 'delegations.from_user_id')
+    .innerJoin('users as to_user', 'to_user.user_id', 'delegations.to_user_id')
+    .selectAll('delegations');
+
+  if (filter.query) {
+    const term = `%${filter.query}%`;
+    query = query.where((eb) =>
+      eb.or([
+        eb('from_user.display_name', 'ilike', term),
+        eb('from_user.email', 'ilike', term),
+        eb('to_user.display_name', 'ilike', term),
+        eb('to_user.email', 'ilike', term),
+      ]),
+    );
+  }
+
+  const cursor = filter.cursor
+    ? decodeCompositeCursor<DelegationCursor>(filter.cursor, ['startsAt', 'id'])
+    : null;
+  if (cursor) {
+    query = query.where(
+      sql<boolean>`(delegations.starts_at, delegations.delegation_id) < (${cursor.startsAt}::timestamptz, ${cursor.id})`,
+    );
+  }
+
+  const limit = clampPageSize(filter.limit);
+
+  const rows = await query
+    .orderBy('delegations.starts_at', 'desc')
+    .orderBy('delegations.delegation_id', 'desc')
+    .limit(limit + 1)
+    .execute();
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+
+  return {
+    delegations: page.map(toDomain),
+    nextCursor:
+      hasMore && last
+        ? encodeCompositeCursor<DelegationCursor>({
+            startsAt: last.starts_at.toISOString(),
+            id: last.delegation_id,
+          })
+        : null,
+    hasMore,
+  };
+}
+
 export async function findDelegationById(
   trx: Transaction<Database>,
   delegationId: string,

@@ -167,11 +167,13 @@ export {
   deleteDelegation,
   findActiveDelegateByUserId,
   findDelegationById,
+  findDelegationsForOrganisation,
   findDelegationsForUser,
 } from './repositories/delegations.js';
 export type {
   CreateDelegationInput,
   DelegationPage,
+  FindDelegationsForOrganisationFilter,
   FindDelegationsForUserFilter,
 } from './repositories/delegations.js';
 export {
