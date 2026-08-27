@@ -1,5 +1,3 @@
-import Script from 'next/script';
-
 import { THEME_STORAGE_KEY } from './storage-key';
 
 // Rendered directly in <head>, before <body> and before React hydrates, so
@@ -28,24 +26,21 @@ const SCRIPT = `
 })();
 `;
 
-// next/script's beforeInteractive strategy, not a plain <script> tag: Next
-// moves this markup itself rather than letting React's hydration diff the
-// element, which is exactly why a raw <script dangerouslySetInnerHTML>
-// here produced a spurious hydration-mismatch warning on every load (the
-// server and client copies were always identical; React was comparing an
-// element Next had already relocated). beforeInteractive is also the
-// documented way to guarantee the script runs before hydration at all,
-// which matters here since the whole point is setting data-theme before
-// the browser paints.
+// A plain <script> tag, not next/script: theme.spec.ts's "applies a stored
+// choice before React hydrates, not after" test blocks every Next.js JS
+// chunk and proves the theme still applies, which next/script's
+// beforeInteractive strategy cannot survive (it relies on Next's own
+// runtime to read a queued __next_s entry and execute it, so blocking
+// chunks blocks the script too). A raw inline script has no such
+// dependency: the browser's HTML parser executes it synchronously as it is
+// encountered, before a single byte of JavaScript has to load.
+//
+// suppressHydrationWarning, not next/script, is the fix for the console
+// warning this used to produce: the server- and client-rendered copies of
+// this script are always byte-identical, so there is no real mismatch to
+// report. The warning was a false positive from Next's App Router
+// relocating <head> content before React's hydration diff ever saw it,
+// and this prop is exactly what it exists to silence for a case like this.
 export function ThemeScript() {
-  return (
-    // The lint rule this triggers predates the App Router: it only knows
-    // about pages/_document.js, but placing a beforeInteractive script in
-    // the root layout's <head> is the App Router's own documented
-    // replacement for that file, and is exactly what this component does.
-    // eslint-disable-next-line @next/next/no-before-interactive-script-outside-document
-    <Script id="theme-script" strategy="beforeInteractive">
-      {SCRIPT}
-    </Script>
-  );
+  return <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: SCRIPT }} />;
 }
