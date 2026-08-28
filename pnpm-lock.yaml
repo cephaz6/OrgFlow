@@ -29,6 +29,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(vitest@3.2.7(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
       eslint:
         specifier: ^9.17.0
         version: 9.39.5(jiti@2.7.0)

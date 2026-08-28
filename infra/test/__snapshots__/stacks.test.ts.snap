@@ -644,6 +644,12 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises ApiStack with no unsu
                   "Fn::ImportValue": "TestMessaging:ExportsOutputRefDomainEventsTopic9EECFB6421310043",
                 },
               },
+              {
+                "Name": "ORGFLOW_S3_BUCKET",
+                "Value": {
+                  "Fn::ImportValue": "TestData:ExportsOutputRefFilesBucket164501139A977DFC",
+                },
+              },
             ],
             "Essential": true,
             "Image": "public.ecr.aws/docker/library/busybox:stable",
@@ -846,6 +852,50 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises ApiStack with no unsu
                 "Fn::ImportValue": "TestMessaging:ExportsOutputFnGetAttEncryptionKey1B843E66Arn91172964",
               },
             },
+            {
+              "Action": [
+                "s3:GetObject*",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*",
+                "s3:PutObject",
+                "s3:PutObjectLegalHold",
+                "s3:PutObjectRetention",
+                "s3:PutObjectTagging",
+                "s3:PutObjectVersionTagging",
+                "s3:Abort*",
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::ImportValue": "TestData:ExportsOutputFnGetAttFilesBucket16450113Arn55CDC1C6",
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::ImportValue": "TestData:ExportsOutputFnGetAttFilesBucket16450113Arn55CDC1C6",
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+            {
+              "Action": [
+                "kms:Decrypt",
+                "kms:DescribeKey",
+                "kms:Encrypt",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestData:ExportsOutputFnGetAttEncryptionKey1B843E66Arn91172964",
+              },
+            },
           ],
           "Version": "2012-10-17",
         },
@@ -935,12 +985,42 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises DataStack with no uns
     },
   },
   "Outputs": {
+    "ExportsOutputFnGetAttEncryptionKey1B843E66Arn91172964": {
+      "Export": {
+        "Name": "TestData:ExportsOutputFnGetAttEncryptionKey1B843E66Arn91172964",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "EncryptionKey1B843E66",
+          "Arn",
+        ],
+      },
+    },
+    "ExportsOutputFnGetAttFilesBucket16450113Arn55CDC1C6": {
+      "Export": {
+        "Name": "TestData:ExportsOutputFnGetAttFilesBucket16450113Arn55CDC1C6",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "FilesBucket16450113",
+          "Arn",
+        ],
+      },
+    },
     "ExportsOutputRefDatabaseUrlSecretFA7DE06246075C80": {
       "Export": {
         "Name": "TestData:ExportsOutputRefDatabaseUrlSecretFA7DE06246075C80",
       },
       "Value": {
         "Ref": "DatabaseUrlSecretFA7DE062",
+      },
+    },
+    "ExportsOutputRefFilesBucket164501139A977DFC": {
+      "Export": {
+        "Name": "TestData:ExportsOutputRefFilesBucket164501139A977DFC",
+      },
+      "Value": {
+        "Ref": "FilesBucket16450113",
       },
     },
   },
@@ -1499,7 +1579,7 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises DataStack with no uns
           "rules_to_suppress": [
             {
               "id": "AwsSolutions-S1",
-              "reason": "Server access logging deferred: nothing writes to this bucket yet (the S3 upload/download flow in PRD.md §5.3 is a later phase). Revisit alongside that work rather than standing up a log-destination bucket for a bucket nothing uses.",
+              "reason": "Server access logging still deferred, now that ApiStack and WorkersStack's attachment-scan function both read and write this bucket. GOV-STANDARDS.md's actual audit requirement for a download is met at the application layer (an audit event on every GET /attachments/:id/download, packages/db's audit_events table); S3's own request-level access log is a separate, lower-level AWS audit trail, and its dedicated log-destination bucket is scoped follow-up work, not something to add silently alongside wiring the bucket up for the first time.",
             },
           ],
         },
@@ -1518,6 +1598,22 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises DataStack with no uns
                 },
                 "SSEAlgorithm": "aws:kms",
               },
+            },
+          ],
+        },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedHeaders": [
+                "*",
+              ],
+              "AllowedMethods": [
+                "POST",
+                "GET",
+              ],
+              "AllowedOrigins": [
+                "https://app.orgflow-dev.example",
+              ],
             },
           ],
         },
@@ -1561,7 +1657,7 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises DataStack with no uns
           "rules_to_suppress": [
             {
               "id": "AwsSolutions-S1",
-              "reason": "Server access logging deferred: nothing writes to this bucket yet (the S3 upload/download flow in PRD.md §5.3 is a later phase). Revisit alongside that work rather than standing up a log-destination bucket for a bucket nothing uses.",
+              "reason": "Server access logging still deferred, now that ApiStack and WorkersStack's attachment-scan function both read and write this bucket. GOV-STANDARDS.md's actual audit requirement for a download is met at the application layer (an audit event on every GET /attachments/:id/download, packages/db's audit_events table); S3's own request-level access log is a separate, lower-level AWS audit trail, and its dedicated log-destination bucket is scoped follow-up work, not something to add silently alongside wiring the bucket up for the first time.",
             },
           ],
         },
@@ -1586,7 +1682,7 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises DataStack with no uns
           "rules_to_suppress": [
             {
               "id": "AwsSolutions-S1",
-              "reason": "Server access logging deferred: nothing writes to this bucket yet (the S3 upload/download flow in PRD.md §5.3 is a later phase). Revisit alongside that work rather than standing up a log-destination bucket for a bucket nothing uses.",
+              "reason": "Server access logging still deferred, now that ApiStack and WorkersStack's attachment-scan function both read and write this bucket. GOV-STANDARDS.md's actual audit requirement for a download is met at the application layer (an audit event on every GET /attachments/:id/download, packages/db's audit_events table); S3's own request-level access log is a separate, lower-level AWS audit trail, and its dedicated log-destination bucket is scoped follow-up work, not something to add silently alongside wiring the bucket up for the first time.",
             },
           ],
         },
@@ -1760,6 +1856,17 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises MessagingStack with n
       "Value": {
         "Fn::GetAtt": [
           "EncryptionKey1B843E66",
+          "Arn",
+        ],
+      },
+    },
+    "ExportsOutputFnGetAttattachmentscanQueueDCADDF53Arn81528400": {
+      "Export": {
+        "Name": "TestMessaging:ExportsOutputFnGetAttattachmentscanQueueDCADDF53Arn81528400",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "attachmentscanQueueDCADDF53",
           "Arn",
         ],
       },
@@ -2013,6 +2120,173 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises MessagingStack with n
         "Endpoint": {
           "Fn::GetAtt": [
             "analyticsQueue08DE51CB",
+            "Arn",
+          ],
+        },
+        "Protocol": "sqs",
+        "TopicArn": {
+          "Ref": "DomainEventsTopic9EECFB64",
+        },
+      },
+      "Type": "AWS::SNS::Subscription",
+    },
+    "attachmentscanDeadLetterQueue6FBB7297": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "MessageRetentionPeriod": 1209600,
+        "QueueName": "orgflow-dev-attachment-scan-dlq",
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "attachmentscanDeadLetterQueueAlarm3C5AB88C": {
+      "Properties": {
+        "AlarmDescription": "orgflow-dev-attachment-scan-dlq has messages",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "attachmentscanDeadLetterQueue6FBB7297",
+                "QueueName",
+              ],
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Namespace": "AWS/SQS",
+        "Period": 300,
+        "Statistic": "Maximum",
+        "Threshold": 0,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "attachmentscanDeadLetterQueuePolicy63536547": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "attachmentscanDeadLetterQueue6FBB7297",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "attachmentscanDeadLetterQueue6FBB7297",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "attachmentscanQueueDCADDF53": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "EncryptionKey1B843E66",
+            "Arn",
+          ],
+        },
+        "QueueName": "orgflow-dev-attachment-scan",
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "attachmentscanDeadLetterQueue6FBB7297",
+              "Arn",
+            ],
+          },
+          "maxReceiveCount": 5,
+        },
+        "VisibilityTimeout": 90,
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "attachmentscanQueuePolicyE33D1475": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "attachmentscanQueueDCADDF53",
+                  "Arn",
+                ],
+              },
+            },
+            {
+              "Action": "sqs:SendMessage",
+              "Condition": {
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Ref": "DomainEventsTopic9EECFB64",
+                  },
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "sns.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "attachmentscanQueueDCADDF53",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "attachmentscanQueueDCADDF53",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "attachmentscanQueueTestMessagingDomainEventsTopic474C3FBF80F71D4B": {
+      "DependsOn": [
+        "attachmentscanQueuePolicyE33D1475",
+      ],
+      "Properties": {
+        "Endpoint": {
+          "Fn::GetAtt": [
+            "attachmentscanQueueDCADDF53",
             "Arn",
           ],
         },
@@ -2944,6 +3218,109 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises NetworkStack with no 
       },
       "Type": "AWS::EC2::SecurityGroup",
     },
+    "VpcSnsEndpointF2594FD7": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PrivateDnsEnabled": true,
+        "SecurityGroupIds": [
+          {
+            "Fn::GetAtt": [
+              "VpcSnsEndpointSecurityGroupA3F3CEB5",
+              "GroupId",
+            ],
+          },
+        ],
+        "ServiceName": "com.amazonaws.eu-west-2.sns",
+        "SubnetIds": [
+          {
+            "Ref": "VpcappSubnet1SubnetAE489B2F",
+          },
+          {
+            "Ref": "VpcappSubnet2Subnet2449FB56",
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc",
+          },
+        ],
+        "VpcEndpointType": "Interface",
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::VPCEndpoint",
+    },
+    "VpcSnsEndpointSecurityGroupA3F3CEB5": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "AwsSolutions-EC23 cannot evaluate the VPC interface endpoint's security group ingress rule because its CIDR is a CloudFormation intrinsic (the VPC's own CIDR block), not a literal string. The rule itself, scoped to the VPC's own address space, is correct.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "GroupDescription": "TestNetwork/Vpc/SnsEndpoint/SecurityGroup",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic by default",
+            "IpProtocol": "-1",
+          },
+        ],
+        "SecurityGroupIngress": [
+          {
+            "CidrIp": {
+              "Fn::GetAtt": [
+                "Vpc8378EB38",
+                "CidrBlock",
+              ],
+            },
+            "Description": {
+              "Fn::Join": [
+                "",
+                [
+                  "from ",
+                  {
+                    "Fn::GetAtt": [
+                      "Vpc8378EB38",
+                      "CidrBlock",
+                    ],
+                  },
+                  ":443",
+                ],
+              ],
+            },
+            "FromPort": 443,
+            "IpProtocol": "tcp",
+            "ToPort": 443,
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestNetwork/Vpc",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
     "VpcVPCGWBF912B6E": {
       "Metadata": {
         "cdk_nag": {
@@ -3678,6 +4055,336 @@ exports[`CDK skeleton: cdk synth and cdk-nag > synthesises WorkersStack with no 
     },
   },
   "Resources": {
+    "AttachmentScanFunction4F78204E": {
+      "DependsOn": [
+        "AttachmentScanFunctionServiceRoleDefaultPolicy9F561630",
+        "AttachmentScanFunctionServiceRole42320CDB",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "Same reasoning as NotificationsFunction: NODEJS_22_X is the runtime TECH-STACK.md §5.1 specifies.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-\${AWS::AccountId}-eu-west-2",
+          },
+          "S3Key": "ASSET_CONTENT_HASH.zip",
+        },
+        "Environment": {
+          "Variables": {
+            "ORGFLOW_AWS_REGION": "eu-west-2",
+            "ORGFLOW_DATABASE_URL_SECRET_ARN": {
+              "Fn::ImportValue": "TestData:ExportsOutputRefDatabaseUrlSecretFA7DE06246075C80",
+            },
+            "ORGFLOW_ENV": "development",
+            "ORGFLOW_EVENTS_TOPIC_ARN": {
+              "Fn::ImportValue": "TestMessaging:ExportsOutputRefDomainEventsTopic9EECFB6421310043",
+            },
+            "ORGFLOW_LOG_LEVEL": "info",
+            "ORGFLOW_S3_BUCKET": {
+              "Fn::ImportValue": "TestData:ExportsOutputRefFilesBucket164501139A977DFC",
+            },
+          },
+        },
+        "Handler": "index.handler",
+        "LoggingConfig": {
+          "LogGroup": {
+            "Ref": "AttachmentScanLogGroup8B56713C",
+          },
+        },
+        "MemorySize": 512,
+        "Role": {
+          "Fn::GetAtt": [
+            "AttachmentScanFunctionServiceRole42320CDB",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 60,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {
+              "Fn::GetAtt": [
+                "AttachmentScanFunctionSecurityGroup3767E460",
+                "GroupId",
+              ],
+            },
+          ],
+          "SubnetIds": [
+            {
+              "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcappSubnet1SubnetAE489B2F386690C8",
+            },
+            {
+              "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpcappSubnet2Subnet2449FB56F27A422B",
+            },
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "AttachmentScanFunctionSecurityGroup3767E460": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "Same reasoning as NotificationsFunction: NODEJS_22_X is the runtime TECH-STACK.md §5.1 specifies.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "GroupDescription": "Automatic security group for Lambda Function TestWorkersAttachmentScanFunction86B97A8D",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic by default",
+            "IpProtocol": "-1",
+          },
+        ],
+        "VpcId": {
+          "Fn::ImportValue": "TestNetwork:ExportsOutputRefVpc8378EB38272D6E3A",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
+    "AttachmentScanFunctionServiceRole42320CDB": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "Same reasoning as NotificationsFunction: NODEJS_22_X is the runtime TECH-STACK.md §5.1 specifies.",
+            },
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "Same reasoning as NotificationsFunction: the two AWS-managed policies CDK attaches automatically to a VPC-attached execution role.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "AttachmentScanFunctionServiceRoleDefaultPolicy9F561630": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "Same reasoning as NotificationsFunction: NODEJS_22_X is the runtime TECH-STACK.md §5.1 specifies.",
+            },
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "Same reasoning as NotificationsFunction: the two AWS-managed policies CDK attaches automatically to a VPC-attached execution role.",
+            },
+            {
+              "applies_to": [
+                "Action::s3:GetObject*",
+                "Action::s3:GetBucket*",
+                "Action::s3:List*",
+                "Action::s3:DeleteObject*",
+                "Action::s3:Abort*",
+                {
+                  "regex": "/^Resource::.*FilesBucket.*\\/\\*$/",
+                },
+                "Action::kms:ReEncrypt*",
+                "Action::kms:GenerateDataKey*",
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "filesBucket.grantReadWrite(attachmentScanFunction): the wildcard action families (GetObject*, PutObject*, DeleteObject* and so on) and the object-level resource ARN (bucket ARN + '/*') are exactly what CDK's own grantReadWrite generates for reading, writing and moving an object to a quarantine key (PRD.md §16.1); there is no narrower AWS-native grant for 'read and write objects in this bucket'. The KMS wildcard is the same GenerateDataKey/ReEncrypt family already suppressed on ApiStack's task role, for the same reason: encrypting/decrypting against DataStack's shared key.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestData:ExportsOutputRefDatabaseUrlSecretFA7DE06246075C80",
+              },
+            },
+            {
+              "Action": [
+                "s3:GetObject*",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*",
+                "s3:PutObject",
+                "s3:PutObjectLegalHold",
+                "s3:PutObjectRetention",
+                "s3:PutObjectTagging",
+                "s3:PutObjectVersionTagging",
+                "s3:Abort*",
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::ImportValue": "TestData:ExportsOutputFnGetAttFilesBucket16450113Arn55CDC1C6",
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::ImportValue": "TestData:ExportsOutputFnGetAttFilesBucket16450113Arn55CDC1C6",
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+            {
+              "Action": [
+                "kms:Decrypt",
+                "kms:DescribeKey",
+                "kms:Encrypt",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestData:ExportsOutputFnGetAttEncryptionKey1B843E66Arn91172964",
+              },
+            },
+            {
+              "Action": "sns:Publish",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestMessaging:ExportsOutputRefDomainEventsTopic9EECFB6421310043",
+              },
+            },
+            {
+              "Action": [
+                "kms:Decrypt",
+                "kms:GenerateDataKey*",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestMessaging:ExportsOutputFnGetAttEncryptionKey1B843E66Arn91172964",
+              },
+            },
+            {
+              "Action": [
+                "sqs:ReceiveMessage",
+                "sqs:ChangeMessageVisibility",
+                "sqs:GetQueueUrl",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestMessaging:ExportsOutputFnGetAttattachmentscanQueueDCADDF53Arn81528400",
+              },
+            },
+            {
+              "Action": "kms:Decrypt",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "TestMessaging:ExportsOutputFnGetAttEncryptionKey1B843E66Arn91172964",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "AttachmentScanFunctionServiceRoleDefaultPolicy9F561630",
+        "Roles": [
+          {
+            "Ref": "AttachmentScanFunctionServiceRole42320CDB",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "AttachmentScanFunctionSqsEventSourceTestMessagingattachmentscanQueue9295026E564FCEBE": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "Same reasoning as NotificationsFunction: NODEJS_22_X is the runtime TECH-STACK.md §5.1 specifies.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "BatchSize": 10,
+        "EventSourceArn": {
+          "Fn::ImportValue": "TestMessaging:ExportsOutputFnGetAttattachmentscanQueueDCADDF53Arn81528400",
+        },
+        "FunctionName": {
+          "Ref": "AttachmentScanFunction4F78204E",
+        },
+        "FunctionResponseTypes": [
+          "ReportBatchItemFailures",
+        ],
+      },
+      "Type": "AWS::Lambda::EventSourceMapping",
+    },
+    "AttachmentScanLogGroup8B56713C": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "RetentionInDays": 30,
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete",
+    },
     "EmailIdentity7187767D": {
       "Properties": {
         "EmailIdentity": "orgflow-dev.example",

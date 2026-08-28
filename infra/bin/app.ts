@@ -66,6 +66,7 @@ const apiStack = new ApiStack(app, `OrgFlow-${environment.name}-Api`, {
   vpc: network.vpc,
   databaseUrlSecret: data.databaseUrlSecret,
   domainEventsTopic: messaging.domainEventsTopic,
+  filesBucket: data.filesBucket,
   apiImage: ecs.ContainerImage.fromDockerImageAsset(apiImageAsset),
 });
 
@@ -74,7 +75,10 @@ const workersStack = new WorkersStack(app, `OrgFlow-${environment.name}-Workers`
   env,
   vpc: network.vpc,
   notificationsQueue: messaging.queues.notifications,
+  attachmentScanQueue: messaging.queues['attachment-scan'],
   databaseUrlSecret: data.databaseUrlSecret,
+  filesBucket: data.filesBucket,
+  domainEventsTopic: messaging.domainEventsTopic,
 });
 
 // TECH-STACK.md §7: cdk-nag with AWS Solutions rules; PRD.md §20 requires

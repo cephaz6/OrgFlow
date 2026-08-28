@@ -39,6 +39,7 @@ function buildStacks() {
     vpc: network.vpc,
     databaseUrlSecret: data.databaseUrlSecret,
     domainEventsTopic: messaging.domainEventsTopic,
+    filesBucket: data.filesBucket,
     apiImage: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/busybox:stable'),
   });
 
@@ -47,7 +48,10 @@ function buildStacks() {
     env,
     vpc: network.vpc,
     notificationsQueue: messaging.queues.notifications,
+    attachmentScanQueue: messaging.queues['attachment-scan'],
     databaseUrlSecret: data.databaseUrlSecret,
+    filesBucket: data.filesBucket,
+    domainEventsTopic: messaging.domainEventsTopic,
   });
 
   Aspects.of(app).add(new AwsSolutionsChecks());
@@ -84,33 +88,35 @@ function expectNoUnsuppressedFindings(stack: Stack) {
 }
 
 describe('CDK skeleton: cdk synth and cdk-nag', () => {
+  // Built once for the whole suite, not per it(): each build bundles both
+  // WorkersStack Lambdas with real esbuild regardless of which single
+  // stack a given assertion cares about, since all five stacks share one
+  // App/construct tree. Five separate builds meant five redundant rounds
+  // of that bundling for a suite that only needs the App to exist once.
+  const stacks = buildStacks();
+
   it('synthesises NetworkStack with no unsuppressed cdk-nag findings', () => {
-    const { network } = buildStacks();
-    expectNoUnsuppressedFindings(network);
-    expect(withStableAssetKeys(Template.fromStack(network).toJSON())).toMatchSnapshot();
+    expectNoUnsuppressedFindings(stacks.network);
+    expect(withStableAssetKeys(Template.fromStack(stacks.network).toJSON())).toMatchSnapshot();
   });
 
   it('synthesises DataStack with no unsuppressed cdk-nag findings', () => {
-    const { data } = buildStacks();
-    expectNoUnsuppressedFindings(data);
-    expect(withStableAssetKeys(Template.fromStack(data).toJSON())).toMatchSnapshot();
+    expectNoUnsuppressedFindings(stacks.data);
+    expect(withStableAssetKeys(Template.fromStack(stacks.data).toJSON())).toMatchSnapshot();
   });
 
   it('synthesises MessagingStack with no unsuppressed cdk-nag findings', () => {
-    const { messaging } = buildStacks();
-    expectNoUnsuppressedFindings(messaging);
-    expect(withStableAssetKeys(Template.fromStack(messaging).toJSON())).toMatchSnapshot();
+    expectNoUnsuppressedFindings(stacks.messaging);
+    expect(withStableAssetKeys(Template.fromStack(stacks.messaging).toJSON())).toMatchSnapshot();
   });
 
   it('synthesises ApiStack with no unsuppressed cdk-nag findings', () => {
-    const { api } = buildStacks();
-    expectNoUnsuppressedFindings(api);
-    expect(withStableAssetKeys(Template.fromStack(api).toJSON())).toMatchSnapshot();
+    expectNoUnsuppressedFindings(stacks.api);
+    expect(withStableAssetKeys(Template.fromStack(stacks.api).toJSON())).toMatchSnapshot();
   });
 
   it('synthesises WorkersStack with no unsuppressed cdk-nag findings', () => {
-    const { workers } = buildStacks();
-    expectNoUnsuppressedFindings(workers);
-    expect(withStableAssetKeys(Template.fromStack(workers).toJSON())).toMatchSnapshot();
+    expectNoUnsuppressedFindings(stacks.workers);
+    expect(withStableAssetKeys(Template.fromStack(stacks.workers).toJSON())).toMatchSnapshot();
   });
 });

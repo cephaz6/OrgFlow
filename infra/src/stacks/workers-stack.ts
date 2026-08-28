@@ -4,8 +4,10 @@ import {
   aws_lambda_event_sources as lambda_event_sources,
   aws_lambda_nodejs as lambda_nodejs,
   aws_logs as logs,
+  aws_s3 as s3,
   aws_secretsmanager as secretsmanager,
   aws_ses as ses,
+  aws_sns as sns,
   aws_sqs as sqs,
   Duration,
   RemovalPolicy,
@@ -22,7 +24,10 @@ export interface WorkersStackProps extends StackProps {
   environment: DeploymentEnvironment;
   vpc: ec2.IVpc;
   notificationsQueue: sqs.IQueue;
+  attachmentScanQueue: sqs.IQueue;
   databaseUrlSecret: secretsmanager.ISecret;
+  filesBucket: s3.IBucket;
+  domainEventsTopic: sns.ITopic;
 }
 
 // TECH-STACK.md §7 and §6 ("workers/ # Lambda handlers"), and PRD.md §20's
@@ -107,6 +112,66 @@ export class WorkersStack extends Stack {
     // whole batch", redelivering messages that already succeeded.
     notificationsFunction.addEventSource(
       new lambda_event_sources.SqsEventSource(props.notificationsQueue, {
+        batchSize: 10,
+        reportBatchItemFailures: true,
+      }),
+    );
+
+    // PRD.md §16.1: consumes attachment.uploaded, reads the object from
+    // filesBucket, scans it, and publishes attachment.scanned back onto
+    // domainEventsTopic. A separate queue and function from notifications
+    // (MessagingStack), so a slow or failing scan cannot hold up
+    // notification delivery or vice versa.
+    const attachmentScanLogGroup = new logs.LogGroup(this, 'AttachmentScanLogGroup', {
+      retention: props.environment.isProduction
+        ? logs.RetentionDays.SIX_MONTHS
+        : logs.RetentionDays.ONE_MONTH,
+      removalPolicy: props.environment.isProduction ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
+    });
+
+    const attachmentScanFunction = new lambda_nodejs.NodejsFunction(
+      this,
+      'AttachmentScanFunction',
+      {
+        entry: fileURLToPath(
+          new URL('../../../workers/src/attachment-scan-lambda-handler.ts', import.meta.url),
+        ),
+        handler: 'handler',
+        runtime: lambda.Runtime.NODEJS_22_X,
+        architecture: lambda.Architecture.ARM_64,
+        // More headroom than the notifications function's small JSON
+        // payloads need: a scan reads the whole attachment into memory
+        // (up to MAX_UPLOAD_BYTES, apps/api/src/routes/attachments.ts,
+        // 25MB), not just a few KB of event data.
+        memorySize: 512,
+        // Comfortably under the attachment-scan queue's 90-second
+        // visibility timeout (MessagingStack): reading up to 25MB from S3
+        // plus a scan needs more headroom than notifications' 30 seconds.
+        timeout: Duration.seconds(60),
+        vpc: props.vpc,
+        vpcSubnets: { subnetGroupName: 'app' },
+        logGroup: attachmentScanLogGroup,
+        environment: {
+          ORGFLOW_ENV: resolveAppEnvName(props.environment.name),
+          ORGFLOW_LOG_LEVEL: 'info',
+          ORGFLOW_AWS_REGION: props.environment.region,
+          ORGFLOW_S3_BUCKET: props.filesBucket.bucketName,
+          ORGFLOW_EVENTS_TOPIC_ARN: props.domainEventsTopic.topicArn,
+          // Same placeholder pattern as notificationsFunction above, and
+          // the same documented follow-up (ADR-0019): the handler does
+          // not yet resolve this ARN into a real connection string at
+          // cold start.
+          ORGFLOW_DATABASE_URL_SECRET_ARN: props.databaseUrlSecret.secretArn,
+        },
+      },
+    );
+
+    props.databaseUrlSecret.grantRead(attachmentScanFunction);
+    props.filesBucket.grantReadWrite(attachmentScanFunction);
+    props.domainEventsTopic.grantPublish(attachmentScanFunction);
+
+    attachmentScanFunction.addEventSource(
+      new lambda_event_sources.SqsEventSource(props.attachmentScanQueue, {
         batchSize: 10,
         reportBatchItemFailures: true,
       }),
