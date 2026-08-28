@@ -74,11 +74,30 @@ export class DataStack extends Stack {
           noncurrentVersionExpiration: Duration.days(90),
         },
       ],
+      // PRD.md §16.1: the browser uploads directly to this bucket via a
+      // presigned POST, which is a cross-origin request from the web
+      // app's own domain (never from a script running inside this
+      // bucket's own origin, since it is never served as a website).
+      // GET is for a presigned download the same way; nothing else needs
+      // to reach this bucket from a browser.
+      cors: [
+        {
+          allowedOrigins: [props.environment.webUrl],
+          allowedMethods: [s3.HttpMethods.POST, s3.HttpMethods.GET],
+          allowedHeaders: ['*'],
+        },
+      ],
     });
-    // AwsSolutions-S1 (server access logging): deferred rather than
-    // building a dedicated log-destination bucket for a skeleton with no
-    // application writing to this bucket yet. Revisit when the S3
-    // integration (PRD.md §5.3 presigned upload/download flow) is built.
+    // AwsSolutions-S1 (server access logging): still deferred, now that
+    // the bucket has real traffic (ApiStack presigns and confirms,
+    // WorkersStack's scan function reads and quarantines). GOV-STANDARDS.md's
+    // audit requirement for a download is already met at the application
+    // layer (an audit event on every GET /attachments/:id/download,
+    // packages/db's audit_events table), which is the thing PRD.md §16.2
+    // actually asks for; S3's own request-level access log is a separate,
+    // lower-level AWS audit trail, and building its dedicated
+    // log-destination bucket is real, scoped follow-up work, not something
+    // to rush in alongside wiring the bucket up for the first time.
     // Reason recorded per TECH-STACK.md §7's suppression requirement; the
     // actual cdk-nag suppression call sits in bin/app.ts, next to the
     // AwsSolutionsChecks aspect it applies to.

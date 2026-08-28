@@ -22,6 +22,7 @@ export interface ApiStackProps extends StackProps {
   vpc: ec2.IVpc;
   databaseUrlSecret: secretsmanager.ISecret;
   domainEventsTopic: sns.ITopic;
+  filesBucket: s3.IBucket;
   // Injected rather than built here, so a fast, offline `pnpm test` never
   // has to invoke `docker build`. bin/app.ts's real synth path passes a
   // DockerImageAsset built from apps/api/Dockerfile; test/stacks.test.ts
@@ -117,6 +118,7 @@ export class ApiStack extends Stack {
         // endpoints", which is exactly correct once deployed. Setting it
         // here would point a real environment at LocalStack.
         ORGFLOW_EVENTS_TOPIC_ARN: props.domainEventsTopic.topicArn,
+        ORGFLOW_S3_BUCKET: props.filesBucket.bucketName,
       },
       secrets: {
         // CDK auto-grants the task's execution role read access to each of
@@ -127,11 +129,14 @@ export class ApiStack extends Stack {
       },
     });
 
-    // The one runtime IAM permission the application code itself needs,
+    // The runtime IAM permissions the application code itself needs,
     // distinct from the execution role's image-pull and secret-read
     // permissions above: publishing a domain event (ADR-0008's SNS
-    // publisher) after a case transitions.
+    // publisher) after a case transitions, and presigning, confirming,
+    // downloading and soft-deleting an attachment (PRD.md §16.1) against
+    // the real object store.
     props.domainEventsTopic.grantPublish(taskDefinition.taskRole);
+    props.filesBucket.grantReadWrite(taskDefinition.taskRole);
 
     const serviceSecurityGroup = new ec2.SecurityGroup(this, 'ServiceSecurityGroup', {
       vpc: props.vpc,

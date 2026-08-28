@@ -28,7 +28,7 @@ export function applyNagSuppressions(stacks: StacksToSuppress): void {
       {
         id: 'AwsSolutions-S1',
         reason:
-          'Server access logging deferred: nothing writes to this bucket yet (the S3 upload/download flow in PRD.md §5.3 is a later phase). Revisit alongside that work rather than standing up a log-destination bucket for a bucket nothing uses.',
+          "Server access logging still deferred, now that ApiStack and WorkersStack's attachment-scan function both read and write this bucket. GOV-STANDARDS.md's actual audit requirement for a download is met at the application layer (an audit event on every GET /attachments/:id/download, packages/db's audit_events table); S3's own request-level access log is a separate, lower-level AWS audit trail, and its dedicated log-destination bucket is scoped follow-up work, not something to add silently alongside wiring the bucket up for the first time.",
       },
     ],
     true,
@@ -202,6 +202,61 @@ export function applyNagSuppressions(stacks: StacksToSuppress): void {
         id: 'AwsSolutions-IAM4',
         reason:
           "AWSLambdaBasicExecutionRole (CloudWatch Logs) and AWSLambdaVPCAccessExecutionRole (ENI management for VPC attachment) are the two AWS-managed policies CDK attaches automatically to a VPC-attached lambda.Function's default execution role. Both are scoped to exactly what a VPC-attached Lambda's own infrastructure needs; a hand-written equivalent would duplicate what AWS already maintains for its own service integration, not tighten it.",
+      },
+    ],
+    true,
+  );
+
+  NagSuppressions.addResourceSuppressionsByPath(
+    workers,
+    `/${workers.stackName}/AttachmentScanFunction/Resource`,
+    [
+      {
+        id: 'AwsSolutions-L1',
+        reason:
+          'Same reasoning as NotificationsFunction: NODEJS_22_X is the runtime TECH-STACK.md §5.1 specifies.',
+      },
+    ],
+    true,
+  );
+
+  NagSuppressions.addResourceSuppressionsByPath(
+    workers,
+    `/${workers.stackName}/AttachmentScanFunction/ServiceRole/Resource`,
+    [
+      {
+        id: 'AwsSolutions-IAM4',
+        reason:
+          'Same reasoning as NotificationsFunction: the two AWS-managed policies CDK attaches automatically to a VPC-attached execution role.',
+      },
+    ],
+    true,
+  );
+
+  NagSuppressions.addResourceSuppressionsByPath(
+    workers,
+    `/${workers.stackName}/AttachmentScanFunction/ServiceRole/DefaultPolicy/Resource`,
+    [
+      {
+        id: 'AwsSolutions-IAM5',
+        appliesTo: [
+          'Action::s3:GetObject*',
+          'Action::s3:GetBucket*',
+          'Action::s3:List*',
+          'Action::s3:DeleteObject*',
+          'Action::s3:Abort*',
+          // A regex, not a literal string, because how CDK renders this
+          // cross-stack reference (a plain <Logical.Arn> token vs. an
+          // Fn::ImportValue export name) depends on synth-time details
+          // this suppression should not be fragile against, such as
+          // whether the stack was built standalone or alongside its
+          // siblings sharing one App.
+          { regex: '/^Resource::.*FilesBucket.*\\/\\*$/' },
+          'Action::kms:ReEncrypt*',
+          'Action::kms:GenerateDataKey*',
+        ],
+        reason:
+          "filesBucket.grantReadWrite(attachmentScanFunction): the wildcard action families (GetObject*, PutObject*, DeleteObject* and so on) and the object-level resource ARN (bucket ARN + '/*') are exactly what CDK's own grantReadWrite generates for reading, writing and moving an object to a quarantine key (PRD.md §16.1); there is no narrower AWS-native grant for 'read and write objects in this bucket'. The KMS wildcard is the same GenerateDataKey/ReEncrypt family already suppressed on ApiStack's task role, for the same reason: encrypting/decrypting against DataStack's shared key.",
       },
     ],
     true,

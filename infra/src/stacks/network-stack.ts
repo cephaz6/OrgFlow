@@ -85,5 +85,14 @@ export class NetworkStack extends Stack {
     this.vpc.addInterfaceEndpoint('SecretsManagerEndpoint', {
       service: ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
     });
+
+    // WorkersStack's attachment-scan Lambda publishes attachment.scanned
+    // back onto the domain events topic (PRD.md §16.1) from inside this
+    // VPC's 'app' subnet group, which has no NAT gateway and therefore no
+    // other route to a public AWS service endpoint. Without this, that
+    // publish would simply never reach SNS in a deployed environment.
+    this.vpc.addInterfaceEndpoint('SnsEndpoint', {
+      service: ec2.InterfaceVpcEndpointAwsService.SNS,
+    });
   }
 }
