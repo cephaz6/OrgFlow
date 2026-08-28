@@ -7,12 +7,12 @@ import type { FormField } from '@orgflow/types';
 // Field types that render no control and hold no value.
 const STATIC_TYPES = new Set(['heading', 'paragraph']);
 
-// Types the runtime cannot yet collect. `file` needs the attachment
-// pipeline (PRD.md Phase 7) and `user` needs a directory endpoint that does
-// not exist. Listed rather than quietly skipped, because a required field
-// nobody can answer has to block submission with an explanation instead of
-// producing a case with a silent hole in it.
-export const UNSUPPORTED_TYPES = new Set(['file', 'user']);
+// Types the runtime cannot yet collect. `user` needs a directory endpoint
+// that does not exist; `file` was here too until the attachment pipeline
+// (PRD.md Phase 7) shipped. Listed rather than quietly skipped, because a
+// required field nobody can answer has to block submission with an
+// explanation instead of producing a case with a silent hole in it.
+export const UNSUPPORTED_TYPES = new Set(['user']);
 
 export function isStaticField(field: FormField): boolean {
   return STATIC_TYPES.has(field.type);
@@ -56,7 +56,12 @@ function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function validateField(field: FormField, value: unknown, today: Date): string | null {
+function validateField(
+  field: FormField,
+  value: unknown,
+  today: Date,
+  attachmentCount: number,
+): string | null {
   if (isStaticField(field)) {
     return null;
   }
@@ -65,6 +70,13 @@ function validateField(field: FormField, value: unknown, today: Date): string | 
     return field.required
       ? 'This question cannot be answered yet, so the request cannot be submitted.'
       : null;
+  }
+
+  // A file field's "value" is never stored in the values document (the
+  // confirmed attachment rows, keyed by fieldKey, are the source of truth
+  // for what is attached), so its completeness is a count, not values[key].
+  if (field.type === 'file') {
+    return field.required && attachmentCount === 0 ? 'Attach at least one file.' : null;
   }
 
   if (isEmpty(value)) {
@@ -169,11 +181,17 @@ export function validateFields(
   fields: FormField[],
   values: Record<string, unknown>,
   today: Date,
+  attachmentCountByFieldKey: Record<string, number> = {},
 ): Record<string, string> {
   const errors: Record<string, string> = {};
 
   for (const field of fields) {
-    const message = validateField(field, values[field.key], today);
+    const message = validateField(
+      field,
+      values[field.key],
+      today,
+      attachmentCountByFieldKey[field.key] ?? 0,
+    );
     if (message) {
       errors[field.key] = message;
     }

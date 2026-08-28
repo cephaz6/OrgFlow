@@ -1,7 +1,20 @@
-export { cancelCase, resubmitCase, submitNewCase } from './api-client';
+export {
+  cancelCase,
+  createDraftCase,
+  patchCaseValues,
+  resubmitCase,
+  submitCase,
+} from './api-client';
 export { fetchCase, fetchMyCases } from './api-server';
 export type { FetchMyCasesParams } from './api-server';
-export type { CaseDetail, CasePage, CaseResponse, TimelineEntry } from './types';
+export type {
+  AttachmentResponse,
+  CaseDetail,
+  CasePage,
+  CaseResponse,
+  TimelineEntry,
+} from './types';
+export { AttachmentList } from './attachment-list';
 export { CancelCase } from './case-actions';
 export { CaseList } from './case-list';
 export { isReturnedToRequester } from './case-state';

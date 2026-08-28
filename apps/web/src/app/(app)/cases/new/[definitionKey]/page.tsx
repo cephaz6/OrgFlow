@@ -13,7 +13,7 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { definitionKey } = await params;
   const detail = await fetchDefinitionByKey(definitionKey);
-  return { title: detail ? `New ${detail.definition.name} — OrgFlow` : 'Not found — OrgFlow' };
+  return { title: detail ? `New ${detail.definition.name}: OrgFlow` : 'Not found: OrgFlow' };
 }
 
 export default async function NewCasePage({ params }: PageProps) {

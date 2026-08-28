@@ -48,6 +48,16 @@ export type TimelineEntry =
       payload: Record<string, unknown>;
     };
 
+export interface AttachmentResponse {
+  attachmentId: string;
+  fieldKey: string;
+  filename: string;
+  sizeBytes: number;
+  scanStatus: 'pending' | 'clean' | 'infected' | 'error';
+  uploadedByUserId: string;
+  createdAt: string;
+}
+
 export interface CaseDetail {
   case: CaseResponse;
   values: Record<string, unknown>;
@@ -57,6 +67,9 @@ export interface CaseDetail {
   // the questions it was actually asked rather than whatever the current
   // version happens to ask now (PRD.md §8.2).
   document: ProcessDefinitionDocument;
+  // Confirmed, not-deleted attachments only (packages/db's
+  // findConfirmedAttachmentsForCase); an abandoned presign never appears.
+  attachments: AttachmentResponse[];
 }
 
 export interface CasePage {

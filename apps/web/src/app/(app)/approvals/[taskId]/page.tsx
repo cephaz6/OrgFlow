@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { DecisionForm, fetchTask, urgencyOf } from '../../../../features/approvals';
-import { fetchCase, formatDate, SubmittedValues } from '../../../../features/cases';
+import { AttachmentList, fetchCase, formatDate, SubmittedValues } from '../../../../features/cases';
 import { PageHeader } from '../../../../features/shell';
 
 interface PageProps {
@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { taskId } = await params;
   const detail = await fetchTask(taskId);
   return {
-    title: detail ? `Decide ${detail.case.reference} — OrgFlow` : 'Not found — OrgFlow',
+    title: detail ? `Decide ${detail.case.reference}: OrgFlow` : 'Not found: OrgFlow',
   };
 }
 
@@ -94,6 +94,17 @@ export default async function DecisionPage({ params }: PageProps) {
           )}
         </CardContent>
       </Card>
+
+      {caseDetail && caseDetail.attachments.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Attachments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AttachmentList attachments={caseDetail.attachments} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {priorDecisions.length > 0 ? (
         <Card>

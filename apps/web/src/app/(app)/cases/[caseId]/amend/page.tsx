@@ -10,7 +10,7 @@ interface PageProps {
 }
 
 export const metadata: Metadata = {
-  title: 'Amend request — OrgFlow',
+  title: 'Amend request: OrgFlow',
 };
 
 export default async function AmendCasePage({ params }: PageProps) {
@@ -47,6 +47,7 @@ export default async function AmendCasePage({ params }: PageProps) {
         mode={{ kind: 'resubmit', caseId: detail.case.caseId, reference: detail.case.reference }}
         document={detail.document}
         initialValues={detail.values}
+        initialAttachments={detail.attachments}
         userId={session.user.userId}
         roles={session.roles}
       />

@@ -3,6 +3,8 @@
 import type { FormField } from '@orgflow/types';
 import { Input, Label, Select, Textarea } from '@orgflow/ui';
 
+import { FileFieldControl } from './file-field-control';
+import type { AttachmentResponse } from './types';
 import { isStaticField, UNSUPPORTED_TYPES } from './validate';
 
 export interface FieldInputProps {
@@ -10,6 +12,14 @@ export interface FieldInputProps {
   value: unknown;
   error: string | undefined;
   onChange: (value: unknown) => void;
+  // Only read for a `file` field. caseId is guaranteed present by the time
+  // any field renders (FormRuntime does not render the form until the
+  // draft, or the case being amended, exists), so a `file` field is never
+  // asked to render without one.
+  caseId?: string | undefined;
+  attachments?: AttachmentResponse[] | undefined;
+  onAttachmentAdded?: ((attachment: AttachmentResponse) => void) | undefined;
+  onAttachmentRemoved?: ((attachmentId: string) => void) | undefined;
 }
 
 interface ControlProps extends FieldInputProps {
@@ -45,21 +55,45 @@ function inputTypeFor(type: FormField['type']): string {
 // Building JSX in a closure defined during render makes React remount the
 // subtree on every keystroke, which loses focus and the caret position; the
 // react-hooks lint rule flags it for exactly that reason.
-function FieldControl({ field, value, error, onChange, controlId, described }: ControlProps) {
+function FieldControl({
+  field,
+  value,
+  error,
+  onChange,
+  controlId,
+  described,
+  caseId,
+  attachments,
+  onAttachmentAdded,
+  onAttachmentRemoved,
+}: ControlProps) {
   const invalid = error ? true : undefined;
   const text = value === null || value === undefined ? '' : String(value);
 
   if (UNSUPPORTED_TYPES.has(field.type)) {
     return (
       <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
-        {field.type === 'file'
-          ? 'Attachments are not available yet, so this cannot be answered here.'
-          : 'Choosing a person is not available yet, so this cannot be answered here.'}
+        Choosing a person is not available yet, so this cannot be answered here.
       </p>
     );
   }
 
   switch (field.type) {
+    case 'file':
+      return (
+        <FileFieldControl
+          field={field}
+          caseId={caseId!}
+          controlId={controlId}
+          described={described}
+          attachments={(attachments ?? []).filter(
+            (attachment) => attachment.fieldKey === field.key,
+          )}
+          onAttachmentAdded={onAttachmentAdded ?? (() => {})}
+          onAttachmentRemoved={onAttachmentRemoved ?? (() => {})}
+        />
+      );
+
     case 'textarea':
       return (
         <Textarea
@@ -180,7 +214,16 @@ function RequiredMark() {
   return <span className="text-muted-foreground"> (required)</span>;
 }
 
-export function FieldInput({ field, value, error, onChange }: FieldInputProps) {
+export function FieldInput({
+  field,
+  value,
+  error,
+  onChange,
+  caseId,
+  attachments,
+  onAttachmentAdded,
+  onAttachmentRemoved,
+}: FieldInputProps) {
   if (field.type === 'heading') {
     return <h3 className="pt-2 text-base font-semibold">{field.label}</h3>;
   }
@@ -220,6 +263,10 @@ export function FieldInput({ field, value, error, onChange }: FieldInputProps) {
       onChange={onChange}
       controlId={field.key}
       described={described}
+      caseId={caseId}
+      attachments={attachments}
+      onAttachmentAdded={onAttachmentAdded}
+      onAttachmentRemoved={onAttachmentRemoved}
     />
   );
 
