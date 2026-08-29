@@ -28,7 +28,10 @@ test.describe('case comments', () => {
     await page.getByRole('link', { name: 'Track this request' }).click();
     await expect(page.getByRole('heading', { name: reference, level: 1 })).toBeVisible();
 
-    await expect(page.getByRole('heading', { name: 'Comments' })).toBeVisible();
+    // exact: true, since Playwright's accessible-name matching is
+    // case-insensitive substring by default, and "No comments yet"
+    // (the empty state's own heading) otherwise matches "Comments" too.
+    await expect(page.getByRole('heading', { name: 'Comments', exact: true })).toBeVisible();
     await expect(page.getByText('No comments yet')).toBeVisible();
 
     await page.getByLabel('Add a comment').fill('Can you confirm the delivery address?');
