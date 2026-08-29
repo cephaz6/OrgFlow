@@ -101,6 +101,25 @@ export async function findConfirmedAttachmentsForCase(
   return rows.map(toDomain);
 }
 
+// PRD.md §18's subject access export's attachment manifest: every file this
+// user uploaded, including an abandoned or since-deleted one, since the
+// export is a record of what this person did, not only what is currently
+// live. Deliberately unpaginated, matching cases.ts's own reasoning for the
+// same export.
+export async function findAllAttachmentsUploadedByUser(
+  trx: Transaction<Database>,
+  userId: string,
+): Promise<Attachment[]> {
+  const rows = await trx
+    .selectFrom('attachments')
+    .selectAll()
+    .where('uploaded_by_user_id', '=', userId)
+    .orderBy('created_at', 'asc')
+    .execute();
+
+  return rows.map(toDomain);
+}
+
 // A field's declared maxFiles counts confirmed uploads only: an abandoned
 // presign that was never confirmed should not consume the limit, the same
 // reasoning a draft case row does not count against anything until

@@ -17,6 +17,7 @@ import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { createAttachmentsRouter } from './routes/attachments.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createCasesRouter } from './routes/cases.js';
+import { createDataProtectionRouter } from './routes/data-protection.js';
 import { createDelegationsRouter } from './routes/delegations.js';
 import { createGroupsRouter } from './routes/groups.js';
 import { createHealthRouter } from './routes/health.js';
@@ -153,6 +154,15 @@ export function createApp(deps: CreateAppDeps): Express {
     '/api/v1',
     createIdentityProvidersRouter({
       db: deps.db,
+      sessionSecret: deps.sessionSecret,
+    }),
+  );
+
+  app.use(
+    '/api/v1',
+    createDataProtectionRouter({
+      db: deps.db,
+      mongoClient: deps.mongoClient,
       sessionSecret: deps.sessionSecret,
     }),
   );

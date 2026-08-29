@@ -92,7 +92,11 @@ export {
 export type { CreateUserWithIdentityInput } from './repositories/users.js';
 export { ensureDevUser } from './repositories/dev-seed.js';
 export type { DevSeedResult } from './repositories/dev-seed.js';
-export { appendAuditEvent, findAuditEventsForCase } from './repositories/audit-events.js';
+export {
+  appendAuditEvent,
+  findAllAuditEventsForActor,
+  findAuditEventsForCase,
+} from './repositories/audit-events.js';
 export type { AppendAuditEventInput } from './repositories/audit-events.js';
 export {
   allocateCaseReference,
@@ -120,6 +124,7 @@ export type {
 export {
   CaseConcurrencyError,
   createCase,
+  findAllCasesSubmittedByUser,
   findCaseById,
   findCasesForCurrentTenant,
   isDraftReference,
@@ -135,6 +140,7 @@ export {
   cancelOpenTasksForCase,
   claimCaseTask,
   createCaseTask,
+  findAllCaseTasksForUser,
   findCaseTaskById,
   findCaseTasksForCase,
   findClaimableTaskQueue,
@@ -183,6 +189,7 @@ export type {
 export {
   countConfirmedAttachmentsForField,
   createAttachment,
+  findAllAttachmentsUploadedByUser,
   findAttachmentById,
   findConfirmedAttachmentsForCase,
   markAttachmentConfirmed,
