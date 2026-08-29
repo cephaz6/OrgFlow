@@ -83,3 +83,20 @@ export async function findAuditEventsForCase(
 
   return rows.map(toDomain);
 }
+
+// PRD.md §18's subject access export: every action this user is recorded
+// as having taken, across every entity type, not only cases. Deliberately
+// unpaginated, matching cases.ts's findAllCasesSubmittedByUser reasoning.
+export async function findAllAuditEventsForActor(
+  trx: Transaction<Database>,
+  actorUserId: string,
+): Promise<AuditEvent[]> {
+  const rows = await trx
+    .selectFrom('audit_events')
+    .selectAll()
+    .where('actor_user_id', '=', actorUserId)
+    .orderBy('occurred_at', 'asc')
+    .execute();
+
+  return rows.map(toDomain);
+}

@@ -89,6 +89,26 @@ export async function findCaseById(
   return row ? toDomain(row) : null;
 }
 
+// PRD.md §18's subject access export: "all data relating to a user across
+// cases they submitted". Deliberately unpaginated, unlike every other list
+// in this codebase: an export is read once, occasionally, by an
+// administrator, and truncating it silently at a page boundary would make
+// the export incomplete without saying so, which is worse than a query
+// that scans every row a real subject could plausibly have submitted.
+export async function findAllCasesSubmittedByUser(
+  trx: Transaction<Database>,
+  userId: string,
+): Promise<Case[]> {
+  const rows = await trx
+    .selectFrom('cases')
+    .selectAll()
+    .where('submitted_by_user_id', '=', userId)
+    .orderBy('case_id', 'asc')
+    .execute();
+
+  return rows.map(toDomain);
+}
+
 export interface FindCasesFilter {
   submittedByUserId?: string;
   status?: CaseStatus;

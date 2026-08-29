@@ -2,7 +2,8 @@
 
 import type { OrganisationRole } from '@orgflow/types';
 import { Alert, Button, EmptyState, StatusBadge, type StatusTone } from '@orgflow/ui';
-import { CircleSlash, Pencil, UserMinus, UserRound, Users } from 'lucide-react';
+import { CircleSlash, FileSearch, Pencil, UserMinus, UserRound, Users } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -128,34 +129,51 @@ export function MemberList({ members, currentUserId }: MemberListProps) {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{formatDate(member.joinedAt)}</td>
                   <td className="px-4 py-3">
-                    {isSelf || isRemoved ? null : (
-                      <span className="flex justify-end gap-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          aria-expanded={editing === member.userId}
-                          onClick={() =>
-                            setEditing(editing === member.userId ? null : member.userId)
-                          }
-                        >
-                          <Pencil aria-hidden="true" className="h-4 w-4" />
-                          Edit roles
+                    <span className="flex justify-end gap-2">
+                      {isSelf || isRemoved ? null : (
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-expanded={editing === member.userId}
+                            onClick={() =>
+                              setEditing(editing === member.userId ? null : member.userId)
+                            }
+                          >
+                            <Pencil aria-hidden="true" className="h-4 w-4" />
+                            Edit roles
+                            <span className="sr-only"> for {member.displayName}</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={busy === member.userId}
+                            onClick={() =>
+                              void run(member.userId, () => removeMember(member.userId))
+                            }
+                          >
+                            <UserMinus aria-hidden="true" className="h-4 w-4" />
+                            Remove
+                            <span className="sr-only"> {member.displayName}</span>
+                          </Button>
+                        </>
+                      )}
+                      {/* Available even for the signed-in admin's own row
+                          or a removed member: unlike editing roles or
+                          removing, exporting a person's data carries no
+                          self-lockout risk (ADR-0024), and a removed
+                          member's compliance data still needs to be
+                          reachable. */}
+                      <Button type="button" variant="ghost" size="sm" asChild>
+                        <Link href={`/settings/data-protection?userId=${member.userId}`}>
+                          <FileSearch aria-hidden="true" className="h-4 w-4" />
+                          Export data
                           <span className="sr-only"> for {member.displayName}</span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          disabled={busy === member.userId}
-                          onClick={() => void run(member.userId, () => removeMember(member.userId))}
-                        >
-                          <UserMinus aria-hidden="true" className="h-4 w-4" />
-                          Remove
-                          <span className="sr-only"> {member.displayName}</span>
-                        </Button>
-                      </span>
-                    )}
+                        </Link>
+                      </Button>
+                    </span>
                   </td>
                 </tr>
               );

@@ -126,6 +126,32 @@ export async function findCaseTasksForCase(
   return rows.map(toDomain);
 }
 
+// PRD.md §18's subject access export: "tasks they decided on". Matches
+// every column this user could be named against on a task, not only
+// completion, since claiming or being delegated a task is also something
+// that happened to this person and belongs in their export. Deliberately
+// unpaginated, matching findAllCasesSubmittedByUser's own reasoning.
+export async function findAllCaseTasksForUser(
+  trx: Transaction<Database>,
+  userId: string,
+): Promise<CaseTask[]> {
+  const rows = await trx
+    .selectFrom('case_tasks')
+    .selectAll()
+    .where((eb) =>
+      eb.or([
+        eb('assignee_user_id', '=', userId),
+        eb('claimed_by_user_id', '=', userId),
+        eb('completed_by_user_id', '=', userId),
+        eb('delegated_from_user_id', '=', userId),
+      ]),
+    )
+    .orderBy('created_at', 'asc')
+    .execute();
+
+  return rows.map(toDomain);
+}
+
 // The approvals queue: tasks directly assigned to this user and still open.
 export async function findOpenTasksForAssignee(
   trx: Transaction<Database>,
