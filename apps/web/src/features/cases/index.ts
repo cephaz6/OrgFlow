@@ -2,13 +2,15 @@ export {
   cancelCase,
   createDraftCase,
   patchCaseValues,
+  postCaseComment,
   resubmitCase,
   submitCase,
 } from './api-client';
-export { fetchCase, fetchMyCases } from './api-server';
+export { fetchCase, fetchCaseComments, fetchMyCases } from './api-server';
 export type { FetchMyCasesParams } from './api-server';
 export type {
   AttachmentResponse,
+  CaseCommentEntry,
   CaseDetail,
   CasePage,
   CaseResponse,
@@ -16,6 +18,7 @@ export type {
 } from './types';
 export { AttachmentList } from './attachment-list';
 export { CancelCase } from './case-actions';
+export { CaseComments } from './case-comments';
 export { CaseList } from './case-list';
 export { isReturnedToRequester } from './case-state';
 export { CaseStatusBadge, TaskStatusBadge } from './case-status';

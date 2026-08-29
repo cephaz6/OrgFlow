@@ -16,6 +16,7 @@ import { correlationId } from './middleware/correlation-id.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { createAttachmentsRouter } from './routes/attachments.js';
 import { createAuthRouter } from './routes/auth.js';
+import { createCaseCommentsRouter } from './routes/case-comments.js';
 import { createCasesRouter } from './routes/cases.js';
 import { createDataProtectionRouter } from './routes/data-protection.js';
 import { createDelegationsRouter } from './routes/delegations.js';
@@ -93,6 +94,14 @@ export function createApp(deps: CreateAppDeps): Express {
       publisher: deps.publisher,
       sessionSecret: deps.sessionSecret,
       logger: deps.logger,
+    }),
+  );
+
+  app.use(
+    '/api/v1',
+    createCaseCommentsRouter({
+      db: deps.db,
+      sessionSecret: deps.sessionSecret,
     }),
   );
 

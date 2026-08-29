@@ -6,9 +6,11 @@ import { notFound } from 'next/navigation';
 import {
   AttachmentList,
   CancelCase,
+  CaseComments,
   CaseStatusBadge,
   CaseTimeline,
   fetchCase,
+  fetchCaseComments,
   formatDate,
   isReturnedToRequester,
   SubmittedValues,
@@ -41,6 +43,7 @@ export default async function CaseDetailPage({ params }: PageProps) {
   }
 
   const { case: found, values, tasks, timeline, document, attachments } = detail;
+  const comments = await fetchCaseComments(caseId);
   const returned = isReturnedToRequester(found);
   const isRequester = session?.user.userId === found.submittedByUserId;
   const isOpen = found.status === 'active' || found.status === 'unassigned';
@@ -158,6 +161,24 @@ export default async function CaseDetailPage({ params }: PageProps) {
         </CardHeader>
         <CardContent>
           <CaseTimeline entries={timeline} document={document} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Comments</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* An approximation of canSeeInternalComments, not the real
+              check: the requester never sees the internal-note toggle,
+              since it can only ever fail for them. Anyone who is not the
+              requester sees it, and the API is the actual authority on
+              whether posting one succeeds. */}
+          <CaseComments
+            caseId={found.caseId}
+            initialComments={comments}
+            canPostInternalNote={!isRequester}
+          />
         </CardContent>
       </Card>
 

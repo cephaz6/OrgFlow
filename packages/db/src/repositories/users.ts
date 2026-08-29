@@ -119,6 +119,20 @@ export async function findUserById(db: Kysely<Database>, userId: string): Promis
   return row ? toDomain(row) : null;
 }
 
+// One query for a batch of ids, rather than a findUserById per row: a case
+// comment thread's author list is exactly this shape (a handful of
+// distinct ids repeated across many comments), and the caller only needs
+// this to render a display name, not a full User per call site.
+export async function findUsersByIds(db: Kysely<Database>, userIds: string[]): Promise<User[]> {
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const rows = await db.selectFrom('users').selectAll().where('user_id', 'in', userIds).execute();
+
+  return rows.map(toDomain);
+}
+
 // Case-insensitive: identity providers do not agree on casing, and a
 // delegate typing a colleague's email from memory should not have to match
 // it exactly.

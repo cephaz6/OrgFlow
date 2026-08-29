@@ -1,6 +1,7 @@
 export type * from './assignment.js';
 export type * from './audit.js';
 export type * from './case.js';
+export type * from './case-comment.js';
 export type * from './common.js';
 export type * from './condition.js';
 export type * from './definition-document.js';

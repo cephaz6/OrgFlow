@@ -54,6 +54,37 @@ export async function canViewCase(
   return hasUserHeldTaskOnCase(trx, found.caseId, session.userId);
 }
 
+// canViewCase without its submitter-match branch: every other reason to
+// see a case (admin/owner, process owner of the definition, a past or
+// present assignee) is someone internal to how the case is being handled,
+// never merely the person it is about. This is exactly the audience an
+// 'approvers'-visibility comment (packages/types/src/case-comment.ts) is
+// for, and exactly who a plain 'all'-visibility comment already reaches via
+// canViewCase, so this only needs to gate the narrower, internal-only kind.
+export async function canSeeInternalComments(
+  trx: Transaction<Database>,
+  session: RequestSession,
+  found: Case,
+): Promise<boolean> {
+  const member = await findOrganisationMemberByUserId(trx, session.userId);
+  if (!member) {
+    return false;
+  }
+
+  if (member.roles.includes('admin') || member.roles.includes('owner')) {
+    return true;
+  }
+
+  if (member.roles.includes('processOwner')) {
+    const definition = await findProcessDefinitionById(trx, found.definitionId);
+    if (definition?.createdByUserId === session.userId) {
+      return true;
+    }
+  }
+
+  return hasUserHeldTaskOnCase(trx, found.caseId, session.userId);
+}
+
 // Holds a role that governs the whole organisation. Read from the database
 // for the same reason canViewCase is: a session's roles claim is a snapshot
 // taken at sign-in and can be up to twelve hours stale (ADR-0010).

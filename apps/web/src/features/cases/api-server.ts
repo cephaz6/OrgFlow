@@ -1,6 +1,6 @@
 import { ApiError } from '../../lib/api-error';
 import { apiGet } from '../../lib/api-server';
-import type { CaseDetail, CasePage } from './types';
+import type { CaseCommentEntry, CaseDetail, CasePage } from './types';
 
 // Server-side reads. Kept apart from the mutations in api-client.ts because
 // this module transitively imports next/headers, and anything a client
@@ -23,7 +23,7 @@ export async function fetchMyCases(params?: FetchMyCasesParams): Promise<CasePag
   if (params?.cursor) {
     search.set('cursor', params.cursor);
   }
-  search.set('limit', String(params?.limit ?? 50));
+  search.set('limit', String(params?.limit ?? 10));
 
   return apiGet<CasePage>(`/cases?${search.toString()}`);
 }
@@ -41,4 +41,15 @@ export async function fetchCase(caseId: string): Promise<CaseDetail | null> {
     }
     throw err;
   }
+}
+
+// A separate call rather than folded into fetchCase's response: the case
+// detail page already knows from fetchCase's own 404 whether the case is
+// visible at all, so this only ever needs to run once that is settled, and
+// keeping it apart means posting a new comment can refresh just this list.
+export async function fetchCaseComments(caseId: string): Promise<CaseCommentEntry[]> {
+  const { data } = await apiGet<{ data: CaseCommentEntry[] }>(
+    `/cases/${encodeURIComponent(caseId)}/comments`,
+  );
+  return data;
 }
