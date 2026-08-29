@@ -1,5 +1,5 @@
 import type { Case, CaseOutcome, CaseStatus } from '@orgflow/types';
-import type { Selectable, Transaction } from 'kysely';
+import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 
 import { clampPageSize } from '../pagination.js';
 import type { CasesTable, Database } from '../schema.js';
@@ -241,4 +241,53 @@ export async function updateCaseState(
   }
 
   return toDomain(row);
+}
+
+// Deliberately its own function rather than a call through updateCaseState:
+// redaction is a compliance action taken by the retention sweep, not a
+// CaseStatus transition, and does not need updateCaseState's optimistic-
+// concurrency check. A case has already reached a terminal status by the
+// time it is eligible for redaction (findCasesEligibleForRedaction only
+// selects completed cases), so nothing else is expected to be racing this
+// write; requiring a matching row_version would only risk the redaction
+// silently no-op'ing against an incidental, unrelated update.
+export async function markCaseRedacted(
+  trx: Transaction<Database>,
+  caseId: string,
+  redactedAt: Date,
+): Promise<void> {
+  await trx
+    .updateTable('cases')
+    .set({ redacted_at: redactedAt, updated_at: new Date() })
+    .where('case_id', '=', caseId)
+    .execute();
+}
+
+// PRD.md §18: "a scheduled Lambda finds expired cases nightly [and redacts
+// them]". Runs on the plain (unscoped) connection, the same reasoning
+// findDueTimers already uses: a scheduler sweep has no single tenant in
+// context, and has to look across every organisation in one pass. A case
+// is eligible once it has reached a terminal state (completedAt is set),
+// its owning definition has a configured retention window, and that
+// window has elapsed since completion, counted from completion rather
+// than submission because PRD.md §18 frames retention as "how long to
+// keep a finished case", not how long a case may stay open.
+export async function findCasesEligibleForRedaction(
+  db: Kysely<Database>,
+  now: Date,
+): Promise<Case[]> {
+  const rows = await db
+    .selectFrom('cases')
+    .innerJoin('process_definitions', 'process_definitions.definition_id', 'cases.definition_id')
+    .selectAll('cases')
+    .where('cases.redacted_at', 'is', null)
+    .where('cases.completed_at', 'is not', null)
+    .where('process_definitions.retention_days', 'is not', null)
+    .where(
+      sql<boolean>`cases.completed_at + (process_definitions.retention_days || ' days')::interval <= ${now}`,
+    )
+    .orderBy('cases.case_id', 'asc')
+    .execute();
+
+  return rows.map(toDomain);
 }

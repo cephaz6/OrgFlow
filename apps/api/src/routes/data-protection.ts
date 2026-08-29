@@ -5,7 +5,10 @@ import {
   findAllCasesSubmittedByUser,
   findAllCaseTasksForUser,
   findOrganisationMemberByUserId,
+  findProcessDefinitionById,
+  findProcessDefinitionsForOrganisation,
   findUserById,
+  updateProcessDefinitionMetadata,
   withTenantTransaction,
   type Database,
 } from '@orgflow/db';
@@ -28,6 +31,14 @@ export interface DataProtectionDeps {
 
 const querySchema = z.object({
   userId: z.string().uuid(),
+});
+
+const retentionPatchSchema = z.object({
+  // Matches document-schema.ts's own retentionDays constraint at creation
+  // (a positive integer), widened here to also accept null: PATCH is the
+  // only place a definition's retention window can be cleared back to
+  // indefinite once set.
+  retentionDays: z.number().int().positive().nullable(),
 });
 
 // PRD.md §12.2/§18 gives data protection duties, including subject access
@@ -158,6 +169,81 @@ export function createDataProtectionRouter(deps: DataProtectionDeps): Router {
       });
 
       res.status(200).json({ ...result, exportedAt: new Date().toISOString() });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PRD.md §11.9's dedicated retention endpoints, and the source of truth
+  // retention/sweep.ts's nightly redaction pass actually reads: the process
+  // builder's own document also carries a retentionDays field (apps/web/
+  // src/features/form-builder/builder.tsx), but that copy lives in Mongo,
+  // is only written on save-draft, and is never read back out by anything.
+  // This Postgres column, set only through this route, is the one value
+  // that governs whether and when a case is ever redacted.
+  router.get('/data-protection/retention', async (req, res, next) => {
+    try {
+      const session = sessionOf(req);
+
+      const definitions = await withTenantTransaction(
+        deps.db,
+        session.organisationId,
+        async (trx) => {
+          if (!(await isAdministrator(trx, session))) {
+            throw new HttpProblemError(
+              403,
+              'Forbidden',
+              'Managing retention requires the admin or owner role.',
+            );
+          }
+
+          return findProcessDefinitionsForOrganisation(trx);
+        },
+      );
+
+      res.status(200).json({
+        definitions: definitions.map((definition) => ({
+          definitionId: definition.definitionId,
+          key: definition.key,
+          name: definition.name,
+          retentionDays: definition.retentionDays,
+        })),
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.patch('/data-protection/retention/:definitionId', async (req, res, next) => {
+    try {
+      const session = sessionOf(req);
+      const definitionId = req.params.definitionId!;
+      const { retentionDays } = parseBody(retentionPatchSchema, req.body);
+
+      const updated = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
+        if (!(await isAdministrator(trx, session))) {
+          throw new HttpProblemError(
+            403,
+            'Forbidden',
+            'Managing retention requires the admin or owner role.',
+          );
+        }
+
+        // Cross-tenant reads as absent under RLS (PRD.md §11.10, ADR-0015).
+        const existing = await findProcessDefinitionById(trx, definitionId);
+        if (!existing) {
+          throw new HttpProblemError(404, 'Not Found', 'No such process definition.');
+        }
+
+        return updateProcessDefinitionMetadata(trx, definitionId, { retentionDays });
+      });
+
+      res.status(200).json({
+        definitionId: updated.definitionId,
+        key: updated.key,
+        name: updated.name,
+        retentionDays: updated.retentionDays,
+      });
     } catch (err) {
       next(err);
     }

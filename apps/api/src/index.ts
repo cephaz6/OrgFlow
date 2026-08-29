@@ -7,6 +7,7 @@ import { createApp } from './app.js';
 import { loadConfig } from './config/env.js';
 import { resolveEmailSender } from './email/resolve-sender.js';
 import { createLogger } from './logger.js';
+import { startRetentionSweep } from './retention/sweep.js';
 import { resolveFileStore } from './storage/resolve-file-store.js';
 import type { Logger } from './logger.js';
 import { startSlaSweep } from './sla/sweep.js';
@@ -74,6 +75,11 @@ async function main(): Promise<void> {
     // sla/sweep.ts): polls sla_timers for due reminders and escalations for
     // as long as this process runs.
     startSlaSweep({ db, mongoClient, publisher, logger });
+
+    // The local substitute for PRD.md §18's nightly scheduled Lambda (see
+    // retention/sweep.ts): polls for cases whose retention window has
+    // elapsed and redacts them, for as long as this process runs.
+    startRetentionSweep({ db, mongoClient, fileStore, logger });
 
     app.listen(config.ORGFLOW_API_PORT, () => {
       logger.info({ port: config.ORGFLOW_API_PORT }, 'apps/api listening');

@@ -39,6 +39,7 @@ describe('data protection API against real Postgres and Mongo', () => {
   let memberCookie: string;
   let subjectUserId: string;
   let caseId: string;
+  let definitionId: string;
   let otherOrganisationId: string;
   let otherTenantAdminCookie: string;
 
@@ -118,6 +119,7 @@ describe('data protection API against real Postgres and Mongo', () => {
         referencePrefix: 'DPT',
         createdByUserId: owner.userId,
       });
+      definitionId = definition.definitionId;
       const version = await createProcessVersion(trx, {
         organisationId,
         definitionId: definition.definitionId,
@@ -283,6 +285,61 @@ describe('data protection API against real Postgres and Mongo', () => {
       .get('/api/v1/data-protection/subject-export')
       .query({ userId: subjectUserId })
       .set('Cookie', otherTenantAdminCookie);
+
+    expect(response.status).toBe(404);
+  });
+
+  it('lists every process definition for retention, including one with no window set', async () => {
+    const response = await request(app())
+      .get('/api/v1/data-protection/retention')
+      .set('Cookie', adminCookie);
+
+    expect(response.status).toBe(200);
+    const entry = response.body.definitions.find(
+      (d: { definitionId: string }) => d.definitionId === definitionId,
+    );
+    expect(entry).toBeDefined();
+    expect(entry.retentionDays).toBeNull();
+  });
+
+  it('refuses the retention list to a member without the admin role', async () => {
+    const response = await request(app())
+      .get('/api/v1/data-protection/retention')
+      .set('Cookie', memberCookie);
+
+    expect(response.status).toBe(403);
+  });
+
+  it('sets and clears a retention window for an admin', async () => {
+    const set = await request(app())
+      .patch(`/api/v1/data-protection/retention/${definitionId}`)
+      .set('Cookie', adminCookie)
+      .send({ retentionDays: 90 });
+    expect(set.status).toBe(200);
+    expect(set.body.retentionDays).toBe(90);
+
+    const cleared = await request(app())
+      .patch(`/api/v1/data-protection/retention/${definitionId}`)
+      .set('Cookie', adminCookie)
+      .send({ retentionDays: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.retentionDays).toBeNull();
+  });
+
+  it('rejects a non-positive retention value', async () => {
+    const response = await request(app())
+      .patch(`/api/v1/data-protection/retention/${definitionId}`)
+      .set('Cookie', adminCookie)
+      .send({ retentionDays: 0 });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('404s patching retention for a definition in a different tenant, not 403', async () => {
+    const response = await request(app())
+      .patch(`/api/v1/data-protection/retention/${definitionId}`)
+      .set('Cookie', otherTenantAdminCookie)
+      .send({ retentionDays: 30 });
 
     expect(response.status).toBe(404);
   });
