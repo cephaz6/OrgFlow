@@ -202,3 +202,23 @@ export async function softDeleteAttachment(
 
   return toDomain(row);
 }
+
+// PRD.md §18's redaction: "attachments deleted". Distinct from
+// softDeleteAttachment, which only hides an attachment a requester removed
+// while editing a draft and leaves its filename intact, since that is not
+// a privacy action. Redaction also blanks filename, which can itself carry
+// personal data (a passport scan named after the person in it); field_key,
+// scan_status and the timestamps stay, since they carry no personal
+// content and are what lets the audit skeleton still say what kind of
+// evidence used to be here.
+export async function redactAttachment(
+  trx: Transaction<Database>,
+  attachmentId: string,
+  redactedAt: Date,
+): Promise<void> {
+  await trx
+    .updateTable('attachments')
+    .set({ filename: '[REDACTED]', deleted_at: redactedAt, updated_at: new Date() })
+    .where('attachment_id', '=', attachmentId)
+    .execute();
+}

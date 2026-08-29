@@ -221,6 +221,7 @@ export interface UpdateProcessDefinitionMetadataInput {
   category?: string | null;
   icon?: string | null;
   owningGroupId?: string | null;
+  retentionDays?: number | null;
 }
 
 // Definition-level metadata (name, description, category, icon), separate
@@ -241,6 +242,7 @@ export async function updateProcessDefinitionMetadata(
       ...(input.category !== undefined ? { category: input.category } : {}),
       ...(input.icon !== undefined ? { icon: input.icon } : {}),
       ...(input.owningGroupId !== undefined ? { owning_group_id: input.owningGroupId } : {}),
+      ...(input.retentionDays !== undefined ? { retention_days: input.retentionDays } : {}),
       updated_at: new Date(),
     })
     .where('definition_id', '=', definitionId)

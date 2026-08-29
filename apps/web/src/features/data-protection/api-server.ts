@@ -1,6 +1,6 @@
 import { ApiError } from '../../lib/api-error';
 import { apiGet } from '../../lib/api-server';
-import type { SubjectExport } from './types';
+import type { RetentionEntry, SubjectExport } from './types';
 
 export type SubjectExportResult =
   { kind: 'ok'; data: SubjectExport } | { kind: 'forbidden' } | { kind: 'not-found' };
@@ -21,6 +21,23 @@ export async function fetchSubjectExport(userId: string): Promise<SubjectExportR
     }
     if (err instanceof ApiError && err.status === 404) {
       return { kind: 'not-found' };
+    }
+    throw err;
+  }
+}
+
+// Null on 403, matching fetchMembers/fetchIdentityProviders: this screen
+// has no per-resource id in its URL, so there is nothing to tell apart
+// from "no such thing" the way subject-export's three-way result does.
+export async function fetchRetentionSettings(): Promise<RetentionEntry[] | null> {
+  try {
+    const { definitions } = await apiGet<{ definitions: RetentionEntry[] }>(
+      '/data-protection/retention',
+    );
+    return definitions;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 403) {
+      return null;
     }
     throw err;
   }

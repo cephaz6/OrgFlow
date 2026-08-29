@@ -1,5 +1,6 @@
 import {
   ChartNoAxesCombined,
+  Clock,
   Inbox,
   KeyRound,
   LayoutDashboard,
@@ -76,6 +77,15 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: KeyRound,
         // Same gate as Members: configuring who a session can authenticate
         // as is at least as sensitive as managing an existing one.
+        requiresAnyRole: ['admin', 'owner'],
+      },
+      {
+        href: '/settings/data-protection/retention',
+        label: 'Retention',
+        icon: Clock,
+        // PRD.md §12.2's role table names "retention" specifically as one
+        // of admin's data-protection duties, the same gate as everything
+        // else in this group.
         requiresAnyRole: ['admin', 'owner'],
       },
     ],

@@ -126,8 +126,10 @@ export {
   createCase,
   findAllCasesSubmittedByUser,
   findCaseById,
+  findCasesEligibleForRedaction,
   findCasesForCurrentTenant,
   isDraftReference,
+  markCaseRedacted,
   updateCaseState,
 } from './repositories/cases.js';
 export type {
@@ -194,6 +196,7 @@ export {
   findConfirmedAttachmentsForCase,
   markAttachmentConfirmed,
   markAttachmentScanned,
+  redactAttachment,
   softDeleteAttachment,
 } from './repositories/attachments.js';
 export type {

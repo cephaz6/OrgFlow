@@ -70,3 +70,13 @@ export interface SubjectExport {
   attachmentsUploaded: SubjectExportAttachment[];
   exportedAt: string;
 }
+
+// The shape GET/PATCH /data-protection/retention return: one row per
+// process definition in the organisation, whether or not it has a
+// retention window configured yet.
+export interface RetentionEntry {
+  definitionId: string;
+  key: string;
+  name: string;
+  retentionDays: number | null;
+}
