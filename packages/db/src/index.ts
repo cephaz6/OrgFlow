@@ -49,11 +49,15 @@ export type { ClaimedNotification, ClaimNotificationInput } from './repositories
 export { findMembershipsForUser } from './repositories/memberships.js';
 export {
   createIdentityProvider,
+  deleteIdentityProvider,
   findIdentityProviderByEmailDomain,
+  findIdentityProvidersForOrganisation,
+  updateIdentityProvider,
 } from './repositories/identity-providers.js';
 export type {
   CreateIdentityProviderInput,
   IdentityProviderRecord,
+  UpdateIdentityProviderInput,
 } from './repositories/identity-providers.js';
 export {
   createOrganisation,
