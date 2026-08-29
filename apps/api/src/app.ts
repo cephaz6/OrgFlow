@@ -20,6 +20,7 @@ import { createCasesRouter } from './routes/cases.js';
 import { createDelegationsRouter } from './routes/delegations.js';
 import { createGroupsRouter } from './routes/groups.js';
 import { createHealthRouter } from './routes/health.js';
+import { createIdentityProvidersRouter } from './routes/identity-providers.js';
 import { createInvitationsRouter } from './routes/invitations.js';
 import { createOrganisationsRouter } from './routes/organisations.js';
 import { createProcessDefinitionsRouter } from './routes/process-definitions.js';
@@ -143,6 +144,14 @@ export function createApp(deps: CreateAppDeps): Express {
   app.use(
     '/api/v1',
     createGroupsRouter({
+      db: deps.db,
+      sessionSecret: deps.sessionSecret,
+    }),
+  );
+
+  app.use(
+    '/api/v1',
+    createIdentityProvidersRouter({
       db: deps.db,
       sessionSecret: deps.sessionSecret,
     }),

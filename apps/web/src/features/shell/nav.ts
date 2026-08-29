@@ -1,6 +1,7 @@
 import {
   ChartNoAxesCombined,
   Inbox,
+  KeyRound,
   LayoutDashboard,
   LibraryBig,
   ScrollText,
@@ -67,6 +68,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         // PRD.md §12.2 gives "manage members" to admin and above, so a
         // process owner does not see this even though they see the two
         // items above it.
+        requiresAnyRole: ['admin', 'owner'],
+      },
+      {
+        href: '/settings/identity-providers',
+        label: 'Identity providers',
+        icon: KeyRound,
+        // Same gate as Members: configuring who a session can authenticate
+        // as is at least as sensitive as managing an existing one.
         requiresAnyRole: ['admin', 'owner'],
       },
     ],

@@ -1,4 +1,4 @@
-import { sql, type Kysely, type Selectable } from 'kysely';
+import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 
 import type { Database, IdentityProvidersTable } from '../schema.js';
 import { generateId } from '../uuid.js';
@@ -84,4 +84,69 @@ export async function createIdentityProvider(
     .executeTakeFirstOrThrow();
 
   return toDomain(row);
+}
+
+// Everything below runs inside withTenantTransaction, unlike the two
+// functions above: those two are ADR-0011's deliberate, narrow exceptions
+// for the pre-tenant-context steps of the login flow itself. Once a session
+// exists and an organisation is known, admin management of that
+// organisation's own providers goes through ordinary RLS scoping like every
+// other repository function in the codebase.
+
+export async function findIdentityProvidersForOrganisation(
+  trx: Transaction<Database>,
+): Promise<IdentityProviderRecord[]> {
+  const rows = await trx
+    .selectFrom('identity_providers')
+    .selectAll()
+    .orderBy('display_name', 'asc')
+    .execute();
+
+  return rows.map(toDomain);
+}
+
+// Every field optional, but at least one present: matches the same
+// caller-mistake reasoning as UpdateOrganisationMemberInput's patch schema.
+export interface UpdateIdentityProviderInput {
+  displayName?: string | undefined;
+  issuerUrl?: string | undefined;
+  clientId?: string | undefined;
+  clientSecretRef?: string | undefined;
+  emailDomains?: string[] | undefined;
+  enabled?: boolean | undefined;
+}
+
+export async function updateIdentityProvider(
+  trx: Transaction<Database>,
+  providerId: string,
+  input: UpdateIdentityProviderInput,
+): Promise<IdentityProviderRecord | null> {
+  const row = await trx
+    .updateTable('identity_providers')
+    .set({
+      ...(input.displayName !== undefined ? { display_name: input.displayName } : {}),
+      ...(input.issuerUrl !== undefined ? { issuer_url: input.issuerUrl } : {}),
+      ...(input.clientId !== undefined ? { client_id: input.clientId } : {}),
+      ...(input.clientSecretRef !== undefined ? { client_secret_ref: input.clientSecretRef } : {}),
+      ...(input.emailDomains !== undefined ? { email_domains: input.emailDomains } : {}),
+      ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      updated_at: new Date(),
+    })
+    .where('provider_id', '=', providerId)
+    .returningAll()
+    .executeTakeFirst();
+
+  return row ? toDomain(row) : null;
+}
+
+export async function deleteIdentityProvider(
+  trx: Transaction<Database>,
+  providerId: string,
+): Promise<boolean> {
+  const result = await trx
+    .deleteFrom('identity_providers')
+    .where('provider_id', '=', providerId)
+    .executeTakeFirst();
+
+  return result.numDeletedRows > 0n;
 }
