@@ -87,6 +87,7 @@ export {
   findUserByEmail,
   findUserByIdentity,
   findUserById,
+  findUsersByIds,
   touchLastLogin,
 } from './repositories/users.js';
 export type { CreateUserWithIdentityInput } from './repositories/users.js';
@@ -166,6 +167,11 @@ export {
   findCaseTransitionsForCase,
 } from './repositories/case-transitions.js';
 export type { AppendCaseTransitionInput } from './repositories/case-transitions.js';
+export { createCaseComment, findCommentsForCase } from './repositories/case-comments.js';
+export type {
+  CreateCaseCommentInput,
+  FindCaseCommentsOptions,
+} from './repositories/case-comments.js';
 export {
   cancelTimersForCase,
   cancelTimersForTask,

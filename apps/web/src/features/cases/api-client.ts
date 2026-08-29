@@ -1,5 +1,5 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../lib/api-client';
-import type { AttachmentResponse, CaseEnvelope, CaseResponse } from './types';
+import type { AttachmentResponse, CaseCommentEntry, CaseEnvelope, CaseResponse } from './types';
 
 // Browser-side mutations, called from the form runtime and the case
 // actions. Nothing here may import api-server.ts.
@@ -30,6 +30,13 @@ export async function submitCase(caseId: string): Promise<CaseResponse> {
 export async function cancelCase(caseId: string, reason: string): Promise<CaseResponse> {
   const response = await apiPost<CaseEnvelope>(`/cases/${caseId}/cancel`, { reason });
   return response.case;
+}
+
+export async function postCaseComment(
+  caseId: string,
+  input: { body: string; visibility: 'all' | 'approvers' },
+): Promise<CaseCommentEntry> {
+  return apiPost<CaseCommentEntry>(`/cases/${caseId}/comments`, input);
 }
 
 export async function resubmitCase(

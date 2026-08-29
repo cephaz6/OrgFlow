@@ -81,3 +81,17 @@ export interface CasePage {
 export interface CaseEnvelope {
   case: CaseResponse;
 }
+
+// The shape GET/POST /cases/:caseId/comments return
+// (apps/api/src/routes/case-comments.ts). 'approvers' visibility is never
+// sent to a caller not entitled to see it: the API filters server-side,
+// so a client never has to remember to hide anything itself.
+export interface CaseCommentEntry {
+  commentId: string;
+  caseId: string;
+  authorUserId: string;
+  authorDisplayName: string;
+  body: string;
+  visibility: 'all' | 'approvers';
+  createdAt: string;
+}
