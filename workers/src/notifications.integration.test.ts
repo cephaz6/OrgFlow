@@ -204,7 +204,7 @@ describe('notification worker against real Postgres', () => {
       `http://localhost:3000/approvals/${seeded.task.taskId}`,
     );
 
-    const rows = await withTenantTransaction(db, organisationId, (trx) =>
+    const { notifications: rows } = await withTenantTransaction(db, organisationId, (trx) =>
       findNotificationsForRecipient(trx, managerUserId),
     );
     const row = rows.find((candidate) => candidate.taskId === seeded.task.taskId);
@@ -226,8 +226,11 @@ describe('notification worker against real Postgres', () => {
     expect(second).toEqual({ sent: 0, skipped: 1 });
     expect(emailSender.sent).toHaveLength(1);
 
-    const rows = await withTenantTransaction(db, organisationId, (trx) =>
-      findNotificationsForRecipient(trx, managerUserId),
+    // Scoped to 'email': this handler now also claims an 'inApp' row for
+    // the same task (a second, independent channel, not a second email),
+    // so an unscoped read would legitimately find two rows here.
+    const { notifications: rows } = await withTenantTransaction(db, organisationId, (trx) =>
+      findNotificationsForRecipient(trx, managerUserId, { channel: 'email' }),
     );
     expect(rows.filter((row) => row.taskId === seeded.task.taskId)).toHaveLength(1);
   });
@@ -307,7 +310,7 @@ describe('notification worker against real Postgres', () => {
     expect(emailSender.sent[0]?.to).toBe('manager@example.invalid');
     expect(emailSender.sent[0]?.textBody).toContain('Claim it first');
 
-    const rows = await withTenantTransaction(db, organisationId, (trx) =>
+    const { notifications: rows } = await withTenantTransaction(db, organisationId, (trx) =>
       findNotificationsForRecipient(trx, managerUserId),
     );
     expect(rows.find((row) => row.taskId === seeded.task.taskId)?.templateKey).toBe(
@@ -343,8 +346,11 @@ describe('notification worker against real Postgres', () => {
 
     await expect(handleTaskCreated(deps(failing), event)).rejects.toThrow('SES is unavailable');
 
-    const afterFailure = await withTenantTransaction(db, organisationId, (trx) =>
-      findNotificationsForRecipient(trx, managerUserId),
+    // Scoped to 'email': the inApp row for this same task claims and sends
+    // independently of the email send failing, so an unscoped read could
+    // find that one instead of the failed email row.
+    const { notifications: afterFailure } = await withTenantTransaction(db, organisationId, (trx) =>
+      findNotificationsForRecipient(trx, managerUserId, { channel: 'email' }),
     );
     const failed = afterFailure.find((row) => row.taskId === seeded.task.taskId);
     expect(failed?.status).toBe('failed');
@@ -357,8 +363,8 @@ describe('notification worker against real Postgres', () => {
     expect(retry).toEqual({ sent: 1, skipped: 0 });
     expect(emailSender.sent).toHaveLength(1);
 
-    const afterRetry = await withTenantTransaction(db, organisationId, (trx) =>
-      findNotificationsForRecipient(trx, managerUserId),
+    const { notifications: afterRetry } = await withTenantTransaction(db, organisationId, (trx) =>
+      findNotificationsForRecipient(trx, managerUserId, { channel: 'email' }),
     );
     expect(afterRetry.find((row) => row.taskId === seeded.task.taskId)?.status).toBe('sent');
   });

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import type { Session } from '../auth';
+import { NotificationBell } from '../notifications';
 import { ThemeToggle } from '../theme';
 import { MobileNav } from './mobile-nav';
 import { OrgFlowMark } from './orgflow-logo';
@@ -45,6 +46,7 @@ export function AppShell({ session, children }: AppShellProps) {
           </span>
 
           <span className="ms-auto flex items-center gap-1.5">
+            <NotificationBell />
             <ThemeToggle />
             <UserMenu session={session} />
           </span>
