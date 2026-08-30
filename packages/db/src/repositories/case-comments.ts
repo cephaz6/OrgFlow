@@ -44,6 +44,23 @@ export async function createCaseComment(
   return toDomain(row);
 }
 
+// The notification worker's own read: it receives only a commentId in the
+// event payload (not the body), so it re-loads the comment fresh rather
+// than trusting anything about it from the event, the same reasoning
+// task.created's handler re-reads task state instead of carrying it.
+export async function findCaseCommentById(
+  trx: Transaction<Database>,
+  commentId: string,
+): Promise<CaseComment | null> {
+  const row = await trx
+    .selectFrom('case_comments')
+    .selectAll()
+    .where('comment_id', '=', commentId)
+    .executeTakeFirst();
+
+  return row ? toDomain(row) : null;
+}
+
 export interface FindCaseCommentsOptions {
   // Excludes 'approvers'-visibility comments when false: the route decides
   // this from canSeeInternalComments (apps/api/src/cases/permissions.ts),

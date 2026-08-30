@@ -15,12 +15,12 @@ import {
 import { createMongoClient } from '@orgflow/documents';
 import { createDummyEmailSender } from '@orgflow/email';
 import { createDummyFileStore } from '@orgflow/storage';
-import { createDummyPublisher } from '@orgflow/events';
+import { createDummyPublisher, type DummyDomainEventPublisher } from '@orgflow/events';
 import type { OrganisationRole } from '@orgflow/types';
 import type { Kysely } from 'kysely';
 import type { MongoClient } from 'mongodb';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../app.js';
 import { buildSessionClaims, createSessionToken, SESSION_COOKIE_NAME } from '../auth/session.js';
@@ -31,6 +31,7 @@ const SESSION_SECRET = '11'.repeat(32);
 describe('case comments API against real Postgres', () => {
   let db: Kysely<Database>;
   let mongoClient: MongoClient;
+  let publisher: DummyDomainEventPublisher;
   let organisationId: string;
   let submitterCookie: string;
   let adminCookie: string;
@@ -63,6 +64,10 @@ describe('case comments API against real Postgres', () => {
     );
     return { userId: user.userId, cookie: await cookieFor(user.userId, roles, orgId) };
   }
+
+  beforeEach(() => {
+    publisher = createDummyPublisher();
+  });
 
   beforeAll(async () => {
     db = createDb({ connectionString: process.env.ORGFLOW_TEST_DATABASE_URL! });
@@ -163,7 +168,7 @@ describe('case comments API against real Postgres', () => {
     return createApp({
       db,
       mongoClient,
-      publisher: createDummyPublisher(),
+      publisher,
       emailSender: createDummyEmailSender(),
       fileStore: createDummyFileStore(),
       corsOrigin: 'http://localhost:3000',
@@ -182,6 +187,16 @@ describe('case comments API against real Postgres', () => {
 
     expect(posted.status).toBe(201);
     expect(posted.body.visibility).toBe('all');
+
+    // The notify-on-comment worker's own trigger: one case.commented event,
+    // naming the case and the comment it is about, not its content (the
+    // worker re-reads that itself rather than trusting the event payload).
+    expect(publisher.published).toHaveLength(1);
+    expect(publisher.published[0]?.eventType).toBe('case.commented');
+    expect(publisher.published[0]?.payload).toEqual({
+      caseId,
+      commentId: posted.body.commentId,
+    });
 
     const asSubmitter = await request(app())
       .get(`/api/v1/cases/${caseId}/comments`)
