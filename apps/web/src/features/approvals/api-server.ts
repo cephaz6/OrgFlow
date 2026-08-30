@@ -1,3 +1,5 @@
+import type { TaskDecisionPreview } from '@orgflow/types';
+
 import { ApiError } from '../../lib/api-error';
 import { apiGet } from '../../lib/api-server';
 import type { TaskDetail, TaskQueuePage } from './types';
@@ -40,6 +42,24 @@ export async function fetchClaimableQueue(params?: FetchQueueParams): Promise<Ta
 export async function fetchTask(taskId: string): Promise<TaskDetail | null> {
   try {
     return await apiGet<TaskDetail>(`/tasks/${encodeURIComponent(taskId)}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+// Returns null on 404 (no such token) rather than throwing, so the confirm
+// screen can render "this link is not valid" instead of an error page,
+// mirroring fetchInvitationPreview exactly. Any other failure still
+// propagates.
+export async function fetchTaskDecisionPreview(token: string): Promise<TaskDecisionPreview | null> {
+  try {
+    const result = await apiGet<{ decision: TaskDecisionPreview }>(
+      `/task-decision-tokens/${encodeURIComponent(token)}`,
+    );
+    return result.decision;
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
       return null;

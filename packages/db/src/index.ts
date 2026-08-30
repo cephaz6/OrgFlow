@@ -90,6 +90,15 @@ export type {
   InvitationPage,
 } from './repositories/invitations.js';
 export {
+  createTaskDecisionToken,
+  findTaskDecisionTokenByHash,
+  markTaskDecisionTokenUsed,
+} from './repositories/task-decision-tokens.js';
+export type {
+  CreateTaskDecisionTokenInput,
+  TaskDecisionToken,
+} from './repositories/task-decision-tokens.js';
+export {
   createUserWithIdentity,
   ensurePlatformAdmin,
   findUserByEmail,

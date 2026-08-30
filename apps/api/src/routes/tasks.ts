@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { advance } from '@orgflow/core';
 import {
   claimCaseTask,
@@ -5,9 +7,12 @@ import {
   findCaseTaskById,
   findClaimableTaskQueue,
   findOrganisationMemberByUserId,
+  findProcessDefinitionById,
   findProcessVersionById,
   findTaskQueueForAssignee,
   findUserById,
+  markTaskDecisionTokenUsed,
+  findTaskDecisionTokenByHash,
   recordTaskDecision,
   TaskConcurrencyError,
   withTenantTransaction,
@@ -22,9 +27,11 @@ import {
 } from '@orgflow/documents';
 import type { DomainEventPublisher } from '@orgflow/events';
 import type {
+  Case,
   CaseTask,
   ProcessDefinitionDocument,
   TaskDecision,
+  TaskDecisionPreview,
   TaskStatus,
   WorkflowDecisionAction,
 } from '@orgflow/types';
@@ -142,6 +149,169 @@ async function loadPinnedDocument(
   }
 
   return document;
+}
+
+export interface DecideTaskInput {
+  organisationId: string;
+  actorUserId: string;
+  taskId: string;
+  decision: WorkflowDecisionAction;
+  comment?: string;
+  outputValues?: Record<string, unknown>;
+  correlationId: string;
+}
+
+export interface DecideTaskResult {
+  task: CaseTask;
+  case: Case;
+  tasks: CaseTask[];
+}
+
+// The full body of POST /tasks/:taskId/decide, pulled out so the one-click
+// approve-from-email confirm route (below) can drive the exact same engine
+// run, permission check and persistence as the authenticated screen, rather
+// than a second, drifting copy of it. The caller (a session-bearing route,
+// or the token-confirm route) is responsible for resolving actorUserId and
+// publishing the returned events; this function only persists.
+async function decideTask(deps: TasksDeps, input: DecideTaskInput): Promise<DecideTaskResult> {
+  const now = new Date();
+
+  const result = await withTenantTransaction(deps.db, input.organisationId, async (trx) => {
+    const task = await requireTask(trx, input.taskId);
+
+    if (task.status !== 'pending' && task.status !== 'claimed') {
+      throw new HttpProblemError(
+        409,
+        'Conflict',
+        `This task is ${task.status} and can no longer be acted on.`,
+      );
+    }
+
+    // The token-confirm caller only ever names a user the task is directly
+    // assigned to (task-decision-tokens are minted for a resolved assignee
+    // only), so canActOnTask's role/group branches are unreachable there;
+    // an empty roles array is correct rather than a stand-in.
+    const session = { userId: input.actorUserId, organisationId: input.organisationId, roles: [] };
+    const actionability = await canActOnTask(trx, session, task);
+    if (!actionability.allowed) {
+      throw new HttpProblemError(403, 'Forbidden', actionability.reason);
+    }
+
+    const found = await findCaseById(trx, task.caseId);
+    if (!found) {
+      throw new HttpProblemError(404, 'Not Found', 'No such task.');
+    }
+
+    // The engine keys its routing off the case's current step, so a
+    // task left over from an earlier step must not be able to drive a
+    // transition from wherever the case has since moved to.
+    if (found.currentStepKey !== task.stepKey) {
+      throw new HttpProblemError(
+        409,
+        'Conflict',
+        'This case has already moved past the step this task belongs to.',
+      );
+    }
+
+    // PRD.md §8.2: by cases.version_id, never by definition_id.
+    const document = await loadPinnedDocument(
+      trx,
+      deps.mongoClient,
+      input.organisationId,
+      found.versionId,
+    );
+
+    const values = await readCaseValues(deps.mongoClient, input.organisationId, found.caseId);
+
+    // Output fields (an asset tag, say) become part of the case values
+    // before the engine runs, so a later step's condition can branch on
+    // something an earlier step recorded.
+    const nextValues = input.outputValues ? { ...values, ...input.outputValues } : values;
+
+    let valuesDocumentId: string | undefined;
+    if (input.outputValues) {
+      valuesDocumentId = await upsertCaseValues(deps.mongoClient, {
+        organisationId: input.organisationId,
+        caseId: found.caseId,
+        values: nextValues,
+        now: now.toISOString(),
+      });
+    }
+
+    // The context's submitter is the case's requester, not whoever is
+    // deciding: `lineManager` resolves the requester's manager and
+    // `submitter` returns work to the requester, so passing the
+    // approver here would quietly reroute both.
+    const context = await buildEvaluationContext(trx, {
+      submitterUserId: found.submittedByUserId,
+      correlationId: input.correlationId,
+      now,
+      existingCase: found,
+    });
+
+    const output = advance({
+      definition: document,
+      caseState: {
+        caseId: found.caseId,
+        definitionId: found.definitionId,
+        versionId: found.versionId,
+        status: found.status,
+        outcome: found.outcome,
+        currentStepKey: found.currentStepKey,
+      },
+      values: nextValues,
+      event: {
+        type: 'taskDecided',
+        taskId: task.taskId,
+        decision: input.decision,
+        ...(input.comment ? { comment: input.comment } : {}),
+        ...(input.outputValues ? { outputValues: input.outputValues } : {}),
+      },
+      context,
+    });
+
+    // A refusal (a decision the step does not allow, a missing required
+    // comment) leaves the case untouched and rolls back, so the task
+    // stays actionable and the client can correct the request.
+    if (output.caseUpdates.status === undefined) {
+      throw new HttpProblemError(
+        409,
+        'Conflict',
+        output.errors[0]?.message ?? 'The workflow engine refused this decision.',
+      );
+    }
+
+    // Before persistEngineOutput, which cancels every still-open task
+    // when the case terminates. Recording the decision first is what
+    // keeps this task 'completed' rather than swept up as 'cancelled'.
+    const decided = await recordTaskDecision(trx, {
+      taskId: task.taskId,
+      expectedRowVersion: task.rowVersion,
+      decision: DECISION_OUTCOMES[input.decision],
+      comment: input.comment ?? null,
+      completedByUserId: input.actorUserId,
+    });
+
+    const persisted = await persistEngineOutput(trx, {
+      organisationId: input.organisationId,
+      actorUserId: input.actorUserId,
+      correlationId: input.correlationId,
+      existingCase: found,
+      output,
+      ...(valuesDocumentId !== undefined ? { valuesDocumentId } : {}),
+      auditAction: `task.${DECISION_OUTCOMES[input.decision]}`,
+    });
+
+    return { decided, persisted };
+  });
+
+  await publishOrLog(deps, result.persisted.events, result.decided.caseId);
+
+  return {
+    task: result.decided,
+    case: result.persisted.updatedCase,
+    tasks: result.persisted.tasks,
+  };
 }
 
 export function createTasksRouter(deps: TasksDeps): Router {
@@ -355,145 +525,141 @@ export function createTasksRouter(deps: TasksDeps): Router {
       const session = sessionOf(req);
       const taskId = req.params.taskId!;
       const body = parseBody(decideSchema, req.body);
-      const now = new Date();
 
-      const result = await withTenantTransaction(deps.db, session.organisationId, async (trx) => {
-        const task = await requireTask(trx, taskId);
+      const result = await decideTask(deps, {
+        organisationId: session.organisationId,
+        actorUserId: session.userId,
+        taskId,
+        decision: body.decision,
+        ...(body.comment !== undefined ? { comment: body.comment } : {}),
+        ...(body.outputValues !== undefined ? { outputValues: body.outputValues } : {}),
+        correlationId: req.correlationId,
+      });
 
-        if (task.status !== 'pending' && task.status !== 'claimed') {
-          throw new HttpProblemError(
-            409,
-            'Conflict',
-            `This task is ${task.status} and can no longer be acted on.`,
-          );
+      res.status(200).json(result);
+    } catch (err) {
+      next(mapConcurrency(err));
+    }
+  });
+
+  // Public: the one-click "Approve" link a taskAssigned email carries. A
+  // bare GET must stay read-only (email security scanners pre-fetch every
+  // link in a message), so this is a preview only; the actual decision only
+  // ever happens from the POST /confirm route below, behind an explicit
+  // click. No session: the token itself is the entire authorization,
+  // mirroring GET /invitations/:token exactly.
+  router.get('/task-decision-tokens/:token', async (req, res, next) => {
+    try {
+      const token = paramString(req.params.token);
+      const hash = createHash('sha256').update(token).digest('hex');
+
+      const decisionToken = await findTaskDecisionTokenByHash(deps.db, hash);
+      if (!decisionToken) {
+        throw new HttpProblemError(404, 'Not Found', 'No such approval link.');
+      }
+
+      const status = statusOfToken(decisionToken);
+
+      const preview = await withTenantTransaction(
+        deps.db,
+        decisionToken.organisationId,
+        async (trx) => {
+          const task = await findCaseTaskById(trx, decisionToken.taskId);
+          if (!task) {
+            return null;
+          }
+          const found = await findCaseById(trx, task.caseId);
+          if (!found) {
+            return null;
+          }
+          const definition = await findProcessDefinitionById(trx, found.definitionId);
+          const requester = await findUserById(deps.db, found.submittedByUserId);
+
+          const built: TaskDecisionPreview = {
+            reference: found.reference,
+            processName: definition?.name ?? 'Request',
+            caseTitle: found.title,
+            stepName: task.stepName,
+            requesterName: requester?.displayName ?? 'Someone',
+            dueAt: task.dueAt,
+            status,
+          };
+          return built;
+        },
+      );
+
+      if (!preview) {
+        throw new HttpProblemError(404, 'Not Found', 'No such approval link.');
+      }
+
+      res.status(200).json({ decision: preview });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Public: the explicit click the preview page above leads to. Claims the
+  // token atomically before deciding, accepting that a subsequent decideTask
+  // failure leaves the token already spent, the same recoverable trade-off
+  // a password-reset link makes.
+  router.post('/task-decision-tokens/:token/confirm', async (req, res, next) => {
+    try {
+      const token = paramString(req.params.token);
+      const hash = createHash('sha256').update(token).digest('hex');
+
+      const claimed = await markTaskDecisionTokenUsed(deps.db, hash);
+      if (!claimed) {
+        const existing = await findTaskDecisionTokenByHash(deps.db, hash);
+        if (!existing) {
+          throw new HttpProblemError(404, 'Not Found', 'No such approval link.');
         }
-
-        const actionability = await canActOnTask(trx, session, task);
-        if (!actionability.allowed) {
-          throw new HttpProblemError(403, 'Forbidden', actionability.reason);
-        }
-
-        const found = await findCaseById(trx, task.caseId);
-        if (!found) {
-          throw new HttpProblemError(404, 'Not Found', 'No such task.');
-        }
-
-        // The engine keys its routing off the case's current step, so a
-        // task left over from an earlier step must not be able to drive a
-        // transition from wherever the case has since moved to.
-        if (found.currentStepKey !== task.stepKey) {
-          throw new HttpProblemError(
-            409,
-            'Conflict',
-            'This case has already moved past the step this task belongs to.',
-          );
-        }
-
-        // PRD.md §8.2: by cases.version_id, never by definition_id.
-        const document = await loadPinnedDocument(
-          trx,
-          deps.mongoClient,
-          session.organisationId,
-          found.versionId,
+        throw new HttpProblemError(
+          410,
+          'Gone',
+          existing.usedAt
+            ? 'This approval link has already been used.'
+            : 'This approval link has expired.',
         );
+      }
 
-        const values = await readCaseValues(deps.mongoClient, session.organisationId, found.caseId);
-
-        // Output fields (an asset tag, say) become part of the case values
-        // before the engine runs, so a later step's condition can branch on
-        // something an earlier step recorded.
-        const nextValues = body.outputValues ? { ...values, ...body.outputValues } : values;
-
-        let valuesDocumentId: string | undefined;
-        if (body.outputValues) {
-          valuesDocumentId = await upsertCaseValues(deps.mongoClient, {
-            organisationId: session.organisationId,
-            caseId: found.caseId,
-            values: nextValues,
-            now: now.toISOString(),
-          });
-        }
-
-        // The context's submitter is the case's requester, not whoever is
-        // deciding: `lineManager` resolves the requester's manager and
-        // `submitter` returns work to the requester, so passing the
-        // approver here would quietly reroute both.
-        const context = await buildEvaluationContext(trx, {
-          submitterUserId: found.submittedByUserId,
-          correlationId: req.correlationId,
-          now,
-          existingCase: found,
-        });
-
-        const output = advance({
-          definition: document,
-          caseState: {
-            caseId: found.caseId,
-            definitionId: found.definitionId,
-            versionId: found.versionId,
-            status: found.status,
-            outcome: found.outcome,
-            currentStepKey: found.currentStepKey,
-          },
-          values: nextValues,
-          event: {
-            type: 'taskDecided',
-            taskId: task.taskId,
-            decision: body.decision,
-            ...(body.comment ? { comment: body.comment } : {}),
-            ...(body.outputValues ? { outputValues: body.outputValues } : {}),
-          },
-          context,
-        });
-
-        // A refusal (a decision the step does not allow, a missing required
-        // comment) leaves the case untouched and rolls back, so the task
-        // stays actionable and the client can correct the request.
-        if (output.caseUpdates.status === undefined) {
-          throw new HttpProblemError(
-            409,
-            'Conflict',
-            output.errors[0]?.message ?? 'The workflow engine refused this decision.',
-          );
-        }
-
-        // Before persistEngineOutput, which cancels every still-open task
-        // when the case terminates. Recording the decision first is what
-        // keeps this task 'completed' rather than swept up as 'cancelled'.
-        const decided = await recordTaskDecision(trx, {
-          taskId: task.taskId,
-          expectedRowVersion: task.rowVersion,
-          decision: DECISION_OUTCOMES[body.decision],
-          comment: body.comment ?? null,
-          completedByUserId: session.userId,
-        });
-
-        const persisted = await persistEngineOutput(trx, {
-          organisationId: session.organisationId,
-          actorUserId: session.userId,
-          correlationId: req.correlationId,
-          existingCase: found,
-          output,
-          ...(valuesDocumentId !== undefined ? { valuesDocumentId } : {}),
-          auditAction: `task.${DECISION_OUTCOMES[body.decision]}`,
-        });
-
-        return { decided, persisted };
+      const result = await decideTask(deps, {
+        organisationId: claimed.organisationId,
+        actorUserId: claimed.recipientUserId,
+        taskId: claimed.taskId,
+        decision: 'approve',
+        correlationId: req.correlationId,
       });
 
-      await publishOrLog(deps, result.persisted.events, result.decided.caseId);
-
-      res.status(200).json({
-        task: result.decided,
-        case: result.persisted.updatedCase,
-        tasks: result.persisted.tasks,
-      });
+      res.status(200).json(result);
     } catch (err) {
       next(mapConcurrency(err));
     }
   });
 
   return router;
+}
+
+function statusOfToken(token: {
+  usedAt: string | null;
+  expiresAt: string;
+}): 'pending' | 'used' | 'expired' {
+  if (token.usedAt) {
+    return 'used';
+  }
+  if (new Date(token.expiresAt).getTime() < Date.now()) {
+    return 'expired';
+  }
+  return 'pending';
+}
+
+// Mirrors invitations.ts's paramString exactly: Express 5 widens :token to
+// string | string[] once a route carries more than one handler, even though
+// a named segment can only ever parse as a single string.
+function paramString(value: string | string[] | undefined): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new HttpProblemError(400, 'Bad Request', 'A token is required.');
+  }
+  return value;
 }
 
 function parseQueueFilter(query: Record<string, unknown>) {

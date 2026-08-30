@@ -294,6 +294,17 @@ export interface AttachmentsTable {
   updated_at: Generated<Date>;
 }
 
+export interface TaskDecisionTokensTable {
+  token_id: string;
+  organisation_id: string;
+  task_id: string;
+  recipient_user_id: string;
+  token_hash: string;
+  expires_at: Date;
+  used_at: Date | null;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   organisations: OrganisationsTable;
   users: UsersTable;
@@ -315,4 +326,5 @@ export interface Database {
   sla_timers: SlaTimersTable;
   delegations: DelegationsTable;
   attachments: AttachmentsTable;
+  task_decision_tokens: TaskDecisionTokensTable;
 }

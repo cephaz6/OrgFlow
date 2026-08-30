@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   claimCaseTask,
   createCase,
@@ -10,6 +12,7 @@ import {
   ensureGroup,
   ensureGroupMember,
   findNotificationsForRecipient,
+  findTaskDecisionTokenByHash,
   generateId,
   insertOrganisationMember,
   publishProcessVersion,
@@ -213,6 +216,45 @@ describe('notification worker against real Postgres', () => {
     expect(row?.sentAt).toBeTruthy();
   });
 
+  // The one-click approve link only a taskAssigned email carries: a real,
+  // resolvable token that claimNotification's redelivery guarantee also
+  // covers (the second test below), so this only has to prove the first
+  // send mints one that actually resolves.
+  it('mints a resolvable one-click approve token on the taskAssigned email', async () => {
+    const seeded = await seedTask({ assigneeUserId: managerUserId });
+    const event = taskCreatedEvent(seeded);
+
+    await handleTaskCreated(deps(), event);
+
+    const match = emailSender.sent[0]?.textBody.match(
+      /Approve now: http:\/\/localhost:3000\/approvals\/decide\/([0-9a-f]+)/,
+    );
+    expect(match).toBeTruthy();
+    const raw = match![1]!;
+    const hash = createHash('sha256').update(raw).digest('hex');
+
+    const token = await findTaskDecisionTokenByHash(db, hash);
+    expect(token).toMatchObject({
+      organisationId,
+      taskId: seeded.task.taskId,
+      recipientUserId: managerUserId,
+      usedAt: null,
+    });
+  });
+
+  it('mints only one approve token when the same taskAssigned message is redelivered', async () => {
+    const seeded = await seedTask({ assigneeUserId: managerUserId });
+    const event = taskCreatedEvent(seeded);
+
+    await handleTaskCreated(deps(), event);
+    await handleTaskCreated(deps(), event);
+
+    // Only the first delivery actually reaches deliver() (the second is
+    // 'alreadyDelivered'), so only one email, and therefore only one token,
+    // is ever minted for this send.
+    expect(emailSender.sent).toHaveLength(1);
+  });
+
   // The test the build order calls for by name: deliver the same message
   // twice and prove only one email leaves.
   it('is idempotent when the same message is delivered twice', async () => {
@@ -309,6 +351,9 @@ describe('notification worker against real Postgres', () => {
     expect(result.sent).toBe(1);
     expect(emailSender.sent[0]?.to).toBe('manager@example.invalid');
     expect(emailSender.sent[0]?.textBody).toContain('Claim it first');
+    // No single resolved person to scope a one-click token to, for a pool
+    // task nobody has claimed yet.
+    expect(emailSender.sent[0]?.textBody).not.toContain('Approve now');
 
     const { notifications: rows } = await withTenantTransaction(db, organisationId, (trx) =>
       findNotificationsForRecipient(trx, managerUserId),

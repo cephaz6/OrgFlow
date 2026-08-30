@@ -1259,3 +1259,31 @@ A comment now actually reaches the people it is meant for, closing the gap the o
 - **Notifying every admin, owner, or process owner who could see the case, in addition to the submitter and current assignee.** Rejected as scope beyond what was asked: `canViewCase` admits several reasons to see a case that have nothing to do with being part of this particular conversation, and paging an uninvolved admin on every comment posted anywhere in the organisation is noise, not a notification.
 - **Carrying the comment's body or visibility in the event payload, so the handler would not need to re-load it.** Rejected for the same reason `task.created`'s payload carries resolved assignment facts but nothing else mutable or ACL-sensitive: a redelivered event should describe the recipient decision as it was made, but a comment's actual content and who may see it are exactly the kind of thing that should be read fresh, not trusted from a payload a different, potentially stale code path constructed.
 - **Resolving group- or role-assigned open tasks to their eligible members, the same as `task.created` does for a claimable task.** Rejected as more machinery than this feature needs: nobody has claimed a pool task yet, so there is no specific person "handling" it to tell about a comment, and notifying an entire pool about every comment on a case none of them have picked up yet is a different, noisier feature than what was asked for.
+
+## ADR-0034: One-click approve from email, split into a safe GET preview and the only POST that decides anything
+
+**Date:** 2026-08-30
+**Status:** Accepted
+**Deciders:** Project operator (third of three follow-ups requested in order); the rest decided during implementation
+
+**Context**
+A `taskAssigned` email already links to the app, but the recipient still has to sign in and open the screen to approve. Email security scanners commonly pre-fetch every link in a message over GET to check for malware, so a state-changing action must never fire on a bare GET; the well-known failure mode this avoids is a destructive link firing itself the moment a scanner touches it.
+
+**Decision**
+The email carries a second, single-use link alongside its usual one, minted only by `handle-task-created.ts`'s `deliver()`, only for the `taskAssigned` branch (never `taskClaimable`, since a pool task has no single resolved person to scope a token to), and only in the branch that actually sends, so a redelivery that finds the notification already sent never mints a redundant token. The link points at a web page (`/approvals/decide/:token`), not a raw API endpoint: `GET /task-decision-tokens/:token` is read-only, returning a preview built from a fresh case/task lookup; the page's own explicit "Confirm approve" button is what fires `POST /task-decision-tokens/:token/confirm`, the only route that decides anything.
+
+Token shape is modelled directly on `invitations.ts`'s existing pattern: `randomBytes(32).toString('hex')` as the raw token, placed only in the email link and never persisted; its SHA-256 hash is the only thing stored, in a new `task_decision_tokens` table. `findTaskDecisionTokenByHash` and `markTaskDecisionTokenUsed` are unscoped lookups in the shape ADR-0011 already carves out for invitations and identity-provider resolution: the caller has no organisation context until the token itself supplies one. Single-use is enforced by an atomic `UPDATE ... WHERE used_at IS NULL AND expires_at > now()`, not a read-then-write check, so two confirms racing the same link cannot both win. The table carries no `decision` column: `'approve'` is the only decision a one-click link ever grants, so a row's mere existence already says what it is for.
+
+The scope is deliberately narrower than the full decide screen: approve only, never reject or return. `requireCommentOn` (a step's declaration that a decision needs a comment) turned out not to be server-enforced anywhere today, only surfaced as client-facing metadata on `GET /tasks/:taskId`; offering a one-click reject would risk silently bypassing an intended-but-unenforced comment requirement, so the scope stops at the one decision unlikely to need justification, and the enforcement gap itself is left as a separate, pre-existing issue rather than folded into this change.
+
+`POST /tasks/:taskId/decide`'s entire transaction body is pulled out into a reusable `decideTask()` function so the token-confirm route drives the exact same engine run, permission check and persistence as the authenticated screen. The confirm route claims the token in its own transaction before calling `decideTask()`, accepting that a subsequent failure there leaves the token already spent, the same recoverable trade-off a password-reset link commonly makes.
+
+**Consequences**
+An approver holding nothing but their inbox can now approve directly, without opening the app, for the one decision this is safe for. The GET/POST split means an email scanner's pre-fetch is inert by construction, not by convention. The token TTL (3 days) is fixed and independent of the task's own due date, deliberately bounding exposure from a leaked or forwarded email regardless of how far out the task is due.
+
+**Alternatives rejected**
+
+- **A single GET link that decides directly.** Rejected outright: this is the exact destructive-GET anti-pattern email security scanners are known to trigger, turning a routine pre-fetch into an unintended approval.
+- **Offering one-click reject and return alongside approve.** Rejected because `requireCommentOn` is not server-enforced today; a one-click reject could silently skip a comment the definition intended to require, and fixing that enforcement gap is out of scope for this change.
+- **A `decision` column on `task_decision_tokens`, anticipating a future second decision.** Rejected as the premature generality CLAUDE.md's scope discipline rules out: only `'approve'` exists today, so an unused enum branch would be speculative, not additive.
+- **Tying the token's expiry to the task's own `dueAt`.** Rejected because a task due in three weeks would leave an approval link live for three weeks in an inbox, which is a materially larger exposure window than a fixed, short TTL independent of it.

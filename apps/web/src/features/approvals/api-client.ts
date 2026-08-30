@@ -13,3 +13,9 @@ export async function decideTask(
 ): Promise<void> {
   await apiPost(`/tasks/${taskId}/decide`, comment ? { decision, comment } : { decision });
 }
+
+// The explicit click a one-click "Approve" email link leads to: the token
+// alone is the authorization, so no taskId or session is passed here.
+export async function confirmTaskDecisionToken(token: string): Promise<void> {
+  await apiPost(`/task-decision-tokens/${token}/confirm`);
+}
