@@ -153,12 +153,12 @@ test.describe('invitations', () => {
     // would change what every later test run sees signed in as the
     // manager, the same reason members.spec.ts's own role-editor test
     // restores whatever it touches.
-    await managerRow.getByRole('button', { name: /Edit roles/ }).click();
+    await managerRow.getByRole('button', { name: /Edit profile/ }).click();
     const editor = page.getByRole('group', { name: 'Roles for Local Dev Manager' });
     await editor.getByRole('checkbox', { name: 'Approver' }).check();
     await editor.getByRole('checkbox', { name: 'Admin' }).uncheck();
-    await page.getByRole('button', { name: 'Save roles' }).click();
-    await expect(page.getByRole('button', { name: 'Save roles' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
     await expect(managerRow).not.toContainText('Admin');
   });
 });
