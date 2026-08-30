@@ -27,6 +27,16 @@ export interface CaseUnassignedFacts {
   webUrl: string;
 }
 
+export interface CaseCommentedFacts {
+  reference: string;
+  processName: string;
+  caseTitle: string;
+  authorName: string;
+  commentBody: string;
+  caseId: string;
+  webUrl: string;
+}
+
 // PRD.md §14.2: subject lines lead with the reference and the action.
 // The action word follows the task type, so an IT fulfilment step does not
 // tell somebody their approval is needed when what is wanted is an order.
@@ -138,6 +148,57 @@ export function buildCaseUnassignedEmail(facts: CaseUnassignedFacts): EmailMessa
     `<li>Request: ${escapeHtml(facts.caseTitle)}</li>`,
     `<li>Reason: ${escapeHtml(facts.reason)}</li>`,
     '</ul>',
+    `<p><a href="${escapeHtml(link)}">Open the case</a></p>`,
+  ];
+
+  return {
+    to: '',
+    subject,
+    textBody: lines.join('\n'),
+    htmlBody: htmlLines.join('\n'),
+  };
+}
+
+// A comment body can run to 4000 characters (case-comments.ts's own
+// createSchema); an email is a nudge to go read the real thing, not a
+// second copy of arbitrarily long tenant-authored text.
+const COMMENT_PREVIEW_LENGTH = 280;
+
+function previewOf(body: string): string {
+  return body.length > COMMENT_PREVIEW_LENGTH
+    ? `${body.slice(0, COMMENT_PREVIEW_LENGTH)}...`
+    : body;
+}
+
+// PRD.md §14.2's usual shape, for the one notification that is not about a
+// task or the case's own state: somebody left a comment. The name deliberately
+// says who, since "someone commented" would send every recipient to the
+// case just to find out.
+export function buildCaseCommentedEmail(facts: CaseCommentedFacts): EmailMessage & {
+  subject: string;
+} {
+  const subject = `${facts.reference} New comment: ${facts.processName}`;
+  const link = `${facts.webUrl.replace(/\/$/, '')}/cases/${facts.caseId}`;
+  const preview = previewOf(facts.commentBody);
+
+  const lines = [
+    `${facts.authorName} left a comment on your ${facts.processName.toLowerCase()}.`,
+    '',
+    `Reference: ${facts.reference}`,
+    `Request: ${facts.caseTitle}`,
+    '',
+    `"${preview}"`,
+    '',
+    `Open the case: ${link}`,
+  ];
+
+  const htmlLines = [
+    `<p>${escapeHtml(facts.authorName)} left a comment on your ${escapeHtml(facts.processName.toLowerCase())}.</p>`,
+    '<ul>',
+    `<li>Reference: ${escapeHtml(facts.reference)}</li>`,
+    `<li>Request: ${escapeHtml(facts.caseTitle)}</li>`,
+    '</ul>',
+    `<blockquote>${escapeHtml(preview)}</blockquote>`,
     `<p><a href="${escapeHtml(link)}">Open the case</a></p>`,
   ];
 

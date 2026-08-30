@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   createCaseComment,
   findCaseById,
@@ -7,7 +9,8 @@ import {
   withTenantTransaction,
   type Database,
 } from '@orgflow/db';
-import type { Case, CommentVisibility } from '@orgflow/types';
+import type { DomainEventPublisher } from '@orgflow/events';
+import type { Case, CommentVisibility, DomainEvent } from '@orgflow/types';
 import { Router } from 'express';
 import type { Kysely, Transaction } from 'kysely';
 import { z } from 'zod';
@@ -19,6 +22,7 @@ import { requireSession, sessionOf, type RequestSession } from '../middleware/re
 
 export interface CaseCommentsDeps {
   db: Kysely<Database>;
+  publisher: DomainEventPublisher;
   sessionSecret: string;
 }
 
@@ -40,6 +44,29 @@ async function requireVisibleCase(
     throw new HttpProblemError(404, 'Not Found', 'No such case.');
   }
   return found;
+}
+
+// Duplicated from attachments.ts rather than shared: that file already
+// carries its own copy of this exact helper for the same reason, a
+// one-off event envelope builder is not worth a cross-module dependency.
+function buildEvent(input: {
+  eventType: DomainEvent['eventType'];
+  organisationId: string;
+  actorUserId: string;
+  correlationId: string;
+  payload: Record<string, unknown>;
+}): DomainEvent {
+  return {
+    eventId: randomUUID(),
+    eventType: input.eventType,
+    organisationId: input.organisationId,
+    occurredAt: new Date().toISOString(),
+    actorUserId: input.actorUserId,
+    actorType: 'user',
+    correlationId: input.correlationId,
+    payload: input.payload,
+    schemaVersion: 1,
+  };
 }
 
 // Comments are a case sub-resource, not its own top-level route: nothing
@@ -118,6 +145,26 @@ export function createCaseCommentsRouter(deps: CaseCommentsDeps): Router {
       const author = await withTenantTransaction(deps.db, session.organisationId, (trx) =>
         findUserById(trx, session.userId),
       );
+
+      // Fire-and-forget, after the transaction has already committed: a
+      // publish failure here must not undo a comment that was already
+      // saved, and the worker not being told about it is a delivery gap
+      // to notice from monitoring, not a reason to fail a request that
+      // already succeeded (the same reasoning attachments.ts's own
+      // post-commit publish already follows).
+      void deps.publisher
+        .publish([
+          buildEvent({
+            eventType: 'case.commented',
+            organisationId: session.organisationId,
+            actorUserId: session.userId,
+            correlationId: req.correlationId,
+            payload: { caseId, commentId: comment.commentId },
+          }),
+        ])
+        .catch(() => {
+          // See the comment above: already committed, nothing to undo.
+        });
 
       res.status(201).json({
         commentId: comment.commentId,

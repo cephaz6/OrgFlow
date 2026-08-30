@@ -1234,3 +1234,28 @@ Every event that already sends an email now also lands in the product itself, cl
 - **Polling the unread count on an interval instead of fetching once on mount.** Rejected for this pass: a timer running in every open tab for the lifetime of the session is a real, ongoing cost for a count that is only wrong until the next navigation or the notification page itself, which always shows the true state. Worth revisiting if real usage shows the staleness matters more than assumed here.
 - **Hard-coding `channel: 'inApp'` inside `findNotificationsForRecipient` itself, matching the notification centre's own need exactly.** Rejected: it would have silently changed what the pre-existing worker tests read back (their own `'email'` bookkeeping rows), for a filter that belongs to one specific caller's intent, not to the general-purpose repository read.
 - **A second, dedicated table for in-app notifications, separate from the email delivery log.** Rejected: the schema had already modelled this as one table with a channel column since Phase 6, specifically so a single event could be delivered on more than one channel without duplicating its own bookkeeping shape; building a second table would have ignored a design already paid for and sitting unused.
+
+## ADR-0033: Notify on comment reuses canSeeInternalComments' own visibility rule to pick recipients, not a second one
+
+**Date:** 2026-08-30
+**Status:** Accepted
+**Deciders:** Project operator (second of three follow-ups requested in order, building directly on the notification centre); the rest decided during implementation
+
+**Context**
+Case comments (ADR-0031) had no notification of their own: posting one changed nothing anyone else would see until they happened to reopen the case. `DomainEventType` had no `case.commented` entry, and `case-comments.ts`'s `POST` route never touched `DomainEventPublisher`.
+
+**Decision**
+`POST /cases/:caseId/comments` now publishes a `case.commented` event after its transaction commits, fire-and-forget like `attachments.ts`'s own post-commit publish, carrying only `{caseId, commentId}` in its payload, deliberately not the comment's body or visibility. `handle-case-commented.ts` (`workers/src/notifications`) re-loads the comment fresh via a new `findCaseCommentById`, the same "do not trust the event for anything ACL-sensitive" reasoning `task.created`'s own handler already follows for task state.
+
+Recipients are the case's submitter, only when the comment's `visibility` is `'all'` (an `'approvers'`-only comment is invisible to them, so notifying them of one would either mean nothing or leak that a private comment happened) and only if they are not the comment's own author, plus whoever currently, individually holds an open task on the case, again excluding the author. A role- or group-assigned open task has no single resolved person to notify (nobody has claimed it yet) and is left out, the same scope boundary `task.created`'s own pool-task resolution already draws, not repeated here since a comment is not itself an assignment event. This rule is, in effect, `canSeeInternalComments` plus the submitter branch it deliberately omits: everyone this comment reaches by the read path is exactly who the write path decided may be told about it.
+
+Delivery follows the exact two-channel shape ADR-0032 established: one `'email'` claim through `claimNotification`, one `'inApp'` claim through `recordInAppNotification`, both keyed by the new `caseCommented` template. `buildCaseCommentedEmail` (`workers/src/notifications/templates.ts`) previews the comment body at 280 characters before linking to the case, since an email is a nudge to go read the real thing, not a second copy of a comment that can run to 4000 characters.
+
+**Consequences**
+A comment now actually reaches the people it is meant for, closing the gap the operator flagged immediately after case comments shipped: nobody was told one had happened. The recipient rule is deliberately narrower than "every admin, every process owner, everyone who could ever see this case": it targets the two-party conversation case comments primarily serves (the requester and whoever is actively handling their request right now), not the organisation's entire administrative roster, which would make every comment page every admin regardless of whether they have anything to do with it.
+
+**Alternatives rejected**
+
+- **Notifying every admin, owner, or process owner who could see the case, in addition to the submitter and current assignee.** Rejected as scope beyond what was asked: `canViewCase` admits several reasons to see a case that have nothing to do with being part of this particular conversation, and paging an uninvolved admin on every comment posted anywhere in the organisation is noise, not a notification.
+- **Carrying the comment's body or visibility in the event payload, so the handler would not need to re-load it.** Rejected for the same reason `task.created`'s payload carries resolved assignment facts but nothing else mutable or ACL-sensitive: a redelivered event should describe the recipient decision as it was made, but a comment's actual content and who may see it are exactly the kind of thing that should be read fresh, not trusted from a payload a different, potentially stale code path constructed.
+- **Resolving group- or role-assigned open tasks to their eligible members, the same as `task.created` does for a claimable task.** Rejected as more machinery than this feature needs: nobody has claimed a pool task yet, so there is no specific person "handling" it to tell about a comment, and notifying an entire pool about every comment on a case none of them have picked up yet is a different, noisier feature than what was asked for.

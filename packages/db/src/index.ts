@@ -175,7 +175,11 @@ export {
   findCaseTransitionsForCase,
 } from './repositories/case-transitions.js';
 export type { AppendCaseTransitionInput } from './repositories/case-transitions.js';
-export { createCaseComment, findCommentsForCase } from './repositories/case-comments.js';
+export {
+  createCaseComment,
+  findCaseCommentById,
+  findCommentsForCase,
+} from './repositories/case-comments.js';
 export type {
   CreateCaseCommentInput,
   FindCaseCommentsOptions,

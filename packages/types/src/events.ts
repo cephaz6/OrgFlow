@@ -15,6 +15,7 @@ export type DomainEventType =
   | 'case.rejected'
   | 'case.cancelled'
   | 'case.unassigned'
+  | 'case.commented'
   | 'task.created'
   | 'task.claimed'
   | 'task.decided'

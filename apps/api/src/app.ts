@@ -102,6 +102,7 @@ export function createApp(deps: CreateAppDeps): Express {
     '/api/v1',
     createCaseCommentsRouter({
       db: deps.db,
+      publisher: deps.publisher,
       sessionSecret: deps.sessionSecret,
     }),
   );

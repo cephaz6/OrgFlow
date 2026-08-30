@@ -1,5 +1,6 @@
 import type { DomainEvent } from '@orgflow/types';
 
+import { handleCaseCommented } from './handle-case-commented.js';
 import { handleCaseUnassigned } from './handle-case-unassigned.js';
 import { handleTaskCreated, type NotificationDeps } from './handle-task-created.js';
 import { handleTaskEscalated } from './handle-task-escalated.js';
@@ -18,6 +19,7 @@ const HANDLED: Record<string, (deps: NotificationDeps, event: DomainEvent) => Pr
   'task.reminderDue': handleTaskReminderDue,
   'task.escalated': handleTaskEscalated,
   'case.unassigned': handleCaseUnassigned,
+  'case.commented': handleCaseCommented,
 };
 
 export async function dispatchDomainEvent(
