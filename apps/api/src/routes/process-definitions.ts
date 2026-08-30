@@ -29,6 +29,7 @@ import type { Kysely, Transaction } from 'kysely';
 import type { MongoClient } from 'mongodb';
 import { z } from 'zod';
 
+import { slugify } from '../lib/slugify.js';
 import { HttpProblemError } from '../middleware/error-handler.js';
 import { requireSession, sessionOf, type RequestSession } from '../middleware/require-session.js';
 import {
@@ -85,18 +86,6 @@ function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
     throw new HttpProblemError(400, 'Bad Request', detail);
   }
   return parsed.data;
-}
-
-// A stable slug from a display name: lower-cased, non-alphanumerics
-// collapsed to single hyphens, leading/trailing hyphens trimmed. The
-// (organisation_id, key) unique constraint is the actual guard; this is
-// just what turns "Laptop Request" into 'laptop-request' before that
-// constraint gets to decide.
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 }
 
 // The slug a new definition gets. Tries the plain slug first, then

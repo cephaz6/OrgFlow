@@ -1287,3 +1287,32 @@ An approver holding nothing but their inbox can now approve directly, without op
 - **Offering one-click reject and return alongside approve.** Rejected because `requireCommentOn` is not server-enforced today; a one-click reject could silently skip a comment the definition intended to require, and fixing that enforcement gap is out of scope for this change.
 - **A `decision` column on `task_decision_tokens`, anticipating a future second decision.** Rejected as the premature generality CLAUDE.md's scope discipline rules out: only `'approve'` exists today, so an unused enum branch would be speculative, not additive.
 - **Tying the token's expiry to the task's own `dueAt`.** Rejected because a task due in three weeks would leave an approval link live for three weeks in an inbox, which is a materially larger exposure window than a fixed, short TTL independent of it.
+
+## ADR-0035: Groups management UI, and dropping the name-uniqueness constraint ADR-0014 left behind
+
+**Date:** 2026-08-30
+**Status:** Accepted
+**Deciders:** Project operator (asked for "a major feature"; this and bulk approve on the approval queue were the two genuine gaps an audit surfaced against the full PRD, operator chose this one)
+
+**Context**
+`groups.ts`'s API and repository were fully built (list, and the seed-only `ensureGroup`/`ensureGroupMember`), but nobody could create, rename, delete a group, or manage its membership except by calling the API directly: `apps/web/src/features/groups/` held only a read-only picklist consumer for the owning-group select on a process definition (ADR-0027). This was the highest-confidence gap an audit of the codebase against `docs/PRD.md` found, ahead of bulk approve on the approval queue (bigger, needs new engine-facing plumbing) and a load-testing harness (not user-facing).
+
+While building the create flow's key allocation (mirroring `process-definitions.ts`'s own `allocateDefinitionKey`: derive a slug from the name, then `-2`, `-3`, ... on a collision), a genuine pre-existing bug surfaced: `groups` still carried its original `UNIQUE (organisation_id, name)` constraint from before ADR-0014 introduced `key`, never dropped when that migration landed. `process_definitions`, the sibling table `key` was modelled on, has no such constraint, only `UNIQUE (organisation_id, key)`. Left in place, two groups could not share a display name at all, which defeats the entire point of `key` being the stable thing and `name` being free to change: an admin renaming "Legal" to "Legal (Old)" and creating a fresh "Legal" would hit a name collision the key design already made unnecessary.
+
+**Decision**
+A new migration drops `groups_organisation_id_name_key`, matching `process_definitions`' own uniqueness shape exactly (name free, `(organisation_id, key)` the only real constraint).
+
+The management UI sits at `/settings/groups` (list, create, inline rename/description edit, delete) and `/settings/groups/:groupId` (membership: add from a picker of every active member not already in the group, remove). New repository functions (`createGroup`, `updateGroup`, `deleteGroup`, `findGroupMembersForGroup`, `removeGroupMember`) sit alongside the existing seed-oriented `ensureGroup`/`ensureGroupMember`, which stay as they are rather than being repurposed: an admin's explicit "create" must never silently succeed against an existing key the way the idempotent seed helper is designed to. `GET /groups` (the plain list) stays open to any signed-in member exactly as before, since ADR-0027's owning-group picklist still needs it; every new route (detail, create, rename, delete, membership) is gated to admin and owner, the same as members and identity providers. Because that plain list route cannot 403 a non-admin the way members' and identity-providers' own list routes do, the two pages gate their own rendering on the session's roles claim directly, the same trust `features/shell/nav.ts`'s `visibleNavGroups` already places in it; every actual mutation is still enforced server-side regardless.
+
+Deleting a group relies on the existing foreign keys rather than a bespoke check: `group_members` cascades (a group with members still deletes cleanly), while `process_definitions.owning_group_id` and `case_tasks.assignee_group_id` reference groups with the default `RESTRICT`, so a group a definition owns or a task is assigned to refuses deletion with a 409, not a raw constraint error.
+
+`slugify` (previously duplicated verbatim in `organisations.ts` and `process-definitions.ts`) moved to a shared `apps/api/src/lib/slugify.ts` for this, its third real call site, with its own unit test.
+
+**Consequences**
+A group can now be created, renamed and staffed without touching the API directly, closing the highest-confidence gap the audit found. The name-uniqueness fix is a genuine, if narrow, behaviour change: an organisation that happened to rely on the old constraint refusing a duplicate name (nothing in the product surfaced this as a feature) will no longer get that refusal, matching how process definitions already behave.
+
+**Alternatives rejected**
+
+- **Letting an admin choose the group's key directly, rather than deriving it.** Rejected for the same reason process definitions and organisations do not ask either: nothing downstream depends on the key being chosen deliberately, and ADR-0014 already means it can never be revised later if it turns out wrong, so deriving it removes a value nobody benefits from inventing.
+- **Repurposing `ensureGroup`/`ensureGroupMember` for the admin create/add flows instead of adding real ones.** Rejected: their idempotent-on-conflict semantics are correct for seeding, where "already exists" and "just created" are the same outcome, but wrong for an explicit admin action, where they are not.
+- **Gating the groups pages' rendering on a live 403 from a dedicated admin-only list endpoint, matching members and identity-providers exactly.** Rejected as an unnecessary second read: `GET /groups` already has to stay open for the picklist, so the page instead trusts the roles claim the way the nav itself already does, with every mutation still independently enforced server-side.

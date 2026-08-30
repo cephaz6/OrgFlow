@@ -29,14 +29,24 @@ export type {
   UpdateOrganisationMemberInput,
 } from './repositories/organisation-members.js';
 export {
+  createGroup,
+  deleteGroup,
   ensureGroup,
   ensureGroupMember,
   findGroupIdsByKeyForCurrentTenant,
   findGroupIdsForUser,
+  findGroupMembersForGroup,
   findGroupMemberUserIds,
   findGroupsForOrganisation,
+  removeGroupMember,
+  updateGroup,
 } from './repositories/groups.js';
-export type { EnsureGroupInput, Group } from './repositories/groups.js';
+export type {
+  EnsureGroupInput,
+  Group,
+  GroupMember,
+  UpdateGroupInput,
+} from './repositories/groups.js';
 export {
   buildIdempotencyKey,
   claimNotification,
