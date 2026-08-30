@@ -33,6 +33,16 @@ export default async function MemberDirectoryPage({ searchParams }: PageProps) {
   // twelve hours stale. A null answer is its 403.
   const page = await fetchMembers({ query, cursor });
 
+  // A second, independent fetch for the line manager picker: the directory
+  // table's own list is paginated to the search in view, but a line manager
+  // has to be chosen from anyone active in the organisation, not only
+  // whoever the current search happens to show. 200 is the server's own
+  // page size ceiling (packages/db/src/pagination.ts's MAX_PAGE_SIZE); an
+  // organisation past that would need a real search-based picker, which is
+  // not yet built.
+  const managerOptions =
+    page === null ? null : await fetchMembers({ status: 'active', limit: 200 });
+
   if (page === null) {
     return (
       <div className="flex flex-col gap-6">
@@ -77,7 +87,11 @@ export default async function MemberDirectoryPage({ searchParams }: PageProps) {
 
       {/* getSession() cannot be null here: the (app) layout redirects when
           there is no session, and this is what tells the compiler so. */}
-      <MemberList members={page.members} currentUserId={session!.user.userId} />
+      <MemberList
+        members={page.members}
+        managerOptions={managerOptions?.members ?? []}
+        currentUserId={session!.user.userId}
+      />
 
       <Pagination
         prevHref={buildPrevHref(BASE_PATH, resolvedSearchParams)}
