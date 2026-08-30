@@ -1,6 +1,9 @@
+import { createHash, randomBytes } from 'node:crypto';
+
 import {
   buildIdempotencyKey,
   claimNotification,
+  createTaskDecisionToken,
   findActiveMembersWithRole,
   findCaseById,
   findCaseTaskById,
@@ -23,6 +26,12 @@ import {
   buildTaskClaimableEmail,
   type TaskNotificationFacts,
 } from './templates.js';
+
+// Deliberately short and independent of the task's own dueAt: a leaked or
+// forwarded email should not become a standing way to approve things, and
+// a fixed TTL bounds that exposure regardless of how far out the task
+// itself is due.
+const TASK_DECISION_TOKEN_LIFETIME_MS = 3 * 24 * 60 * 60 * 1000;
 
 export interface NotificationDeps {
   db: Kysely<Database>;
@@ -225,7 +234,33 @@ async function deliver(
     return;
   }
 
-  const message = buildEmail(recipient.templateKey, { ...facts, webUrl: deps.webUrl });
+  // Minted only here, in the branch that actually sends: a redelivery that
+  // finds the notification already 'sent'/'delivered' never reaches
+  // deliver() at all (the claimNotification outcome check above), so this
+  // never mints a second, redundant token for the same send. Only the
+  // direct-assignee template carries a one-click approve link; a claimable
+  // pool task has no single resolved person to scope the token to.
+  let approveToken: string | undefined;
+  if (recipient.templateKey === 'taskAssigned') {
+    const raw = randomBytes(32).toString('hex');
+    const hash = createHash('sha256').update(raw).digest('hex');
+    await withTenantTransaction(deps.db, organisationId, (trx) =>
+      createTaskDecisionToken(trx, {
+        organisationId,
+        taskId: facts.taskId,
+        recipientUserId: recipient.userId,
+        tokenHash: hash,
+        expiresAt: new Date(Date.now() + TASK_DECISION_TOKEN_LIFETIME_MS),
+      }),
+    );
+    approveToken = raw;
+  }
+
+  const message = buildEmail(recipient.templateKey, {
+    ...facts,
+    webUrl: deps.webUrl,
+    ...(approveToken ? { approveToken } : {}),
+  });
 
   try {
     await deps.emailSender.send({ ...message, to: user.email });

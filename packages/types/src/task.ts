@@ -33,3 +33,20 @@ export interface CaseTask {
   createdAt: IsoDateTimeString;
   updatedAt: IsoDateTimeString;
 }
+
+// GET /task-decision-tokens/:token's shape: served to somebody with no
+// session at all (invitations.ts's InvitationPreview is the same shape of
+// exception), so it carries only what the confirm screen needs to show
+// before the recipient clicks "Approve", never an organisation or task id.
+export interface TaskDecisionPreview {
+  reference: string;
+  processName: string;
+  caseTitle: string;
+  stepName: string;
+  requesterName: string;
+  dueAt: IsoDateTimeString | null;
+  // Derived, not stored: lets the confirm screen say why a link no longer
+  // works instead of a bare 404 that reads as the link being wrong rather
+  // than resolved.
+  status: 'pending' | 'used' | 'expired';
+}

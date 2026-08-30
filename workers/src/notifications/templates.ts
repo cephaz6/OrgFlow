@@ -12,6 +12,11 @@ export interface TaskNotificationFacts {
   dueAt: string | null;
   taskId: string;
   webUrl: string;
+  // Set only by handle-task-created.ts's taskAssigned branch: the raw,
+  // single-use approve link a direct assignee's email carries alongside
+  // the usual link to the app. Never set for a claimable (role/group) task,
+  // since there is no single resolved person to scope a token to.
+  approveToken?: string;
 }
 
 export interface TaskEscalatedFacts extends TaskNotificationFacts {
@@ -217,6 +222,12 @@ function buildTaskEmail(
   const subject = `${facts.reference} ${ACTION_BY_TASK_TYPE[facts.taskType]}: ${facts.processName}`;
   const link = `${facts.webUrl.replace(/\/$/, '')}/approvals/${facts.taskId}`;
   const due = formatDue(facts.dueAt);
+  // A web page, not a raw API endpoint: the page itself performs the
+  // GET-preview/POST-confirm split a bare link cannot, so an email security
+  // scanner's pre-fetch of this URL only ever reads, never approves.
+  const approveLink = facts.approveToken
+    ? `${facts.webUrl.replace(/\/$/, '')}/approvals/decide/${facts.approveToken}`
+    : null;
 
   const lines = [
     copy.opening,
@@ -228,6 +239,7 @@ function buildTaskEmail(
     ...(copy.note ? ['', copy.note] : []),
     '',
     `${copy.callToAction}: ${link}`,
+    ...(approveLink ? ['', `Approve now: ${approveLink}`] : []),
   ];
 
   const htmlLines = [
@@ -240,6 +252,7 @@ function buildTaskEmail(
     '</ul>',
     ...(copy.note ? [`<p>${escapeHtml(copy.note)}</p>`] : []),
     `<p><a href="${escapeHtml(link)}">${escapeHtml(copy.callToAction)}</a></p>`,
+    ...(approveLink ? [`<p><a href="${escapeHtml(approveLink)}">Approve now</a></p>`] : []),
   ];
 
   return {

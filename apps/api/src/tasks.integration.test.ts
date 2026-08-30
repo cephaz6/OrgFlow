@@ -1,6 +1,9 @@
+import { createHash, randomBytes } from 'node:crypto';
+
 import {
   createDb,
   createOrganisation,
+  createTaskDecisionToken,
   createUserWithIdentity,
   findCaseTasksForCase,
   generateId,
@@ -595,6 +598,109 @@ describe('tasks API against real Postgres and Mongo', () => {
     expect(tasks).toHaveLength(1);
     expect(tasks[0]?.status).toBe('pending');
     expect(tasks[0]?.decision).toBeNull();
+  });
+
+  // Mints a token exactly the way handle-task-created.ts does, without
+  // running a worker: a raw hex token plus its SHA-256 hash, the hash the
+  // only thing persisted.
+  async function mintDecisionToken(
+    taskId: string,
+    recipientUserId: string,
+    expiresAt: Date = new Date(Date.now() + 60_000),
+  ): Promise<string> {
+    const raw = randomBytes(32).toString('hex');
+    const hash = createHash('sha256').update(raw).digest('hex');
+    await withTenantTransaction(db, organisationId, (trx) =>
+      createTaskDecisionToken(trx, {
+        organisationId,
+        taskId,
+        recipientUserId,
+        tokenHash: hash,
+        expiresAt,
+      }),
+    );
+    return raw;
+  }
+
+  describe('the one-click approve-from-email token routes', () => {
+    it('previews a pending approval token, with no session and no decision made', async () => {
+      const { managerTask } = await submitCase(700);
+      const token = await mintDecisionToken(managerTask.taskId, managerTask.assigneeUserId);
+
+      const preview = await request(buildApp()).get(`/api/v1/task-decision-tokens/${token}`);
+      expect(preview.status).toBe(200);
+      expect(preview.body.decision).toMatchObject({
+        status: 'pending',
+        caseTitle: 'mbp14',
+        stepName: 'Line manager approval',
+      });
+
+      // A GET must never decide anything: the task is still pending.
+      const managerCookie = await cookieFor(managerTask.assigneeUserId, ['member', 'approver']);
+      const stillOpen = await request(buildApp())
+        .get(`/api/v1/tasks/${managerTask.taskId}`)
+        .set('Cookie', managerCookie);
+      expect(stillOpen.body.task.status).toBe('pending');
+    });
+
+    it('approves the task when the confirm link is posted, with no session', async () => {
+      const { managerTask } = await submitCase(700);
+      const token = await mintDecisionToken(managerTask.taskId, managerTask.assigneeUserId);
+
+      const confirmed = await request(buildApp()).post(
+        `/api/v1/task-decision-tokens/${token}/confirm`,
+      );
+      expect(confirmed.status).toBe(200);
+      expect(confirmed.body.task.decision).toBe('approved');
+      expect(confirmed.body.task.status).toBe('completed');
+      expect(confirmed.body.case.currentStepKey).toBe('itFulfilment');
+    });
+
+    it('refuses a second confirm of the same token, single-use', async () => {
+      const { managerTask } = await submitCase(700);
+      const token = await mintDecisionToken(managerTask.taskId, managerTask.assigneeUserId);
+
+      const first = await request(buildApp()).post(`/api/v1/task-decision-tokens/${token}/confirm`);
+      expect(first.status).toBe(200);
+
+      const second = await request(buildApp()).post(
+        `/api/v1/task-decision-tokens/${token}/confirm`,
+      );
+      expect(second.status).toBe(410);
+
+      // The preview reflects the same thing, for the confirm page itself.
+      const preview = await request(buildApp()).get(`/api/v1/task-decision-tokens/${token}`);
+      expect(preview.body.decision.status).toBe('used');
+    });
+
+    it('refuses an expired token', async () => {
+      const { managerTask } = await submitCase(700);
+      const token = await mintDecisionToken(
+        managerTask.taskId,
+        managerTask.assigneeUserId,
+        new Date(Date.now() - 1000),
+      );
+
+      const confirmAttempt = await request(buildApp()).post(
+        `/api/v1/task-decision-tokens/${token}/confirm`,
+      );
+      expect(confirmAttempt.status).toBe(410);
+
+      const preview = await request(buildApp()).get(`/api/v1/task-decision-tokens/${token}`);
+      expect(preview.body.decision.status).toBe('expired');
+    });
+
+    it('404s for an unknown token on both routes', async () => {
+      const preview = await request(buildApp()).get(
+        '/api/v1/task-decision-tokens/00000000000000000000000000000000000000000000000000000000000000',
+      );
+      expect(preview.status).toBe(404);
+
+      const confirmAttempt = await request(buildApp()).post(
+        '/api/v1/task-decision-tokens/00000000000000000000000000000000000000000000000000000000000000/confirm',
+      );
+      expect(confirmAttempt.status).toBe(404);
+    });
   });
 
   async function createMember(roles: OrganisationRole[]) {
