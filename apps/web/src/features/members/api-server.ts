@@ -1,3 +1,5 @@
+import type { MemberStatus } from '@orgflow/types';
+
 import { ApiError } from '../../lib/api-error';
 import { apiGet } from '../../lib/api-server';
 import type { MemberEntry } from './types';
@@ -6,6 +8,7 @@ export interface FetchMembersParams {
   query?: string | undefined;
   cursor?: string | undefined;
   limit?: number | undefined;
+  status?: MemberStatus | undefined;
 }
 
 export interface MemberDirectoryResult {
@@ -34,6 +37,9 @@ export async function fetchMembers(
   }
   if (params?.limit) {
     search.set('limit', String(params.limit));
+  }
+  if (params?.status) {
+    search.set('status', params.status);
   }
   const queryString = search.toString();
   const path = queryString ? `/members?${queryString}` : '/members';

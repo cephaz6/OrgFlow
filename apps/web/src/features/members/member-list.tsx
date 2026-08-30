@@ -2,7 +2,16 @@
 
 import type { OrganisationRole } from '@orgflow/types';
 import { Alert, Button, EmptyState, StatusBadge, type StatusTone } from '@orgflow/ui';
-import { CircleSlash, FileSearch, Pencil, UserMinus, UserRound, Users } from 'lucide-react';
+import {
+  Ban,
+  CircleSlash,
+  FileSearch,
+  Pencil,
+  RotateCcw,
+  UserMinus,
+  UserRound,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -13,6 +22,10 @@ import { ASSIGNABLE_ROLES, type MemberEntry } from './types';
 
 export interface MemberListProps {
   members: MemberEntry[];
+  // Every active member in the organisation, for the line manager picker:
+  // deliberately independent of `members`, which is filtered to whatever
+  // search or page the directory table is currently showing.
+  managerOptions: MemberEntry[];
   // The signed-in administrator. The API refuses self-edits outright
   // (ADR-0024), so the row hides the controls rather than offering an
   // action that is certain to fail.
@@ -29,7 +42,7 @@ function roleLabel(role: OrganisationRole): string {
   return ASSIGNABLE_ROLES.find((entry) => entry.role === role)?.label ?? 'Member';
 }
 
-export function MemberList({ members, currentUserId }: MemberListProps) {
+export function MemberList({ members, managerOptions, currentUserId }: MemberListProps) {
   const router = useRouter();
   const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -81,6 +94,9 @@ export function MemberList({ members, currentUserId }: MemberListProps) {
                 Roles
               </th>
               <th scope="col" className="px-4 py-3 font-medium">
+                Job title
+              </th>
+              <th scope="col" className="px-4 py-3 font-medium">
                 Department
               </th>
               <th scope="col" className="px-4 py-3 font-medium">
@@ -118,6 +134,7 @@ export function MemberList({ members, currentUserId }: MemberListProps) {
                     </span>
                   </th>
                   <td className="px-4 py-3">{member.roles.map(roleLabel).join(', ')}</td>
+                  <td className="px-4 py-3">{member.jobTitle ?? 'Not set'}</td>
                   <td className="px-4 py-3">{member.department ?? 'Not set'}</td>
                   <td className="px-4 py-3">{member.lineManagerName ?? 'Not set'}</td>
                   <td className="px-4 py-3">
@@ -142,8 +159,29 @@ export function MemberList({ members, currentUserId }: MemberListProps) {
                             }
                           >
                             <Pencil aria-hidden="true" className="h-4 w-4" />
-                            Edit roles
+                            Edit profile
                             <span className="sr-only"> for {member.displayName}</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={busy === member.userId}
+                            onClick={() =>
+                              void run(member.userId, () =>
+                                updateMember(member.userId, {
+                                  status: member.status === 'suspended' ? 'active' : 'suspended',
+                                }),
+                              )
+                            }
+                          >
+                            {member.status === 'suspended' ? (
+                              <RotateCcw aria-hidden="true" className="h-4 w-4" />
+                            ) : (
+                              <Ban aria-hidden="true" className="h-4 w-4" />
+                            )}
+                            {member.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                            <span className="sr-only"> {member.displayName}</span>
                           </Button>
                           <Button
                             type="button"
@@ -183,33 +221,47 @@ export function MemberList({ members, currentUserId }: MemberListProps) {
       </div>
 
       {editing ? (
-        <RoleEditor
+        <MemberEditor
           member={members.find((m) => m.userId === editing)!}
+          managerOptions={managerOptions.filter((candidate) => candidate.userId !== editing)}
           busy={busy === editing}
           onCancel={() => setEditing(null)}
-          onSave={(roles) => void run(editing, () => updateMember(editing, { roles }))}
+          onSave={(patch) => void run(editing, () => updateMember(editing, patch))}
         />
       ) : null}
     </div>
   );
 }
 
-interface RoleEditorProps {
+interface MemberEditorProps {
   member: MemberEntry;
+  // A member cannot be their own line manager, so the row being edited is
+  // excluded from its own picker rather than left in as a choice the API
+  // would have to refuse.
+  managerOptions: MemberEntry[];
   busy: boolean;
   onCancel: () => void;
-  onSave: (roles: OrganisationRole[]) => void;
+  onSave: (patch: {
+    roles: OrganisationRole[];
+    jobTitle: string | null;
+    department: string | null;
+    lineManagerUserId: string | null;
+  }) => void;
 }
 
-// A fieldset of native checkboxes rather than a menu: roles are additive
-// (PRD.md §12.2), so this is a multiple choice, and a native group gets
-// keyboard support, grouping and labelling from the platform rather than
-// from code that has to remember to add them.
-function RoleEditor({ member, busy, onCancel, onSave }: RoleEditorProps) {
-  const [selected, setSelected] = useState<OrganisationRole[]>(member.roles);
+// Roles, job title, department and line manager in one form: PATCH
+// /members/:userId already accepts all four in a single request, and
+// nothing about them depends on each other, so there is no reason to split
+// them into separate saves the way status (suspend/reactivate) and removal
+// stay their own one-click actions above.
+function MemberEditor({ member, managerOptions, busy, onCancel, onSave }: MemberEditorProps) {
+  const [roles, setRoles] = useState<OrganisationRole[]>(member.roles);
+  const [jobTitle, setJobTitle] = useState(member.jobTitle ?? '');
+  const [department, setDepartment] = useState(member.department ?? '');
+  const [lineManagerUserId, setLineManagerUserId] = useState(member.lineManagerUserId ?? '');
 
-  function toggle(role: OrganisationRole, checked: boolean) {
-    setSelected((current) =>
+  function toggleRole(role: OrganisationRole, checked: boolean) {
+    setRoles((current) =>
       checked ? [...current, role] : current.filter((entry) => entry !== role),
     );
   }
@@ -222,8 +274,13 @@ function RoleEditor({ member, busy, onCancel, onSave }: RoleEditorProps) {
         // `member` is the floor every membership carries, and it is not
         // offered as a checkbox, so it is added back here rather than being
         // silently dropped by an editor that never showed it.
-        const roles = selected.includes('member') ? selected : (['member', ...selected] as const);
-        onSave([...roles]);
+        const finalRoles = roles.includes('member') ? roles : (['member', ...roles] as const);
+        onSave({
+          roles: [...finalRoles],
+          jobTitle: jobTitle.trim() || null,
+          department: department.trim() || null,
+          lineManagerUserId: lineManagerUserId || null,
+        });
       }}
     >
       <fieldset className="flex flex-col gap-3 border-0 p-0">
@@ -236,9 +293,9 @@ function RoleEditor({ member, busy, onCancel, onSave }: RoleEditorProps) {
                 id={id}
                 type="checkbox"
                 className="mt-1 h-4 w-4 accent-primary"
-                checked={selected.includes(entry.role)}
+                checked={roles.includes(entry.role)}
                 aria-describedby={`${id}-description`}
-                onChange={(event) => toggle(entry.role, event.target.checked)}
+                onChange={(event) => toggleRole(entry.role, event.target.checked)}
               />
               <span className="flex flex-col">
                 <label htmlFor={id} className="text-sm font-medium">
@@ -257,9 +314,58 @@ function RoleEditor({ member, busy, onCancel, onSave }: RoleEditorProps) {
         Everyone keeps the member role, which is what allows submitting requests and tracking them.
       </p>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={`job-title-${member.userId}`} className="text-sm font-medium">
+            Job title
+          </label>
+          <input
+            id={`job-title-${member.userId}`}
+            type="text"
+            value={jobTitle}
+            maxLength={200}
+            onChange={(event) => setJobTitle(event.target.value)}
+            className="h-10 rounded-md border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={`department-${member.userId}`} className="text-sm font-medium">
+            Department
+          </label>
+          <input
+            id={`department-${member.userId}`}
+            type="text"
+            value={department}
+            maxLength={200}
+            onChange={(event) => setDepartment(event.target.value)}
+            className="h-10 rounded-md border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <label htmlFor={`line-manager-${member.userId}`} className="text-sm font-medium">
+            Reports to
+          </label>
+          <select
+            id={`line-manager-${member.userId}`}
+            value={lineManagerUserId}
+            onChange={(event) => setLineManagerUserId(event.target.value)}
+            className="h-10 rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="">Not set</option>
+            {managerOptions.map((candidate) => (
+              <option key={candidate.userId} value={candidate.userId}>
+                {candidate.displayName} ({candidate.email})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div className="flex gap-2">
         <Button type="submit" disabled={busy}>
-          {busy ? 'Saving...' : 'Save roles'}
+          {busy ? 'Saving...' : 'Save changes'}
         </Button>
         <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>
           Cancel

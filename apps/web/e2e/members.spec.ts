@@ -54,7 +54,8 @@ test.describe('members', () => {
     // themselves. Offering a control that is certain to fail would be worse
     // than not offering it.
     const own = membersTable(page).getByRole('row').filter({ hasText: 'dev@orgflow.local' });
-    await expect(own.getByRole('button', { name: /Edit roles/ })).toHaveCount(0);
+    await expect(own.getByRole('button', { name: /Edit profile/ })).toHaveCount(0);
+    await expect(own.getByRole('button', { name: /Suspend|Reactivate/ })).toHaveCount(0);
     await expect(own.getByRole('button', { name: /Remove/ })).toHaveCount(0);
   });
 
@@ -80,7 +81,7 @@ test.describe('members', () => {
     const colleague = membersTable(page)
       .getByRole('row')
       .filter({ hasText: 'manager@orgflow.local' });
-    await colleague.getByRole('button', { name: /Edit roles/ }).click();
+    await colleague.getByRole('button', { name: /Edit profile/ }).click();
 
     // Scoped to this editor's own fieldset (legend "Roles for Local Dev
     // Manager"), not just to a checkbox named "Process owner": the invite
@@ -99,9 +100,9 @@ test.describe('members', () => {
     // next run of its neighbours depend on whether it ran.
     const grantedBefore = await processOwner.isChecked();
     await processOwner.setChecked(!grantedBefore);
-    await page.getByRole('button', { name: 'Save roles' }).click();
+    await page.getByRole('button', { name: 'Save changes' }).click();
 
-    await expect(page.getByRole('button', { name: 'Save roles' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
     const row = membersTable(page).getByRole('row').filter({ hasText: 'manager@orgflow.local' });
     if (grantedBefore) {
       await expect(row).not.toContainText('Process owner');
@@ -110,10 +111,65 @@ test.describe('members', () => {
     }
 
     // Put it back, so the directory reads the same after this spec as before.
-    await row.getByRole('button', { name: /Edit roles/ }).click();
+    await row.getByRole('button', { name: /Edit profile/ }).click();
     await editor.getByRole('checkbox', { name: 'Process owner' }).setChecked(grantedBefore);
-    await page.getByRole('button', { name: 'Save roles' }).click();
-    await expect(page.getByRole('button', { name: 'Save roles' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
+  });
+
+  test('edits a colleague’s job title, department and line manager', async ({ page }) => {
+    await page.goto('/settings/members/directory');
+
+    // The seeded manager, the only other member in this organisation (the
+    // signed-in dev user cannot edit their own row). Setting their own line
+    // manager to the dev user is a real, meaningful change, not a no-op.
+    const colleague = membersTable(page)
+      .getByRole('row')
+      .filter({ hasText: 'manager@orgflow.local' });
+    await colleague.getByRole('button', { name: /Edit profile/ }).click();
+
+    const editor = page.getByRole('group', { name: 'Roles for Local Dev Manager' });
+    await expect(editor).toBeVisible();
+
+    const jobTitleBefore = await page.getByLabel('Job title').inputValue();
+    const departmentBefore = await page.getByLabel('Department').inputValue();
+
+    await page.getByLabel('Job title').fill('Staff engineer');
+    await page.getByLabel('Department').fill('Platform');
+    await page
+      .getByLabel('Reports to')
+      .selectOption({ label: 'Local Dev User (dev@orgflow.local)' });
+    await page.getByRole('button', { name: 'Save changes' }).click();
+
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
+    const row = membersTable(page).getByRole('row').filter({ hasText: 'manager@orgflow.local' });
+    await expect(row).toContainText('Staff engineer');
+    await expect(row).toContainText('Platform');
+    await expect(row).toContainText('Local Dev User');
+
+    // Restored, so this spec leaves the directory as it found it.
+    await row.getByRole('button', { name: /Edit profile/ }).click();
+    await page.getByLabel('Job title').fill(jobTitleBefore);
+    await page.getByLabel('Department').fill(departmentBefore);
+    await page.getByLabel('Reports to').selectOption({ label: 'Not set' });
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
+  });
+
+  test('suspends a colleague, then reactivates them', async ({ page }) => {
+    await page.goto('/settings/members/directory');
+
+    const colleague = membersTable(page)
+      .getByRole('row')
+      .filter({ hasText: 'manager@orgflow.local' });
+    await colleague.getByRole('button', { name: /Suspend/ }).click();
+
+    const row = membersTable(page).getByRole('row').filter({ hasText: 'manager@orgflow.local' });
+    await expect(row).toContainText('Suspended');
+    await expect(row.getByRole('button', { name: /Reactivate/ })).toBeVisible();
+
+    await row.getByRole('button', { name: /Reactivate/ }).click();
+    await expect(row).toContainText('Active');
   });
 
   test('shows pagination controls on the directory, disabled on a single page', async ({
@@ -149,7 +205,7 @@ test.describe('members', () => {
     await membersTable(page)
       .getByRole('row')
       .filter({ hasText: 'manager@orgflow.local' })
-      .getByRole('button', { name: /Edit roles/ })
+      .getByRole('button', { name: /Edit profile/ })
       .click();
     await expect(
       page.getByRole('group', { name: 'Roles for Local Dev Manager' }).getByRole('checkbox', {
