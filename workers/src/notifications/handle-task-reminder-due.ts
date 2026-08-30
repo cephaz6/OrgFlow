@@ -11,6 +11,7 @@ import {
 } from '@orgflow/db';
 import type { DomainEvent, Notification } from '@orgflow/types';
 
+import { recordInAppNotification } from './in-app.js';
 import { buildTaskReminderEmail, type TaskNotificationFacts } from './templates.js';
 import type { NotificationDeps } from './handle-task-created.js';
 
@@ -86,9 +87,20 @@ export async function handleTaskReminderDue(
         eventId: event.eventId,
         recipientUserId: assigneeUserId,
         templateKey: 'taskReminder',
+        channel: 'email',
       }),
     }),
   );
+
+  await recordInAppNotification(deps.db, {
+    organisationId,
+    recipientUserId: assigneeUserId,
+    caseId,
+    taskId,
+    eventId: event.eventId,
+    templateKey: 'taskReminder',
+    subject: buildTaskReminderEmail({ ...facts, webUrl: deps.webUrl }).subject,
+  });
 
   if (claimed.outcome !== 'claimed') {
     return { sent: 0, skipped: 1 };

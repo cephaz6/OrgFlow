@@ -11,6 +11,7 @@ import {
 } from '@orgflow/db';
 import type { DomainEvent, Notification } from '@orgflow/types';
 
+import { recordInAppNotification } from './in-app.js';
 import { buildCaseUnassignedEmail, type CaseUnassignedFacts } from './templates.js';
 import type { NotificationDeps } from './handle-task-created.js';
 
@@ -78,9 +79,19 @@ export async function handleCaseUnassigned(
           eventId: event.eventId,
           recipientUserId: admin.userId,
           templateKey: 'caseUnassigned',
+          channel: 'email',
         }),
       }),
     );
+
+    await recordInAppNotification(deps.db, {
+      organisationId,
+      recipientUserId: admin.userId,
+      caseId,
+      eventId: event.eventId,
+      templateKey: 'caseUnassigned',
+      subject: buildCaseUnassignedEmail(fullFacts).subject,
+    });
 
     if (claimed.outcome !== 'claimed') {
       skipped += 1;

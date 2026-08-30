@@ -17,6 +17,7 @@ import type { Kysely } from 'kysely';
 
 import type { EmailSender } from '@orgflow/email';
 import type { Logger } from '../logger.js';
+import { recordInAppNotification } from './in-app.js';
 import {
   buildTaskAssignedEmail,
   buildTaskClaimableEmail,
@@ -177,9 +178,20 @@ export async function handleTaskCreated(
           eventId: event.eventId,
           recipientUserId: recipient.userId,
           templateKey: recipient.templateKey,
+          channel: 'email',
         }),
       }),
     );
+
+    await recordInAppNotification(deps.db, {
+      organisationId,
+      recipientUserId: recipient.userId,
+      caseId,
+      taskId,
+      eventId: event.eventId,
+      templateKey: recipient.templateKey,
+      subject: buildEmail(recipient.templateKey, { ...facts, webUrl: deps.webUrl }).subject,
+    });
 
     // This is the idempotency guarantee PRD.md §14.2 requires. Only a
     // 'claimed' outcome sends: 'alreadyDelivered' means a previous

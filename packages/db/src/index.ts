@@ -40,12 +40,20 @@ export type { EnsureGroupInput, Group } from './repositories/groups.js';
 export {
   buildIdempotencyKey,
   claimNotification,
+  countUnreadNotifications,
   findNotificationsForCase,
   findNotificationsForRecipient,
+  markAllNotificationsRead,
   markNotificationFailed,
+  markNotificationRead,
   markNotificationSent,
 } from './repositories/notifications.js';
-export type { ClaimedNotification, ClaimNotificationInput } from './repositories/notifications.js';
+export type {
+  ClaimedNotification,
+  ClaimNotificationInput,
+  FindNotificationsForRecipientFilter,
+  NotificationPage,
+} from './repositories/notifications.js';
 export { findMembershipsForUser } from './repositories/memberships.js';
 export {
   createIdentityProvider,

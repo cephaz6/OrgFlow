@@ -27,6 +27,7 @@ import { createInvitationsRouter } from './routes/invitations.js';
 import { createOrganisationsRouter } from './routes/organisations.js';
 import { createProcessDefinitionsRouter } from './routes/process-definitions.js';
 import { createMembersRouter } from './routes/members.js';
+import { createNotificationsRouter } from './routes/notifications.js';
 import { createReportsRouter } from './routes/reports.js';
 import { createTasksRouter } from './routes/tasks.js';
 
@@ -100,6 +101,14 @@ export function createApp(deps: CreateAppDeps): Express {
   app.use(
     '/api/v1',
     createCaseCommentsRouter({
+      db: deps.db,
+      sessionSecret: deps.sessionSecret,
+    }),
+  );
+
+  app.use(
+    '/api/v1',
+    createNotificationsRouter({
       db: deps.db,
       sessionSecret: deps.sessionSecret,
     }),

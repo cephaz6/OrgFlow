@@ -13,6 +13,7 @@ import {
 } from '@orgflow/db';
 import type { DomainEvent, Notification } from '@orgflow/types';
 
+import { recordInAppNotification } from './in-app.js';
 import { buildTaskEscalatedEmail, type TaskEscalatedFacts } from './templates.js';
 import type { NotificationDeps } from './handle-task-created.js';
 
@@ -136,9 +137,20 @@ export async function handleTaskEscalated(
           eventId: event.eventId,
           recipientUserId,
           templateKey: 'taskEscalated',
+          channel: 'email',
         }),
       }),
     );
+
+    await recordInAppNotification(deps.db, {
+      organisationId,
+      recipientUserId,
+      caseId,
+      taskId,
+      eventId: event.eventId,
+      templateKey: 'taskEscalated',
+      subject: buildTaskEscalatedEmail(fullFacts).subject,
+    });
 
     if (claimed.outcome !== 'claimed') {
       skipped += 1;

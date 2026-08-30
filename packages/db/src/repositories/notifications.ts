@@ -1,6 +1,7 @@
 import type { Notification, NotificationChannel, NotificationStatus } from '@orgflow/types';
 import { sql, type Selectable, type Transaction } from 'kysely';
 
+import { clampPageSize } from '../pagination.js';
 import type { Database, NotificationsTable } from '../schema.js';
 import { generateId } from '../uuid.js';
 
@@ -24,15 +25,22 @@ function toDomain(row: Selectable<NotificationsTable>): Notification {
 }
 
 // PRD.md §14.2 keys delivery on eventId plus recipientUserId plus
-// templateKey. Joining them with a separator that cannot appear in a UUID
-// or a template key keeps the composite unambiguous in one column, which is
-// what lets a UNIQUE constraint enforce it.
+// templateKey. Widened here to also carry channel: the same event, for the
+// same recipient and template, now claims two rows (an 'email' one and an
+// 'inApp' one, see workers/src/notifications/in-app.ts), and without
+// channel in the key both would compute the same string and the second
+// insert would collide on the table's UNIQUE constraint, read as "already
+// delivered" rather than claiming its own row. Joining with a separator
+// that cannot appear in a UUID, a template key or 'email'/'inApp' keeps the
+// composite unambiguous in one column, which is what lets a UNIQUE
+// constraint enforce it.
 export function buildIdempotencyKey(input: {
   eventId: string;
   recipientUserId: string;
   templateKey: string;
+  channel: NotificationChannel;
 }): string {
-  return `${input.eventId}|${input.recipientUserId}|${input.templateKey}`;
+  return `${input.eventId}|${input.recipientUserId}|${input.templateKey}|${input.channel}`;
 }
 
 export interface ClaimNotificationInput {
@@ -187,16 +195,110 @@ export async function findNotificationsForCase(
   return rows.map(toDomain);
 }
 
+export interface FindNotificationsForRecipientFilter {
+  // No default: an unscoped call still returns every channel, exactly the
+  // general-purpose "this recipient's own notification bookkeeping" read
+  // the existing worker tests already rely on (checking the 'email' row
+  // a send left behind). The notification centre route passes
+  // channel: 'inApp' explicitly, since an 'email' row there is a record
+  // that a message reached somebody's inbox, not a second copy of the
+  // same content meant to be read again in the product.
+  channel?: NotificationChannel | undefined;
+  unreadOnly?: boolean | undefined;
+  limit?: number | undefined;
+  cursor?: string | undefined;
+}
+
+export interface NotificationPage {
+  notifications: Notification[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+// idx_notifications_recipient_unread (the notifications migration) is
+// exactly this query's unread-inApp-by-recipient shape, and had sat unused
+// until the notification centre existed to use it.
 export async function findNotificationsForRecipient(
   trx: Transaction<Database>,
   recipientUserId: string,
-): Promise<Notification[]> {
-  const rows = await trx
+  filter: FindNotificationsForRecipientFilter = {},
+): Promise<NotificationPage> {
+  const limit = clampPageSize(filter.limit);
+
+  let query = trx
     .selectFrom('notifications')
     .selectAll()
-    .where('recipient_user_id', '=', recipientUserId)
-    .orderBy('created_at', 'desc')
+    .where('recipient_user_id', '=', recipientUserId);
+
+  if (filter.channel) {
+    query = query.where('channel', '=', filter.channel);
+  }
+  if (filter.unreadOnly) {
+    query = query.where('read_at', 'is', null);
+  }
+  if (filter.cursor) {
+    query = query.where('notification_id', '<', filter.cursor);
+  }
+
+  const rows = await query
+    .orderBy('notification_id', 'desc')
+    .limit(limit + 1)
     .execute();
 
-  return rows.map(toDomain);
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+
+  return {
+    notifications: page.map(toDomain),
+    nextCursor: hasMore ? (page[page.length - 1]?.notification_id ?? null) : null,
+    hasMore,
+  };
+}
+
+// The nav bell's badge count: a dedicated COUNT rather than paging through
+// findNotificationsForRecipient at a large limit, and served by the same
+// partial index.
+export async function countUnreadNotifications(
+  trx: Transaction<Database>,
+  recipientUserId: string,
+): Promise<number> {
+  const result = await trx
+    .selectFrom('notifications')
+    .select(({ fn }) => fn.countAll<string>().as('count'))
+    .where('recipient_user_id', '=', recipientUserId)
+    .where('channel', '=', 'inApp')
+    .where('read_at', 'is', null)
+    .executeTakeFirstOrThrow();
+
+  return Number(result.count);
+}
+
+// Scoped to recipientUserId in the WHERE clause, not just looked up by id:
+// this is called from a route with only the caller's own session to trust,
+// and the extra clause is what stops one person marking read a
+// notification addressed to somebody else, even if they guessed its id.
+export async function markNotificationRead(
+  trx: Transaction<Database>,
+  notificationId: string,
+  recipientUserId: string,
+): Promise<void> {
+  await trx
+    .updateTable('notifications')
+    .set({ read_at: new Date() })
+    .where('notification_id', '=', notificationId)
+    .where('recipient_user_id', '=', recipientUserId)
+    .execute();
+}
+
+export async function markAllNotificationsRead(
+  trx: Transaction<Database>,
+  recipientUserId: string,
+): Promise<void> {
+  await trx
+    .updateTable('notifications')
+    .set({ read_at: new Date() })
+    .where('recipient_user_id', '=', recipientUserId)
+    .where('channel', '=', 'inApp')
+    .where('read_at', 'is', null)
+    .execute();
 }
