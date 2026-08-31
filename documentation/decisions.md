@@ -1342,3 +1342,26 @@ A requester can now stop and resume a long-running form without losing what they
 - **A dedicated `case_drafts` table, separate from `cases`, promoted to a real case only on submit.** Rejected: `cases` already models a draft correctly, including version pinning at creation and cascading attachments, and a second table would duplicate that machinery for no behavioural gain, only to converge back into the same row at submission.
 - **Auto-saving on every field change, rather than an explicit "Save and finish later" action.** Rejected as unrequested scope: the PRD gap is "let me stop and come back", not "never let me lose a keystroke", and an explicit save keeps the mental model identical to what a returned-for-amendment case already teaches a requester (a form is only safe once they choose to leave it).
 - **Offering a "Discard this draft" action alongside "Continue".** Rejected for this change: the existing cancel endpoint already accepts a draft, so the capability is not missing, only not surfaced; adding a second, redundant entry point was left out to keep this feature's scope to what the audit actually asked for.
+
+## ADR-0037: Quick-start tiles rank by a requester's own case history, fetched wider rather than through a new endpoint
+
+**Status**: Accepted
+
+**Context**
+
+PRD.md §13.2 asks for "quick-start tiles for frequent processes". `QuickStart` (`apps/web/src/features/dashboard/quick-start.tsx`) had never measured frequency, only rendered the published catalogue in its own order, capped to four, with a comment explaining that inventing a proxy such as "most recently published" would present a guess as a fact. The real signal, how many times this requester has actually started each process, was available all along in the `cases` table, just never queried for this purpose. Nothing about ranking tiles needs a new endpoint: the dashboard already calls `GET /cases?view=mine` for its "your open requests" section, and `GET /catalogue` for the tiles themselves.
+
+**Decision**
+
+The dashboard's existing `fetchMyCases()` call moves from its default limit of 10 to `{ limit: 200 }`, matching the reasoning `fetchCatalogue({ limit: 200 })` already carries on the same page: this widget needs enough of the requester's real history to count against, not a browsable page of it. A new pure function, `sortCatalogueByFrequency(entries, cases)` (`apps/web/src/features/dashboard/sort-by-frequency.ts`), counts cases by `definitionId` and sorts the catalogue entries by that count descending, stable on ties (native `Array.prototype.sort` has been a stable sort since ES2019), so a process never started falls back to catalogue order rather than being reshuffled arbitrarily. `QuickStart` itself is unchanged: it already only ever renders whatever list it is given.
+
+Bumping the fetch limit also incidentally makes "your open requests"' own count and ordering more accurate for a requester with more than ten historical cases, since `selectOpenRequests` was silently working from a truncated set before. This is a side effect worth having, not a second change: the same query already had to widen for the tiles to mean anything.
+
+**Consequences**
+
+Quick-start tiles now genuinely reflect what PRD.md asked for, with no schema change, no new API route, and no change to any existing API contract, only a different value for a query parameter the route already accepted. A requester with more than 200 historical cases gets an approximation of their true frequency rather than the exact count; this is judged acceptable for the same reason the catalogue widget's own 200 limit already was, a dashboard summary, not a ledger.
+
+**Alternatives rejected**
+
+- **A dedicated `GET /cases/frequency` (or similar) endpoint doing the counting in SQL.** Rejected as unnecessary backend surface for what the existing `GET /cases?view=mine` route already returns enough of to compute client-side; adding a new route is exactly the kind of API-contract change CLAUDE.md §8 treats as High risk, for a computation cheap enough to do in the page that already fetches the input.
+- **Recording explicit "started this process" events or a starts-per-definition counter table.** Rejected: it would be the correct long-term shape if this needed to scale past a few hundred cases per requester, but the existing `cases` table already carries every fact this needs, and adding a counter that must be kept in step with it is a schema change and a new failure mode for no present benefit.

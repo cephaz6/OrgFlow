@@ -7,13 +7,10 @@ export interface QuickStartProps {
   limit?: number;
 }
 
-// PRD.md §13.2 asks for "quick-start tiles for frequent processes". Frequency
-// is not measured yet: nothing records how often a definition is started, and
-// inventing a proxy (most recently published, say) would present a guess as a
-// fact. Until that data exists these are simply the published processes, in
-// catalogue order, capped so the dashboard stays a summary. The component
-// takes the list it is given, so ordering it by real usage later is a change
-// at the call site rather than here.
+// PRD.md §13.2 asks for "quick-start tiles for frequent processes". The
+// ranking (sortCatalogueByFrequency) happens at the call site, not here:
+// this component only ever renders the list it is given, capped so the
+// dashboard stays a summary.
 export function QuickStart({ entries, limit = 4 }: QuickStartProps) {
   return (
     <ul className="grid gap-3 sm:grid-cols-2">
