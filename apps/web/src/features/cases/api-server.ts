@@ -1,3 +1,5 @@
+import type { CaseStatus } from '@orgflow/types';
+
 import { ApiError } from '../../lib/api-error';
 import { apiGet } from '../../lib/api-server';
 import type { CaseCommentEntry, CaseDetail, CasePage } from './types';
@@ -10,6 +12,8 @@ export interface FetchMyCasesParams {
   query?: string | undefined;
   cursor?: string | undefined;
   limit?: number | undefined;
+  status?: CaseStatus | undefined;
+  definitionId?: string | undefined;
 }
 
 // view=mine is what makes this "my requests" rather than "every case I am
@@ -22,6 +26,12 @@ export async function fetchMyCases(params?: FetchMyCasesParams): Promise<CasePag
   }
   if (params?.cursor) {
     search.set('cursor', params.cursor);
+  }
+  if (params?.status) {
+    search.set('status', params.status);
+  }
+  if (params?.definitionId) {
+    search.set('definitionId', params.definitionId);
   }
   search.set('limit', String(params?.limit ?? 10));
 
