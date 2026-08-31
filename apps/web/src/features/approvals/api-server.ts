@@ -1,4 +1,4 @@
-import type { TaskDecisionPreview } from '@orgflow/types';
+import type { TaskDecisionPreview, TaskStatus } from '@orgflow/types';
 
 import { ApiError } from '../../lib/api-error';
 import { apiGet } from '../../lib/api-server';
@@ -8,6 +8,14 @@ export interface FetchQueueParams {
   query?: string | undefined;
   cursor?: string | undefined;
   limit?: number | undefined;
+  definitionId?: string | undefined;
+  overdue?: boolean | undefined;
+  // Meaningful only on fetchMyQueue: 'pending' is work assigned directly
+  // and not yet claimed, 'claimed' is a pool task this caller personally
+  // picked up. The claimable pool itself has no such distinction (every
+  // row in it is, by definition, unclaimed), so fetchClaimableQueue's own
+  // repository query ignores this filter even if it were passed.
+  status?: TaskStatus | undefined;
 }
 
 function buildQueuePath(base: string, params?: FetchQueueParams): string {
@@ -21,6 +29,15 @@ function buildQueuePath(base: string, params?: FetchQueueParams): string {
   if (params?.limit) {
     search.set('limit', String(params.limit));
   }
+  if (params?.definitionId) {
+    search.set('definitionId', params.definitionId);
+  }
+  if (params?.overdue) {
+    search.set('overdue', 'true');
+  }
+  if (params?.status) {
+    search.set('status', params.status);
+  }
   const queryString = search.toString();
   return queryString ? `${base}?${queryString}` : base;
 }
@@ -28,9 +45,6 @@ function buildQueuePath(base: string, params?: FetchQueueParams): string {
 // Assigned to me, and claimable by me. Two calls because they answer two
 // different questions and the API keeps them apart: one is work somebody
 // has given you, the other is work nobody has taken yet.
-// No status filter: the repository already defaults to pending and claimed,
-// which is what "waiting on me" means. Passing a status here would have to
-// name a single one, and there are two.
 export async function fetchMyQueue(params?: FetchQueueParams): Promise<TaskQueuePage> {
   return apiGet<TaskQueuePage>(buildQueuePath('/tasks', params));
 }
