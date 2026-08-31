@@ -1,5 +1,5 @@
 import { apiGet } from '../../lib/api-server';
-import type { NotificationPage } from './types';
+import type { NotificationPage, NotificationPreferenceEntry } from './types';
 
 export interface FetchNotificationsParams {
   unreadOnly?: boolean | undefined;
@@ -23,4 +23,11 @@ export async function fetchNotifications(
   const queryString = search.toString();
 
   return apiGet<NotificationPage>(queryString ? `/notifications?${queryString}` : '/notifications');
+}
+
+export async function fetchNotificationPreferences(): Promise<NotificationPreferenceEntry[]> {
+  const { data } = await apiGet<{ data: NotificationPreferenceEntry[] }>(
+    '/notifications/preferences',
+  );
+  return data;
 }

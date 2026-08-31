@@ -1316,3 +1316,30 @@ A group can now be created, renamed and staffed without touching the API directl
 - **Letting an admin choose the group's key directly, rather than deriving it.** Rejected for the same reason process definitions and organisations do not ask either: nothing downstream depends on the key being chosen deliberately, and ADR-0014 already means it can never be revised later if it turns out wrong, so deriving it removes a value nobody benefits from inventing.
 - **Repurposing `ensureGroup`/`ensureGroupMember` for the admin create/add flows instead of adding real ones.** Rejected: their idempotent-on-conflict semantics are correct for seeding, where "already exists" and "just created" are the same outcome, but wrong for an explicit admin action, where they are not.
 - **Gating the groups pages' rendering on a live 403 from a dedicated admin-only list endpoint, matching members and identity-providers exactly.** Rejected as an unnecessary second read: `GET /groups` already has to stay open for the picklist, so the page instead trusts the roles claim the way the nav itself already does, with every mutation still independently enforced server-side.
+
+## ADR-0036: Notification preferences are an opt-out override table, checked once in a shared helper before every handler's existing two claims
+
+**Date:** 2026-08-31
+**Status:** Accepted
+**Deciders:** Project operator (asked to re-read the PRD for product, not infrastructure, gaps in end-user flexibility; this was the top-ranked finding, ahead of case draft save-for-later, dashboard personalisation and recurring out-of-office)
+
+**Context**
+Every notification fired on both channels (email and in-app) unconditionally. Nothing let a member turn either off for a given kind of notification, and there was no quiet-hours or per-event concept anywhere in the schema. Five worker handler files each independently called `claimNotification` (email) and `recordInAppNotification` (in-app) per recipient, with no gate in front of either.
+
+**Decision**
+A new `notification_preferences` table carries one row per `(organisation_id, user_id, template_key)` a user has actually overridden, with `email_enabled` and `in_app_enabled` booleans, both defaulting `true`. Absence of a row (the common case, for everyone who has never opened the settings screen) is treated as both channels enabled: this is an opt-out model, not opt-in, so nobody's notifications change the moment this migration runs.
+
+`workers/src/notifications/preferences.ts`'s `resolveNotificationChannels` is the one place that default lives, called once per recipient at the top of each of the five handlers' existing loops (`handle-task-created.ts` for `taskAssigned`/`taskClaimable`, `handle-task-escalated.ts`, `handle-task-reminder-due.ts`, `handle-case-unassigned.ts`, `handle-case-commented.ts`). Each handler's existing `claimNotification` and `recordInAppNotification` calls are individually gated on the resolved `email`/`inApp` booleans rather than replaced: a recipient with only email disabled still gets an in-app row and vice versa, and a recipient with both disabled is counted the same as any other skip.
+
+The settings screen at `/settings/notifications` exposes exactly the six templates something actually dispatches (`workers/src/notifications/dispatch.ts`'s own `HANDLED` map), not every key `NotificationTemplateKey` names: PRD.md §14.1 lists several (`caseSubmitted`, `caseReturned`, `caseCompleted`, `caseRejected`, `delegationStarted`) that no handler exists for yet, and a toggle for a notification that can never fire would be a control that does nothing. `caseCommented`, which already fires from ADR-0033's own handler, was missing from `NotificationTemplateKey` entirely; added here since the preferences screen needed a complete, accurate list regardless.
+
+The checkbox grid in `notification-preferences.tsx` keeps local optimistic state (`overrides`, keyed by template) rather than deriving `checked` straight from server-fetched props: a fully server-driven controlled checkbox was found, while building this, to revert the browser's own native toggle the instant the `busy` state change re-rendered the row with the still-old prop value, before the request had even reached the network. The local override wins until the request settles (or is discarded on failure), which is what actually keeps a checked box checked through the click.
+
+**Consequences**
+A member can now tune what reaches them without asking an administrator, closing the highest-ranked end-user flexibility gap the PRD audit found. `apps/web/playwright.config.ts`'s `shared-manager-account` project gained a third file: `notification-preferences.spec.ts` mutates the same seeded manager account `members.spec.ts` and `invitations.spec.ts` already share exclusive access to, since `notifications.spec.ts` (in the fully-parallel default project) depends on that account's channels being enabled to prove real delivery.
+
+**Alternatives rejected**
+
+- **A row per (user, template) pre-populated for every user on account creation.** Rejected: it would need a migration touch on every future template addition and a backfill job for every future user, for no benefit over a sparse override table an absent row already defaults correctly against.
+- **One `notifications_enabled` boolean per user, not per template.** Rejected as not what was asked: PRD.md's own gap was the inability to keep, say, task reminders while muting escalations, which a single global switch cannot express.
+- **Calling `router.refresh()` after each toggle instead of local optimistic state.** This was the first implementation, and it is what caused the revert-on-click bug: a server round trip is slower than the busy-state re-render it raced against, so the checkbox visibly snapped back before the refreshed props ever arrived.

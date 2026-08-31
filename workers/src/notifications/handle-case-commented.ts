@@ -9,10 +9,12 @@ import {
   markNotificationFailed,
   markNotificationSent,
   withTenantTransaction,
+  type ClaimedNotification,
 } from '@orgflow/db';
 import type { DomainEvent, Notification } from '@orgflow/types';
 
 import { recordInAppNotification } from './in-app.js';
+import { resolveNotificationChannels } from './preferences.js';
 import { buildCaseCommentedEmail, type CaseCommentedFacts } from './templates.js';
 import type { NotificationDeps } from './handle-task-created.js';
 
@@ -123,34 +125,50 @@ export async function handleCaseCommented(
   let skipped = 0;
 
   for (const recipientUserId of recipients) {
-    const claimed = await withTenantTransaction(deps.db, organisationId, (trx) =>
-      claimNotification(trx, {
+    const channels = await resolveNotificationChannels(
+      deps.db,
+      organisationId,
+      recipientUserId,
+      'caseCommented',
+    );
+    if (!channels.email && !channels.inApp) {
+      skipped += 1;
+      continue;
+    }
+
+    let claimed: ClaimedNotification | undefined;
+    if (channels.email) {
+      claimed = await withTenantTransaction(deps.db, organisationId, (trx) =>
+        claimNotification(trx, {
+          organisationId,
+          recipientUserId,
+          caseId,
+          taskId: null,
+          channel: 'email',
+          templateKey: 'caseCommented',
+          subject: buildCaseCommentedEmail(fullFacts).subject,
+          idempotencyKey: buildIdempotencyKey({
+            eventId: event.eventId,
+            recipientUserId,
+            templateKey: 'caseCommented',
+            channel: 'email',
+          }),
+        }),
+      );
+    }
+
+    if (channels.inApp) {
+      await recordInAppNotification(deps.db, {
         organisationId,
         recipientUserId,
         caseId,
-        taskId: null,
-        channel: 'email',
+        eventId: event.eventId,
         templateKey: 'caseCommented',
         subject: buildCaseCommentedEmail(fullFacts).subject,
-        idempotencyKey: buildIdempotencyKey({
-          eventId: event.eventId,
-          recipientUserId,
-          templateKey: 'caseCommented',
-          channel: 'email',
-        }),
-      }),
-    );
+      });
+    }
 
-    await recordInAppNotification(deps.db, {
-      organisationId,
-      recipientUserId,
-      caseId,
-      eventId: event.eventId,
-      templateKey: 'caseCommented',
-      subject: buildCaseCommentedEmail(fullFacts).subject,
-    });
-
-    if (claimed.outcome !== 'claimed') {
+    if (!claimed || claimed.outcome !== 'claimed') {
       skipped += 1;
       continue;
     }

@@ -305,6 +305,17 @@ export interface TaskDecisionTokensTable {
   created_at: Generated<Date>;
 }
 
+export interface NotificationPreferencesTable {
+  preference_id: string;
+  organisation_id: string;
+  user_id: string;
+  template_key: string;
+  email_enabled: Generated<boolean>;
+  in_app_enabled: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   organisations: OrganisationsTable;
   users: UsersTable;
@@ -327,4 +338,5 @@ export interface Database {
   delegations: DelegationsTable;
   attachments: AttachmentsTable;
   task_decision_tokens: TaskDecisionTokensTable;
+  notification_preferences: NotificationPreferencesTable;
 }

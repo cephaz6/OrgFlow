@@ -8,10 +8,12 @@ import {
   markNotificationFailed,
   markNotificationSent,
   withTenantTransaction,
+  type ClaimedNotification,
 } from '@orgflow/db';
 import type { DomainEvent, Notification } from '@orgflow/types';
 
 import { recordInAppNotification } from './in-app.js';
+import { resolveNotificationChannels } from './preferences.js';
 import { buildTaskReminderEmail, type TaskNotificationFacts } from './templates.js';
 import type { NotificationDeps } from './handle-task-created.js';
 
@@ -74,35 +76,50 @@ export async function handleTaskReminderDue(
     return { sent: 0, skipped: 0 };
   }
 
-  const claimed = await withTenantTransaction(deps.db, organisationId, (trx) =>
-    claimNotification(trx, {
+  const channels = await resolveNotificationChannels(
+    deps.db,
+    organisationId,
+    assigneeUserId,
+    'taskReminder',
+  );
+  if (!channels.email && !channels.inApp) {
+    return { sent: 0, skipped: 1 };
+  }
+
+  let claimed: ClaimedNotification | undefined;
+  if (channels.email) {
+    claimed = await withTenantTransaction(deps.db, organisationId, (trx) =>
+      claimNotification(trx, {
+        organisationId,
+        recipientUserId: assigneeUserId,
+        caseId,
+        taskId,
+        channel: 'email',
+        templateKey: 'taskReminder',
+        subject: buildTaskReminderEmail({ ...facts, webUrl: deps.webUrl }).subject,
+        idempotencyKey: buildIdempotencyKey({
+          eventId: event.eventId,
+          recipientUserId: assigneeUserId,
+          templateKey: 'taskReminder',
+          channel: 'email',
+        }),
+      }),
+    );
+  }
+
+  if (channels.inApp) {
+    await recordInAppNotification(deps.db, {
       organisationId,
       recipientUserId: assigneeUserId,
       caseId,
       taskId,
-      channel: 'email',
+      eventId: event.eventId,
       templateKey: 'taskReminder',
       subject: buildTaskReminderEmail({ ...facts, webUrl: deps.webUrl }).subject,
-      idempotencyKey: buildIdempotencyKey({
-        eventId: event.eventId,
-        recipientUserId: assigneeUserId,
-        templateKey: 'taskReminder',
-        channel: 'email',
-      }),
-    }),
-  );
+    });
+  }
 
-  await recordInAppNotification(deps.db, {
-    organisationId,
-    recipientUserId: assigneeUserId,
-    caseId,
-    taskId,
-    eventId: event.eventId,
-    templateKey: 'taskReminder',
-    subject: buildTaskReminderEmail({ ...facts, webUrl: deps.webUrl }).subject,
-  });
-
-  if (claimed.outcome !== 'claimed') {
+  if (!claimed || claimed.outcome !== 'claimed') {
     return { sent: 0, skipped: 1 };
   }
 
