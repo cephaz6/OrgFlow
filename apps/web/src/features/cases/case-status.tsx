@@ -48,6 +48,15 @@ export function caseStatusPresentation(
   return (outcome ? OUTCOMES[outcome] : undefined) ?? STATUSES[status];
 }
 
+// For a status filter control (the case list's own): the same labels the
+// badge itself renders, derived rather than duplicated, so the two can
+// never drift apart. Outcome is deliberately not folded in here: filtering
+// is against the stored status column, which is what the API's own
+// ?status= query param matches against.
+export const CASE_STATUS_OPTIONS: { status: CaseStatus; label: string }[] = (
+  Object.entries(STATUSES) as [CaseStatus, Presentation][]
+).map(([status, presentation]) => ({ status, label: presentation.label }));
+
 export interface CaseStatusBadgeProps {
   status: CaseStatus;
   outcome: CaseOutcome | null;

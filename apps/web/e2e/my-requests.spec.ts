@@ -37,6 +37,29 @@ test.describe('my requests', () => {
     await expectNoAccessibilityViolations(page);
   });
 
+  test('filters the list by status and by process', async ({ page }) => {
+    const reference = await submitLaptopRequest(page, '640');
+
+    await page.goto('/cases');
+    await page.getByLabel('Status').selectOption('active');
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByRole('row').filter({ hasText: reference })).toBeVisible();
+    await expectNoAccessibilityViolations(page);
+
+    // A submitted request is never 'draft', so filtering to that status
+    // has to remove it: proof the filter narrows the server query rather
+    // than being decorative.
+    await page.goto('/cases');
+    await page.getByLabel('Status').selectOption('draft');
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByRole('row').filter({ hasText: reference })).toHaveCount(0);
+
+    await page.goto('/cases');
+    await page.getByLabel('Process').selectOption({ label: 'Laptop request' });
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByRole('row').filter({ hasText: reference })).toBeVisible();
+  });
+
   test('shows the case, its answers and its history, with no accessibility violations', async ({
     page,
   }) => {

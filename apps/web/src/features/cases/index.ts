@@ -21,7 +21,7 @@ export { CancelCase } from './case-actions';
 export { CaseComments } from './case-comments';
 export { CaseList } from './case-list';
 export { isReturnedToRequester } from './case-state';
-export { CaseStatusBadge, TaskStatusBadge } from './case-status';
+export { CASE_STATUS_OPTIONS, CaseStatusBadge, TaskStatusBadge } from './case-status';
 export { CaseTimeline } from './case-timeline';
 export { FieldInput } from './field-input';
 export { formatDate, formatDateTime } from '../../lib/format';
