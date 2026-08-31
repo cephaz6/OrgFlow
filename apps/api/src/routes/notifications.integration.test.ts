@@ -206,4 +206,98 @@ describe('notifications API against real Postgres', () => {
     const response = await request(app()).get('/api/v1/notifications');
     expect(response.status).toBe(401);
   });
+
+  it('resolves every template to both channels enabled until something is overridden', async () => {
+    const response = await request(app())
+      .get('/api/v1/notifications/preferences')
+      .set('Cookie', userCookie);
+
+    expect(response.status).toBe(200);
+    const templateKeys = response.body.data.map(
+      (entry: { templateKey: string }) => entry.templateKey,
+    );
+    expect(templateKeys).toContain('taskAssigned');
+    expect(response.body.data).toEqual(
+      response.body.data.map((entry: { templateKey: string }) => ({
+        templateKey: entry.templateKey,
+        emailEnabled: true,
+        inAppEnabled: true,
+      })),
+    );
+  });
+
+  it('updates one template without touching another, and only for the caller', async () => {
+    const disabled = await request(app())
+      .patch('/api/v1/notifications/preferences/taskAssigned')
+      .set('Cookie', userCookie)
+      .send({ emailEnabled: false, inAppEnabled: true });
+
+    expect(disabled.status).toBe(200);
+    expect(disabled.body).toMatchObject({
+      templateKey: 'taskAssigned',
+      emailEnabled: false,
+      inAppEnabled: true,
+    });
+
+    const listed = await request(app())
+      .get('/api/v1/notifications/preferences')
+      .set('Cookie', userCookie);
+    const taskAssigned = listed.body.data.find(
+      (entry: { templateKey: string }) => entry.templateKey === 'taskAssigned',
+    );
+    expect(taskAssigned).toMatchObject({ emailEnabled: false, inAppEnabled: true });
+    // An untouched template is unaffected by another one's override.
+    const taskEscalated = listed.body.data.find(
+      (entry: { templateKey: string }) => entry.templateKey === 'taskEscalated',
+    );
+    expect(taskEscalated).toMatchObject({ emailEnabled: true, inAppEnabled: true });
+
+    // A second caller's own preferences are entirely separate.
+    const otherListed = await request(app())
+      .get('/api/v1/notifications/preferences')
+      .set('Cookie', otherCookie);
+    const otherTaskAssigned = otherListed.body.data.find(
+      (entry: { templateKey: string }) => entry.templateKey === 'taskAssigned',
+    );
+    expect(otherTaskAssigned).toMatchObject({ emailEnabled: true, inAppEnabled: true });
+  });
+
+  it('upserts: patching the same template twice updates it rather than conflicting', async () => {
+    const first = await request(app())
+      .patch('/api/v1/notifications/preferences/caseCommented')
+      .set('Cookie', userCookie)
+      .send({ emailEnabled: false, inAppEnabled: false });
+    expect(first.status).toBe(200);
+
+    const second = await request(app())
+      .patch('/api/v1/notifications/preferences/caseCommented')
+      .set('Cookie', userCookie)
+      .send({ emailEnabled: true, inAppEnabled: false });
+    expect(second.status).toBe(200);
+    expect(second.body).toMatchObject({ emailEnabled: true, inAppEnabled: false });
+
+    const listed = await request(app())
+      .get('/api/v1/notifications/preferences')
+      .set('Cookie', userCookie);
+    const entries = listed.body.data.filter(
+      (entry: { templateKey: string }) => entry.templateKey === 'caseCommented',
+    );
+    // Exactly one row for this template, not a second one from the retry.
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ emailEnabled: true, inAppEnabled: false });
+  });
+
+  it('rejects an unknown template key', async () => {
+    const response = await request(app())
+      .patch('/api/v1/notifications/preferences/notATemplate')
+      .set('Cookie', userCookie)
+      .send({ emailEnabled: false, inAppEnabled: false });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('requires a session for preferences too', async () => {
+    const response = await request(app()).get('/api/v1/notifications/preferences');
+    expect(response.status).toBe(401);
+  });
 });

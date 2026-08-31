@@ -64,6 +64,15 @@ export type {
   FindNotificationsForRecipientFilter,
   NotificationPage,
 } from './repositories/notifications.js';
+export {
+  findNotificationPreference,
+  findNotificationPreferencesForUser,
+  setNotificationPreference,
+} from './repositories/notification-preferences.js';
+export type {
+  NotificationPreference,
+  SetNotificationPreferenceInput,
+} from './repositories/notification-preferences.js';
 export { findMembershipsForUser } from './repositories/memberships.js';
 export {
   createIdentityProvider,

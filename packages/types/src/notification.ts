@@ -17,6 +17,7 @@ export type NotificationTemplateKey =
   | 'caseCompleted'
   | 'caseRejected'
   | 'caseUnassigned'
+  | 'caseCommented'
   | 'delegationStarted';
 
 export interface Notification {

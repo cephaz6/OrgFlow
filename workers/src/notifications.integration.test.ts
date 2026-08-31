@@ -16,6 +16,7 @@ import {
   generateId,
   insertOrganisationMember,
   publishProcessVersion,
+  setNotificationPreference,
   updateCaseState,
   withTenantTransaction,
   type Database,
@@ -253,6 +254,94 @@ describe('notification worker against real Postgres', () => {
     // 'alreadyDelivered'), so only one email, and therefore only one token,
     // is ever minted for this send.
     expect(emailSender.sent).toHaveLength(1);
+  });
+
+  // Each of these three uses its own, dedicated user rather than the
+  // shared managerUserId: a preference set here must not leak into every
+  // other test in this file that also assigns managerUserId a task and
+  // expects the usual, unoverridden behaviour.
+  async function createRecipient(label: string): Promise<string> {
+    const user = await createUserWithIdentity(db, {
+      email: `${label}-${generateId()}@example.invalid`,
+      displayName: label,
+      issuer: 'urn:orgflow:test',
+      subject: `${label}-${generateId()}`,
+    });
+    return user.userId;
+  }
+
+  it('sends no email when the recipient has disabled email for taskAssigned, but still records in-app', async () => {
+    const recipientUserId = await createRecipient('email-disabled');
+    await withTenantTransaction(db, organisationId, (trx) =>
+      setNotificationPreference(trx, {
+        organisationId,
+        userId: recipientUserId,
+        templateKey: 'taskAssigned',
+        emailEnabled: false,
+        inAppEnabled: true,
+      }),
+    );
+
+    const seeded = await seedTask({ assigneeUserId: recipientUserId });
+    const result = await handleTaskCreated(deps(), taskCreatedEvent(seeded));
+
+    expect(emailSender.sent).toHaveLength(0);
+    // Not counted as 'sent' (that count is email-specific), but the in-app
+    // row genuinely exists: the two channels are independent.
+    expect(result).toEqual({ sent: 0, skipped: 1 });
+
+    const { notifications } = await withTenantTransaction(db, organisationId, (trx) =>
+      findNotificationsForRecipient(trx, recipientUserId, { channel: 'inApp' }),
+    );
+    expect(notifications.some((n) => n.taskId === seeded.task.taskId)).toBe(true);
+  });
+
+  it('records no in-app row when the recipient has disabled it, but still sends email', async () => {
+    const recipientUserId = await createRecipient('in-app-disabled');
+    await withTenantTransaction(db, organisationId, (trx) =>
+      setNotificationPreference(trx, {
+        organisationId,
+        userId: recipientUserId,
+        templateKey: 'taskAssigned',
+        emailEnabled: true,
+        inAppEnabled: false,
+      }),
+    );
+
+    const seeded = await seedTask({ assigneeUserId: recipientUserId });
+    const result = await handleTaskCreated(deps(), taskCreatedEvent(seeded));
+
+    expect(emailSender.sent).toHaveLength(1);
+    expect(result).toEqual({ sent: 1, skipped: 0 });
+
+    const { notifications } = await withTenantTransaction(db, organisationId, (trx) =>
+      findNotificationsForRecipient(trx, recipientUserId, { channel: 'inApp' }),
+    );
+    expect(notifications.some((n) => n.taskId === seeded.task.taskId)).toBe(false);
+  });
+
+  it('claims nothing on either channel when both are disabled', async () => {
+    const recipientUserId = await createRecipient('both-disabled');
+    await withTenantTransaction(db, organisationId, (trx) =>
+      setNotificationPreference(trx, {
+        organisationId,
+        userId: recipientUserId,
+        templateKey: 'taskAssigned',
+        emailEnabled: false,
+        inAppEnabled: false,
+      }),
+    );
+
+    const seeded = await seedTask({ assigneeUserId: recipientUserId });
+    const result = await handleTaskCreated(deps(), taskCreatedEvent(seeded));
+
+    expect(result).toEqual({ sent: 0, skipped: 1 });
+    expect(emailSender.sent).toHaveLength(0);
+
+    const { notifications } = await withTenantTransaction(db, organisationId, (trx) =>
+      findNotificationsForRecipient(trx, recipientUserId),
+    );
+    expect(notifications.some((n) => n.taskId === seeded.task.taskId)).toBe(false);
   });
 
   // The test the build order calls for by name: deliver the same message

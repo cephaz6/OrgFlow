@@ -1,5 +1,6 @@
-export { fetchNotifications } from './api-server';
+export { fetchNotificationPreferences, fetchNotifications } from './api-server';
 export type { FetchNotificationsParams } from './api-server';
 export { NotificationBell } from './notification-bell';
 export { NotificationList } from './notification-list';
-export type { NotificationEntry, NotificationPage } from './types';
+export { NotificationPreferences } from './notification-preferences';
+export type { NotificationEntry, NotificationPage, NotificationPreferenceEntry } from './types';

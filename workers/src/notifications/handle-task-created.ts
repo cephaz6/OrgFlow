@@ -13,6 +13,7 @@ import {
   markNotificationFailed,
   markNotificationSent,
   withTenantTransaction,
+  type ClaimedNotification,
   type Database,
 } from '@orgflow/db';
 import type { DomainEvent, Notification } from '@orgflow/types';
@@ -21,6 +22,7 @@ import type { Kysely } from 'kysely';
 import type { EmailSender } from '@orgflow/email';
 import type { Logger } from '../logger.js';
 import { recordInAppNotification } from './in-app.js';
+import { resolveNotificationChannels } from './preferences.js';
 import {
   buildTaskAssignedEmail,
   buildTaskClaimableEmail,
@@ -174,40 +176,58 @@ export async function handleTaskCreated(
   let skipped = 0;
 
   for (const recipient of recipients) {
-    const claimed = await withTenantTransaction(deps.db, organisationId, (trx) =>
-      claimNotification(trx, {
+    const channels = await resolveNotificationChannels(
+      deps.db,
+      organisationId,
+      recipient.userId,
+      recipient.templateKey,
+    );
+    if (!channels.email && !channels.inApp) {
+      skipped += 1;
+      continue;
+    }
+
+    let claimed: ClaimedNotification | undefined;
+    if (channels.email) {
+      claimed = await withTenantTransaction(deps.db, organisationId, (trx) =>
+        claimNotification(trx, {
+          organisationId,
+          recipientUserId: recipient.userId,
+          caseId,
+          taskId,
+          channel: 'email',
+          templateKey: recipient.templateKey,
+          subject: buildEmail(recipient.templateKey, { ...facts, webUrl: deps.webUrl }).subject,
+          idempotencyKey: buildIdempotencyKey({
+            eventId: event.eventId,
+            recipientUserId: recipient.userId,
+            templateKey: recipient.templateKey,
+            channel: 'email',
+          }),
+        }),
+      );
+    }
+
+    if (channels.inApp) {
+      await recordInAppNotification(deps.db, {
         organisationId,
         recipientUserId: recipient.userId,
         caseId,
         taskId,
-        channel: 'email',
+        eventId: event.eventId,
         templateKey: recipient.templateKey,
         subject: buildEmail(recipient.templateKey, { ...facts, webUrl: deps.webUrl }).subject,
-        idempotencyKey: buildIdempotencyKey({
-          eventId: event.eventId,
-          recipientUserId: recipient.userId,
-          templateKey: recipient.templateKey,
-          channel: 'email',
-        }),
-      }),
-    );
-
-    await recordInAppNotification(deps.db, {
-      organisationId,
-      recipientUserId: recipient.userId,
-      caseId,
-      taskId,
-      eventId: event.eventId,
-      templateKey: recipient.templateKey,
-      subject: buildEmail(recipient.templateKey, { ...facts, webUrl: deps.webUrl }).subject,
-    });
+      });
+    }
 
     // This is the idempotency guarantee PRD.md §14.2 requires. Only a
     // 'claimed' outcome sends: 'alreadyDelivered' means a previous
     // redelivery finished the job, and 'inFlight' means another one is
     // doing it right now. A failed attempt becomes claimable again, so an
-    // email outage delays a notification rather than losing it.
-    if (claimed.outcome !== 'claimed') {
+    // email outage delays a notification rather than losing it. No claim
+    // at all (email disabled) counts the same as a claim this handler
+    // does not hold: there is nothing here to deliver.
+    if (!claimed || claimed.outcome !== 'claimed') {
       skipped += 1;
       continue;
     }
