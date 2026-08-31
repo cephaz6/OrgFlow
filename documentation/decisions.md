@@ -1317,7 +1317,56 @@ A group can now be created, renamed and staffed without touching the API directl
 - **Repurposing `ensureGroup`/`ensureGroupMember` for the admin create/add flows instead of adding real ones.** Rejected: their idempotent-on-conflict semantics are correct for seeding, where "already exists" and "just created" are the same outcome, but wrong for an explicit admin action, where they are not.
 - **Gating the groups pages' rendering on a live 403 from a dedicated admin-only list endpoint, matching members and identity-providers exactly.** Rejected as an unnecessary second read: `GET /groups` already has to stay open for the picklist, so the page instead trusts the roles claim the way the nav itself already does, with every mutation still independently enforced server-side.
 
-## ADR-0036: Notification preferences are an opt-out override table, checked once in a shared helper before every handler's existing two claims
+## ADR-0036: Save a request for later reuses the draft a case already is, rather than inventing a second concept
+
+**Status**: Accepted
+
+**Context**
+
+The PRD flexibility audit found that a requester filling in a longer form (equipment orders with attachments, expense claims needing receipts gathered from elsewhere) has no way to stop partway through and come back. `POST /cases` already creates a `'draft'`-status case before any answer is given, purely so uploads have a case to attach to while the requester is still typing (PRD.md §8.2's version-pinning note: a draft's `version_id` is set at creation and never moves). `PATCH /cases/:caseId` already updates a draft's values unvalidated, refusing with 409 once it is no longer a draft. Both endpoints exist and needed no change; what is missing is entirely a frontend gap, a way to stop without submitting, and a way to find the case again afterwards.
+
+**Decision**
+
+`apps/web/src/features/cases/form-runtime.tsx`'s `FormRuntimeMode` gains a third variant, `{ kind: 'draft'; caseId: string }`, alongside the existing `'new'` and `'resubmit'`. It is handled identically to `'new'` everywhere the two already behaved the same (`caseId` seeded from the mode rather than created, the same visible-answers filter, the same submit path), and differs only in skipping the eager draft-creation effect, since the case already exists.
+
+A new "Save and finish later" button, shown for `'new'` and `'draft'` modes only, calls the existing `PATCH` endpoint with whatever is currently visible and answered, deliberately without running `validateFields`: the entire point of a draft is that it can be incomplete, so validating it here would defeat the feature. It then returns the requester to "My requests", where the case already appears with a "Draft" status badge and no submission date, since `findCasesForCurrentTenant` was never filtered to exclude drafts.
+
+A new route, `/cases/:caseId/continue`, mirrors the existing `/cases/:caseId/amend` route exactly: it loads the case, redirects back to the case detail page if the viewer is not its requester or the case is no longer a draft (the same reasoning `amend`'s own guard gives for a case no longer awaiting amendment, arriving at a form the API would refuse is worse than never offering it), and otherwise renders `FormRuntime` in `'draft'` mode with the case's existing values and attachments pre-populated. The case detail page gains a "Continue this request" action, shown to the requester only while the case is a draft, and its summary changes "Closed"/an empty "Currently with" field to "Not yet submitted" for the same status.
+
+**Consequences**
+
+A requester can now stop and resume a long-running form without losing what they had already answered, closing a real PRD gap with no schema change and no new API endpoint: both the `POST` and `PATCH /cases` routes already did exactly what this needed. Cancelling a draft (via the form's existing "Cancel" link, which now points at the case rather than the catalogue for `'draft'` mode) leaves it sitting unfinished rather than deleting it; this is deliberate, since a draft is now resumable, not an error state.
+
+**Alternatives rejected**
+
+- **A dedicated `case_drafts` table, separate from `cases`, promoted to a real case only on submit.** Rejected: `cases` already models a draft correctly, including version pinning at creation and cascading attachments, and a second table would duplicate that machinery for no behavioural gain, only to converge back into the same row at submission.
+- **Auto-saving on every field change, rather than an explicit "Save and finish later" action.** Rejected as unrequested scope: the PRD gap is "let me stop and come back", not "never let me lose a keystroke", and an explicit save keeps the mental model identical to what a returned-for-amendment case already teaches a requester (a form is only safe once they choose to leave it).
+- **Offering a "Discard this draft" action alongside "Continue".** Rejected for this change: the existing cancel endpoint already accepts a draft, so the capability is not missing, only not surfaced; adding a second, redundant entry point was left out to keep this feature's scope to what the audit actually asked for.
+
+## ADR-0037: Quick-start tiles rank by a requester's own case history, fetched wider rather than through a new endpoint
+
+**Status**: Accepted
+
+**Context**
+
+PRD.md §13.2 asks for "quick-start tiles for frequent processes". `QuickStart` (`apps/web/src/features/dashboard/quick-start.tsx`) had never measured frequency, only rendered the published catalogue in its own order, capped to four, with a comment explaining that inventing a proxy such as "most recently published" would present a guess as a fact. The real signal, how many times this requester has actually started each process, was available all along in the `cases` table, just never queried for this purpose. Nothing about ranking tiles needs a new endpoint: the dashboard already calls `GET /cases?view=mine` for its "your open requests" section, and `GET /catalogue` for the tiles themselves.
+
+**Decision**
+
+The dashboard's existing `fetchMyCases()` call moves from its default limit of 10 to `{ limit: 200 }`, matching the reasoning `fetchCatalogue({ limit: 200 })` already carries on the same page: this widget needs enough of the requester's real history to count against, not a browsable page of it. A new pure function, `sortCatalogueByFrequency(entries, cases)` (`apps/web/src/features/dashboard/sort-by-frequency.ts`), counts cases by `definitionId` and sorts the catalogue entries by that count descending, stable on ties (native `Array.prototype.sort` has been a stable sort since ES2019), so a process never started falls back to catalogue order rather than being reshuffled arbitrarily. `QuickStart` itself is unchanged: it already only ever renders whatever list it is given.
+
+Bumping the fetch limit also incidentally makes "your open requests"' own count and ordering more accurate for a requester with more than ten historical cases, since `selectOpenRequests` was silently working from a truncated set before. This is a side effect worth having, not a second change: the same query already had to widen for the tiles to mean anything.
+
+**Consequences**
+
+Quick-start tiles now genuinely reflect what PRD.md asked for, with no schema change, no new API route, and no change to any existing API contract, only a different value for a query parameter the route already accepted. A requester with more than 200 historical cases gets an approximation of their true frequency rather than the exact count; this is judged acceptable for the same reason the catalogue widget's own 200 limit already was, a dashboard summary, not a ledger.
+
+**Alternatives rejected**
+
+- **A dedicated `GET /cases/frequency` (or similar) endpoint doing the counting in SQL.** Rejected as unnecessary backend surface for what the existing `GET /cases?view=mine` route already returns enough of to compute client-side; adding a new route is exactly the kind of API-contract change CLAUDE.md §8 treats as High risk, for a computation cheap enough to do in the page that already fetches the input.
+- **Recording explicit "started this process" events or a starts-per-definition counter table.** Rejected: it would be the correct long-term shape if this needed to scale past a few hundred cases per requester, but the existing `cases` table already carries every fact this needs, and adding a counter that must be kept in step with it is a schema change and a new failure mode for no present benefit.
+
+## ADR-0038: Notification preferences are an opt-out override table, checked once in a shared helper before every handler's existing two claims
 
 **Date:** 2026-08-31
 **Status:** Accepted

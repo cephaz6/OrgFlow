@@ -13,13 +13,15 @@ import type { AttachmentResponse, CaseResponse } from './types';
 import { isStaticField, UNSUPPORTED_TYPES, validateFields } from './validate';
 import { visibleFields, visibleSections, type VisibilityInput } from './visibility';
 
-// The two ways a form is filled in. Amending a returned case runs the same
-// runtime as a new request because it is the same form, evaluated against
-// the same pinned document, with the same conditional visibility. The
-// difference is only where the answers go, so it is a discriminator rather
-// than a second component.
+// The three ways a form is filled in. Amending a returned case, and
+// continuing a draft, both run the same runtime as a new request because
+// it is the same form, evaluated against the same pinned document, with
+// the same conditional visibility. The difference is only where the
+// answers go (and, for 'draft', whether a case needs creating at all), so
+// it is a discriminator rather than a second component.
 export type FormRuntimeMode =
   | { kind: 'new'; definitionId: string; definitionKey: string }
+  | { kind: 'draft'; caseId: string }
   | { kind: 'resubmit'; caseId: string; reference: string };
 
 export interface FormRuntimeProps {
@@ -56,13 +58,15 @@ export function FormRuntime({
   // collect one, but a genuinely new request has no case yet: PRD.md §8.2
   // still pins the version at submission, so the draft this creates has no
   // answers on it, only an id for uploads to reference while the requester
-  // fills the rest in. resubmit mode already has a real case, so there is
-  // nothing to create.
+  // fills the rest in. resubmit and draft modes already have a real case,
+  // so there is nothing to create.
   const [caseId, setCaseId] = useState<string | null>(
-    mode.kind === 'resubmit' ? mode.caseId : null,
+    mode.kind === 'resubmit' || mode.kind === 'draft' ? mode.caseId : null,
   );
   const [draftError, setDraftError] = useState<string | null>(null);
   const draftRequested = useRef(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSaveError, setDraftSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode.kind !== 'new' || draftRequested.current) {
@@ -159,6 +163,40 @@ export function FormRuntime({
     );
   }
 
+  // Only visible answers are ever sent, to submit or to save: a value
+  // typed into a field a later answer hid would otherwise be stored on the
+  // case and shown to an approver (or resumed into) as though it had been
+  // asked for.
+  function visiblePayload(): Record<string, unknown> {
+    const visibleKeys = new Set(answerable.map((field) => field.key));
+    return Object.fromEntries(Object.entries(values).filter(([key]) => visibleKeys.has(key)));
+  }
+
+  // Saves whatever has been answered so far, unvalidated, and leaves the
+  // case a draft: PRD.md's own point of a draft is that it can be
+  // incomplete, so this deliberately does not run validateFields the way
+  // onSubmit does. Only offered for 'new' and 'draft' modes; resubmitting a
+  // returned case is treated as one atomic action, not something to leave
+  // half-done.
+  async function onSaveDraft() {
+    if (mode.kind === 'resubmit' || caseId === null) {
+      return;
+    }
+
+    setSavingDraft(true);
+    setDraftSaveError(null);
+    try {
+      await patchCaseValues(caseId, visiblePayload());
+      router.push('/cases');
+    } catch (err) {
+      setDraftSaveError(
+        err instanceof Error ? err.message : 'This request could not be saved. Try again.',
+      );
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
 
@@ -177,15 +215,9 @@ export function FormRuntime({
     setStatus({ kind: 'submitting' });
 
     try {
-      // Only visible answers are sent. A value typed into a field that a
-      // later answer hid would otherwise be stored on the case and shown to
-      // an approver as though it had been asked for.
-      const visibleKeys = new Set(answerable.map((field) => field.key));
-      const payload = Object.fromEntries(
-        Object.entries(values).filter(([key]) => visibleKeys.has(key)),
-      );
+      const payload = visiblePayload();
 
-      if (mode.kind === 'new') {
+      if (mode.kind === 'new' || mode.kind === 'draft') {
         // caseId is guaranteed by this point: the form below does not
         // render, and so cannot be submitted, until the draft exists.
         await patchCaseValues(caseId!, payload);
@@ -312,15 +344,26 @@ export function FormRuntime({
       ))}
 
       {status.kind === 'failed' ? <Alert variant="destructive">{status.message}</Alert> : null}
+      {draftSaveError ? <Alert variant="destructive">{draftSaveError}</Alert> : null}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={status.kind === 'submitting' || blockedBy.length > 0}>
           {status.kind === 'submitting'
             ? 'Submitting...'
-            : mode.kind === 'new'
-              ? 'Submit request'
-              : 'Resubmit request'}
+            : mode.kind === 'resubmit'
+              ? 'Resubmit request'
+              : 'Submit request'}
         </Button>
+        {mode.kind === 'new' || mode.kind === 'draft' ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={status.kind === 'submitting' || savingDraft}
+            onClick={() => void onSaveDraft()}
+          >
+            {savingDraft ? 'Saving...' : 'Save and finish later'}
+          </Button>
+        ) : null}
         <Button asChild variant="ghost">
           <Link
             href={

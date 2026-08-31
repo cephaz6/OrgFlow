@@ -46,6 +46,7 @@ export default async function CaseDetailPage({ params }: PageProps) {
   const comments = await fetchCaseComments(caseId);
   const returned = isReturnedToRequester(found);
   const isRequester = session?.user.userId === found.submittedByUserId;
+  const isDraft = found.status === 'draft';
   const isOpen = found.status === 'active' || found.status === 'unassigned';
 
   const currentStep = document.workflow.steps.find((step) => step.key === found.currentStepKey);
@@ -83,16 +84,18 @@ export default async function CaseDetailPage({ params }: PageProps) {
             </div>
             <div className="flex flex-col gap-1">
               <dt className="text-xs uppercase tracking-wider text-muted-foreground">
-                {isOpen ? 'Currently with' : 'Closed'}
+                {isDraft ? 'Status' : isOpen ? 'Currently with' : 'Closed'}
               </dt>
               <dd className="text-sm">
-                {isOpen
-                  ? returned
-                    ? 'You, for amendment'
-                    : (currentStep?.name ?? 'Nobody yet')
-                  : found.completedAt
-                    ? formatDate(found.completedAt)
-                    : 'Not recorded'}
+                {isDraft
+                  ? 'Not yet submitted'
+                  : isOpen
+                    ? returned
+                      ? 'You, for amendment'
+                      : (currentStep?.name ?? 'Nobody yet')
+                    : found.completedAt
+                      ? formatDate(found.completedAt)
+                      : 'Not recorded'}
               </dd>
             </div>
             <div className="flex flex-col gap-1">
@@ -185,6 +188,14 @@ export default async function CaseDetailPage({ params }: PageProps) {
       {/* Actions are the requester's only. Approving and rejecting belong to
           whoever holds the task, on the decision screen, and PRD.md §12.3
           insists the two permissions stay separate. */}
+      {isRequester && isDraft ? (
+        <div className="flex flex-wrap items-start gap-3">
+          <Button asChild>
+            <Link href={`/cases/${found.caseId}/continue`}>Continue this request</Link>
+          </Button>
+        </div>
+      ) : null}
+
       {isRequester && isOpen ? (
         <div className="flex flex-wrap items-start gap-3">
           {returned ? (
