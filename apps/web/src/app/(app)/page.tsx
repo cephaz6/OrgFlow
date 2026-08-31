@@ -9,6 +9,7 @@ import { fetchCatalogue } from '../../features/catalogue';
 import {
   QuickStart,
   selectOpenRequests,
+  sortCatalogueByFrequency,
   WaitingOnYou,
   YourRequests,
 } from '../../features/dashboard';
@@ -24,7 +25,11 @@ export default async function DashboardPage() {
   // latencies together.
   const [queuePage, casePage, cataloguePage] = await Promise.all([
     fetchMyQueue(),
-    fetchMyCases(),
+    // A large limit, not the "my requests" page's own default: quick-start
+    // ranking (PRD.md §13.2) needs this requester's real usage history to
+    // count against, and ten most-recent cases would make the ranking
+    // mostly noise for anyone who submits more than that.
+    fetchMyCases({ limit: 200 }),
     // A large, unpaginated limit rather than the catalogue page's own
     // default: this widget only ever builds an id-to-name lookup and a
     // "is there anything at all" check, not a browsable list, so it wants
@@ -125,7 +130,7 @@ export default async function DashboardPage() {
           <h2 id="start-heading" className="text-lg font-semibold">
             Start something
           </h2>
-          <QuickStart entries={catalogue} />
+          <QuickStart entries={sortCatalogueByFrequency(catalogue, cases)} />
         </section>
       ) : null}
     </div>
