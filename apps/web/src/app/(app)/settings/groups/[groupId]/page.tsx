@@ -6,7 +6,7 @@ import { notFound } from 'next/navigation';
 import { getSession } from '../../../../../features/auth';
 import { fetchGroupDetail, GroupMembers } from '../../../../../features/groups';
 import { fetchMembers } from '../../../../../features/members';
-import { PageHeader } from '../../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../../features/shell';
 
 interface PageProps {
   params: Promise<{ groupId: string }>;
@@ -30,7 +30,10 @@ export default async function GroupDetailPage({ params }: PageProps) {
   if (!isAdministrator) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Group" />
+        <PageHeader
+          breadcrumbs={[HOME_CRUMB, { label: 'Groups', href: '/settings/groups' }]}
+          title="Group"
+        />
         <EmptyState
           icon={ShieldOff}
           title="Admin access required"
@@ -61,6 +64,7 @@ export default async function GroupDetailPage({ params }: PageProps) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB, { label: 'Groups', href: '/settings/groups' }]}
         title={group.name}
         description={
           group.description ? `${group.description} (key: ${group.key})` : `Key: ${group.key}`

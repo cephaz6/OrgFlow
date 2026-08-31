@@ -1392,3 +1392,30 @@ A member can now tune what reaches them without asking an administrator, closing
 - **A row per (user, template) pre-populated for every user on account creation.** Rejected: it would need a migration touch on every future template addition and a backfill job for every future user, for no benefit over a sparse override table an absent row already defaults correctly against.
 - **One `notifications_enabled` boolean per user, not per template.** Rejected as not what was asked: PRD.md's own gap was the inability to keep, say, task reminders while muting escalations, which a single global switch cannot express.
 - **Calling `router.refresh()` after each toggle instead of local optimistic state.** This was the first implementation, and it is what caused the revert-on-click bug: a server round trip is slower than the busy-state re-render it raced against, so the checkbox visibly snapped back before the refreshed props ever arrived.
+
+## ADR-0039: A breadcrumb trail is a `PageHeader` prop, not a per-page component, and the current page is never repeated as its own link
+
+**Status**: Accepted
+
+**Context**
+
+Several screens have no entry in `NAV_GROUPS` (`apps/web/src/features/shell/nav.ts`) at all: `/settings` and `/settings/profile` are reachable only from the account dropdown, `/notifications` only from the header bell, and `/settings/data-protection` only from a row action on the members directory. Several more sit two or three levels below their sidebar item (`/cases/:caseId`, `/cases/:caseId/amend`, `/settings/members/directory`, `/settings/groups/:groupId`, and so on). None of these carried any indication of where they sat in the app's hierarchy or how to step back up it, short of the browser's own back button.
+
+**Decision**
+
+`packages/ui/src/components/breadcrumbs.tsx` is a new, purely presentational `Breadcrumbs` component, following `Pagination`'s own precedent exactly: plain `<a>` elements, not `next/link`, since `packages/ui` has no dependency on Next.js (CLAUDE.md §3). It takes `items: { label: string; href?: string }[]` and renders the current page (the item with no `href`) as `aria-current="page"` text rather than a link.
+
+`PageHeader` (`apps/web/src/features/shell/page-header.tsx`) gains an optional `breadcrumbs` prop carrying only the ancestors; it appends the page's own `title` as the trail's final, non-linked item itself, so no call site ever repeats its own title as a breadcrumb entry. A shared `HOME_CRUMB` constant (`apps/web/src/features/shell/breadcrumbs.ts`) is the one place `{ label: 'Dashboard', href: '/' }` is written, since every trail in the app starts there. Every other ancestor is written inline at its call site: with 28 pages and no two sharing more than a two-item stem beyond `HOME_CRUMB`, a lookup table keyed by route would have been more indirection than the three or four pages it would have saved typing on.
+
+Every page under `apps/web/src/app/(app)/` now passes `breadcrumbs`, except the dashboard itself, which has nowhere shallower to point back to. A page reached only through another page's row action or menu (`/settings`, `/settings/profile`, `/settings/delegations`, `/settings/notifications`, `/notifications`, `/settings/data-protection`) uses that actual referring page as its ancestor rather than inventing a place in `NAV_GROUPS` for it. `/cases/:caseId/continue`, reached only while a case is a draft, deliberately does not use `case.reference` as its crumb label: a draft's reference is `POST /cases`'s internal `DRAFT-<uuid>` placeholder (packages/db/src/repositories/cases.ts's `draftReference`), never a real allocated one (PRD.md §8.2, ADR-0013), so the crumb uses the process name instead, the same value already used as the page's own title.
+
+**Consequences**
+
+Every screen in the app now shows where it sits and offers a one-click way back up, closing a real navigation gap for exactly the pages an operator flagged: sub-pages with no sidebar entry of their own. The trail is a static ancestor chain the page declares, not a browser-history breadcrumb, so a case reached from an approver's decision screen still shows "My requests" as its parent rather than "Approvals": this is judged correct, since a breadcrumb describes the app's hierarchy, not how this particular visitor arrived.
+
+A pre-existing, unrelated rough edge surfaced while choosing crumb labels: a draft case's `reference` field is an internal placeholder, never shown anywhere in the product as anything but that raw string today (the case detail page's own `<h1>` and the "My requests" list both still render it unmodified for a draft). This was deliberately left alone rather than fixed as part of this change, since it is a pre-existing defect this session's own case-draft feature (ADR-0036) introduced, not something breadcrumbs caused, and fixing it belongs to a change that owns that page's rendering, not to the one adding a navigation aid around it.
+
+**Alternatives rejected**
+
+- **A route-keyed lookup table mapping each pathname to its breadcrumb trail, resolved centrally in the layout.** Rejected: with 28 distinct pages, most needing a dynamically-fetched label (a case reference, a process name, a group name) that only the page itself has already loaded, a central resolver would need the same per-route data-fetching this change already does at each call site, just relocated and duplicated against it.
+- **Deriving the trail automatically from the URL's path segments.** Rejected outright: OrgFlow's own hierarchy does not match its URL structure (`/settings/data-protection` belongs under Members, not under an invented "Settings" segment already used by an unrelated hub page; `/cases/:caseId/continue` belongs under My requests, not under `/cases/:caseId`), so a path-derived trail would be wrong for most of the pages that most need one.

@@ -16,7 +16,7 @@ import {
   SubmittedValues,
   TaskStatusBadge,
 } from '../../../../features/cases';
-import { PageHeader } from '../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../features/shell';
 import { getSession } from '../../../../features/auth';
 
 interface PageProps {
@@ -55,6 +55,7 @@ export default async function CaseDetailPage({ params }: PageProps) {
   return (
     <div className="flex max-w-4xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB, { label: 'My requests', href: '/cases' }]}
         title={found.reference}
         description={document.name}
         actions={

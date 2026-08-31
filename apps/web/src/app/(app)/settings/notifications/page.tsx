@@ -5,7 +5,7 @@ import {
   fetchNotificationPreferences,
   NotificationPreferences,
 } from '../../../../features/notifications';
-import { PageHeader } from '../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../features/shell';
 
 export const metadata: Metadata = {
   title: 'Notifications: OrgFlow',
@@ -20,6 +20,7 @@ export default async function NotificationPreferencesPage() {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB, { label: 'Settings', href: '/settings' }]}
         title="Notifications"
         description="Which notifications reach you, and by email, in-app, or both."
       />

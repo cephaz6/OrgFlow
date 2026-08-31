@@ -6,7 +6,7 @@ import {
   DelegationList,
   fetchMyDelegations,
 } from '../../../../features/delegations';
-import { PageHeader } from '../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../features/shell';
 import { buildNextHref, buildPrevHref } from '../../../../lib/pagination';
 
 export const metadata: Metadata = {
@@ -28,6 +28,7 @@ export default async function DelegationsPage({ searchParams }: PageProps) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB, { label: 'Settings', href: '/settings' }]}
         title="Delegations"
         description="Hand your tasks to a colleague while you are away, or see who has delegated to you."
       />

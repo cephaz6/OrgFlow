@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 
 import { InviteForm } from '../../../../../features/invitations';
 import { fetchMembers } from '../../../../../features/members';
-import { PageHeader, SectionTabs } from '../../../../../features/shell';
+import { HOME_CRUMB, PageHeader, SectionTabs } from '../../../../../features/shell';
 
 export const metadata: Metadata = {
   title: 'Invite a member: OrgFlow',
@@ -32,7 +32,10 @@ export default async function InviteMemberPage() {
   if (members === null) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Invite a member" />
+        <PageHeader
+          breadcrumbs={[HOME_CRUMB, { label: 'Members', href: '/settings/members' }]}
+          title="Invite a member"
+        />
         <EmptyState
           icon={ShieldOff}
           title="Admin access required"
@@ -47,6 +50,7 @@ export default async function InviteMemberPage() {
       <SectionTabs label="Members sections" items={TABS} />
 
       <PageHeader
+        breadcrumbs={[HOME_CRUMB, { label: 'Members', href: '/settings/members' }]}
         title="Invite a member"
         description="They will receive a link to join, and can be assigned roles now or later."
       />

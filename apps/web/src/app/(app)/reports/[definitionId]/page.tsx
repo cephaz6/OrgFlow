@@ -10,7 +10,7 @@ import {
   TurnaroundSummary,
   fetchDefinitionReport,
 } from '../../../../features/reporting';
-import { PageHeader } from '../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../features/shell';
 
 interface PageProps {
   params: Promise<{ definitionId: string }>;
@@ -32,7 +32,7 @@ export default async function DefinitionReportPage({ params }: PageProps) {
   if (!canView) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Reports" />
+        <PageHeader breadcrumbs={[HOME_CRUMB]} title="Reports" />
         <EmptyState
           icon={ShieldOff}
           title="Reporting access required"
@@ -50,6 +50,7 @@ export default async function DefinitionReportPage({ params }: PageProps) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB, { label: 'Reports', href: '/reports' }]}
         title={report.definitionName}
         description="Turnaround, bottlenecks and rejection reasons for this process, for the last 90 days."
         actions={<ExportButton definitionId={definitionId} />}

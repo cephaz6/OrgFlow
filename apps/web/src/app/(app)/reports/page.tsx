@@ -13,7 +13,7 @@ import {
   fetchBottlenecks,
   fetchOverviewReport,
 } from '../../../features/reporting';
-import { PageHeader } from '../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../features/shell';
 
 export const metadata: Metadata = {
   title: 'Reports: OrgFlow',
@@ -28,7 +28,7 @@ export default async function ReportsPage() {
   if (!canView) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Reports" />
+        <PageHeader breadcrumbs={[HOME_CRUMB]} title="Reports" />
         <EmptyState
           icon={ShieldOff}
           title="Reporting access required"
@@ -50,6 +50,7 @@ export default async function ReportsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB]}
         title="Reports"
         description="Volume, turnaround and bottlenecks across every process, for the last 90 days."
         actions={<ExportButton />}

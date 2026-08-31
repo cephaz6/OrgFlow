@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 
 import { getSession } from '../../../../../features/auth';
 import { fetchMembers, MemberList } from '../../../../../features/members';
-import { PageHeader, SectionTabs } from '../../../../../features/shell';
+import { HOME_CRUMB, PageHeader, SectionTabs } from '../../../../../features/shell';
 import { buildNextHref, buildPrevHref } from '../../../../../lib/pagination';
 
 export const metadata: Metadata = {
@@ -46,7 +46,10 @@ export default async function MemberDirectoryPage({ searchParams }: PageProps) {
   if (page === null) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Active members" />
+        <PageHeader
+          breadcrumbs={[HOME_CRUMB, { label: 'Members', href: '/settings/members' }]}
+          title="Active members"
+        />
         <EmptyState
           icon={ShieldOff}
           title="Admin access required"
@@ -61,6 +64,7 @@ export default async function MemberDirectoryPage({ searchParams }: PageProps) {
       <SectionTabs label="Members sections" items={TABS} />
 
       <PageHeader
+        breadcrumbs={[HOME_CRUMB, { label: 'Members', href: '/settings/members' }]}
         title="Active members"
         description="Everyone in this organisation, the roles they hold, and who they report to."
       />

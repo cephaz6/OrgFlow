@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getSession } from '../../../../../features/auth';
 import { fetchDefinitionByKey } from '../../../../../features/catalogue';
 import { FormRuntime } from '../../../../../features/cases';
-import { PageHeader } from '../../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../../features/shell';
 
 interface PageProps {
   params: Promise<{ definitionKey: string }>;
@@ -34,6 +34,11 @@ export default async function NewCasePage({ params }: PageProps) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[
+          HOME_CRUMB,
+          { label: 'Catalogue', href: '/catalogue' },
+          { label: detail.definition.name, href: `/catalogue/${detail.definition.key}` },
+        ]}
         title={detail.definition.name}
         {...(detail.definition.description ? { description: detail.definition.description } : {})}
       />

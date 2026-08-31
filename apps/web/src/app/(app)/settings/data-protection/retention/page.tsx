@@ -3,7 +3,7 @@ import { ShieldOff } from 'lucide-react';
 import type { Metadata } from 'next';
 
 import { fetchRetentionSettings, RetentionList } from '../../../../../features/data-protection';
-import { PageHeader } from '../../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../../features/shell';
 
 export const metadata: Metadata = {
   title: 'Retention: OrgFlow',
@@ -15,7 +15,7 @@ export default async function RetentionPage() {
   if (definitions === null) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Retention" />
+        <PageHeader breadcrumbs={[HOME_CRUMB]} title="Retention" />
         <EmptyState
           icon={ShieldOff}
           title="Admin access required"
@@ -28,6 +28,7 @@ export default async function RetentionPage() {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB]}
         title="Retention"
         description="How long a completed case is kept before it is redacted, per process. Leave blank to retain indefinitely."
       />

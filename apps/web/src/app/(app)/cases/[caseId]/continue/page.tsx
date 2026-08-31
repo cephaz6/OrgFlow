@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getSession } from '../../../../../features/auth';
 import { fetchCase, FormRuntime } from '../../../../../features/cases';
-import { PageHeader } from '../../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../../features/shell';
 
 interface PageProps {
   params: Promise<{ caseId: string }>;
@@ -33,6 +33,14 @@ export default async function ContinueCasePage({ params }: PageProps) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[
+          HOME_CRUMB,
+          { label: 'My requests', href: '/cases' },
+          // Not detail.case.reference: a draft has no real one allocated
+          // yet (PRD.md §8.2, ADR-0013), only the internal placeholder
+          // POST /cases stores until submission.
+          { label: detail.document.name, href: `/cases/${detail.case.caseId}` },
+        ]}
         title={`Continue ${detail.document.name}`}
         description="Pick up where you left off. Nothing here has been submitted yet."
       />

@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 import { fetchSubjectExport } from '../../../../features/data-protection';
 import { DownloadExportButton } from '../../../../features/data-protection/download-export-button';
-import { PageHeader } from '../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../features/shell';
 import { formatDate, formatDateTime } from '../../../../lib/format';
 
 export const metadata: Metadata = {
@@ -23,6 +23,11 @@ export default async function DataProtectionPage({ searchParams }: PageProps) {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
+          breadcrumbs={[
+            HOME_CRUMB,
+            { label: 'Members', href: '/settings/members' },
+            { label: 'Active members', href: '/settings/members/directory' },
+          ]}
           title="Subject access export"
           description="All data OrgFlow holds relating to one member: cases they submitted, tasks they acted on, their audited actions, and their uploads."
         />
@@ -43,7 +48,14 @@ export default async function DataProtectionPage({ searchParams }: PageProps) {
   if (result.kind === 'forbidden') {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Subject access export" />
+        <PageHeader
+          breadcrumbs={[
+            HOME_CRUMB,
+            { label: 'Members', href: '/settings/members' },
+            { label: 'Active members', href: '/settings/members/directory' },
+          ]}
+          title="Subject access export"
+        />
         <EmptyState
           icon={ShieldOff}
           title="Admin access required"
@@ -56,7 +68,14 @@ export default async function DataProtectionPage({ searchParams }: PageProps) {
   if (result.kind === 'not-found') {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Subject access export" />
+        <PageHeader
+          breadcrumbs={[
+            HOME_CRUMB,
+            { label: 'Members', href: '/settings/members' },
+            { label: 'Active members', href: '/settings/members/directory' },
+          ]}
+          title="Subject access export"
+        />
         <EmptyState
           icon={FileSearch}
           title="No such member"
@@ -71,6 +90,11 @@ export default async function DataProtectionPage({ searchParams }: PageProps) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[
+          HOME_CRUMB,
+          { label: 'Members', href: '/settings/members' },
+          { label: 'Active members', href: '/settings/members/directory' },
+        ]}
         title={`Subject access export: ${data.user.displayName}`}
         description={`${data.user.email}. Generated ${formatDateTime(data.exportedAt)}.`}
       />

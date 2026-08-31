@@ -7,7 +7,7 @@ import type { CaseStatus } from '@orgflow/types';
 
 import { CASE_STATUS_OPTIONS, CaseList, fetchMyCases } from '../../../features/cases';
 import { fetchCatalogue } from '../../../features/catalogue';
-import { PageHeader } from '../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../features/shell';
 import { buildNextHref, buildPrevHref } from '../../../lib/pagination';
 
 export const metadata: Metadata = {
@@ -60,6 +60,7 @@ export default async function MyCasesPage({ searchParams }: PageProps) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB]}
         title="My requests"
         description="Everything you have submitted, and what is happening to it."
         actions={

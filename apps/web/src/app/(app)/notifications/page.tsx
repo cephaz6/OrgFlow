@@ -2,7 +2,7 @@ import { Pagination } from '@orgflow/ui';
 import type { Metadata } from 'next';
 
 import { fetchNotifications, NotificationList } from '../../../features/notifications';
-import { PageHeader } from '../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../features/shell';
 import { buildNextHref, buildPrevHref } from '../../../lib/pagination';
 
 export const metadata: Metadata = {
@@ -23,6 +23,7 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
   return (
     <div className="flex max-w-2xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB]}
         title="Notifications"
         description="What has happened on your requests and tasks."
       />
