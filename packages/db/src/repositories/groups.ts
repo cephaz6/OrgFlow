@@ -46,6 +46,120 @@ export async function findGroupsForOrganisation(trx: Transaction<Database>): Pro
   }));
 }
 
+// Real creation, for the groups management screen: unlike ensureGroup
+// below, this never treats an existing key as success. The caller (the
+// route) has already allocated a key it believes is free; the unique
+// constraint on (organisation_id, key) is what actually decides, and a
+// 23505 there is a real, if rare, race for the route to handle, not
+// something this function papers over.
+export async function createGroup(
+  trx: Transaction<Database>,
+  input: EnsureGroupInput,
+): Promise<Group> {
+  const row = await trx
+    .insertInto('groups')
+    .values({
+      group_id: generateId(),
+      organisation_id: input.organisationId,
+      key: input.key,
+      name: input.name,
+      description: input.description ?? null,
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+
+  return { groupId: row.group_id, key: row.key, name: row.name, description: row.description };
+}
+
+export interface UpdateGroupInput {
+  name?: string | undefined;
+  description?: string | null | undefined;
+}
+
+// Name and description only: ADR-0014's whole point is that `key` is the
+// stable identifier a pinned definition document resolves against, so it
+// is never offered as something this can change.
+export async function updateGroup(
+  trx: Transaction<Database>,
+  groupId: string,
+  input: UpdateGroupInput,
+): Promise<Group | null> {
+  const row = await trx
+    .updateTable('groups')
+    .set({
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+    })
+    .where('group_id', '=', groupId)
+    .returningAll()
+    .executeTakeFirst();
+
+  return row
+    ? { groupId: row.group_id, key: row.key, name: row.name, description: row.description }
+    : null;
+}
+
+// group_members cascades on the group's own deletion, so an otherwise
+// unreferenced group with members still deletes cleanly. A group named by
+// a process definition's owning_group_id or a case_task's
+// assignee_group_id does not: both reference groups with the default
+// RESTRICT, and the route turns that 23503 into a clear 409 rather than
+// letting a raw constraint violation surface.
+export async function deleteGroup(trx: Transaction<Database>, groupId: string): Promise<boolean> {
+  const result = await trx.deleteFrom('groups').where('group_id', '=', groupId).executeTakeFirst();
+
+  return result.numDeletedRows > 0n;
+}
+
+export interface GroupMember {
+  userId: string;
+  displayName: string;
+  email: string;
+}
+
+// Who is in a group, for the management screen's membership list: unlike
+// findGroupMemberUserIds (the engine's own claimable-pool lookup, which
+// only ever needs the ids), this joins through to the identity a person
+// actually recognises.
+export async function findGroupMembersForGroup(
+  trx: Transaction<Database>,
+  groupId: string,
+): Promise<GroupMember[]> {
+  const rows = await trx
+    .selectFrom('group_members')
+    .innerJoin('users', 'users.user_id', 'group_members.user_id')
+    .select(['users.user_id', 'users.display_name', 'users.email'])
+    .where('group_members.group_id', '=', groupId)
+    .orderBy('users.display_name', 'asc')
+    .execute();
+
+  return rows.map((row) => ({
+    userId: row.user_id,
+    displayName: row.display_name,
+    email: row.email,
+  }));
+}
+
+// Scoped to the group, not just the (group_id, user_id) pair: a caller
+// that already knows the row cannot exist outside this group has no way to
+// remove a member of a different one by accident, and the route's own 404
+// on a zero-row result already covers "never was a member" and "wrong
+// group" identically, matching PRD.md §11.10's cross-tenant convention for
+// the same reason.
+export async function removeGroupMember(
+  trx: Transaction<Database>,
+  groupId: string,
+  userId: string,
+): Promise<boolean> {
+  const result = await trx
+    .deleteFrom('group_members')
+    .where('group_id', '=', groupId)
+    .where('user_id', '=', userId)
+    .executeTakeFirst();
+
+  return result.numDeletedRows > 0n;
+}
+
 export interface EnsureGroupInput {
   organisationId: string;
   key: string;

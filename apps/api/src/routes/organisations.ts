@@ -18,6 +18,7 @@ import { z } from 'zod';
 
 import { buildSessionClaims, createSessionToken, SESSION_COOKIE_NAME } from '../auth/session.js';
 import { parseBody } from '../lib/parse-body.js';
+import { slugify } from '../lib/slugify.js';
 import type { Logger } from '../logger.js';
 import { HttpProblemError } from '../middleware/error-handler.js';
 import {
@@ -48,18 +49,6 @@ const updateSchema = z
   .refine((value) => Object.keys(value).length > 0, {
     message: 'Provide at least one field to update.',
   });
-
-// A readable, URL-safe slug derived from the name, not asked for
-// separately: nothing downstream (branding, an eventual custom domain)
-// depends on the slug being chosen deliberately rather than derived, and
-// asking a platform admin to invent one is one more thing to get wrong for
-// no benefit.
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
 
 function buildEvent(input: {
   eventType: DomainEvent['eventType'];

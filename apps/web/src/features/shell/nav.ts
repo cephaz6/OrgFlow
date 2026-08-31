@@ -7,6 +7,7 @@ import {
   LibraryBig,
   ScrollText,
   Users,
+  UsersRound,
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
@@ -77,6 +78,15 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: KeyRound,
         // Same gate as Members: configuring who a session can authenticate
         // as is at least as sensitive as managing an existing one.
+        requiresAnyRole: ['admin', 'owner'],
+      },
+      {
+        href: '/settings/groups',
+        label: 'Groups',
+        icon: UsersRound,
+        // A group is a pool of members a workflow step can assign to, so
+        // managing one sits with the same "manage members" capability
+        // PRD.md §12.2 gives to admin and above.
         requiresAnyRole: ['admin', 'owner'],
       },
       {
