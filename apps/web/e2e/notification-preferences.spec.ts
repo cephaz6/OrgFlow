@@ -7,6 +7,21 @@ import { expectNoAccessibilityViolations, signIn, signInAsManager } from './supp
 // events and actually writes a notification row.
 const REQUIRES_WORKERS = Boolean(process.env.CI);
 
+// The checkbox saves itself the moment it changes, with no separate "Save"
+// step, and its own onChange handler does not await the request before
+// returning: the checkbox's checked state flips optimistically as soon as
+// setChecked's click resolves, well before the PATCH has actually reached
+// the server. A reload or a sign-in-as-someone-else right after that would
+// race the write, and does not need to be hypothetical: it reproduced
+// reliably in CI, where the round trip is fast enough that the race is
+// usually lost. Disabled only while the request is in flight
+// (features/notifications/notification-preferences.tsx's own `rowBusy`),
+// so waiting for the checkbox to become enabled again is what actually
+// waits for the save.
+async function waitForSaved(page: Page, label: string): Promise<void> {
+  await expect(page.getByLabel(label)).toBeEnabled();
+}
+
 async function submitLaptopRequest(page: Page, cost: string): Promise<string> {
   await page.goto('/cases/new/laptop-request');
   await page.getByLabel(/Which model do you need/).selectOption('mbp14');
@@ -50,6 +65,7 @@ test.describe('notification preferences', () => {
     await emailBox.setChecked(false);
     // The checkbox saves itself; there is no separate "Save" step.
     await expect(emailBox).not.toBeChecked();
+    await waitForSaved(page, 'Email for Escalated to me');
 
     await page.reload();
     await expect(page.getByLabel('Email for Escalated to me')).not.toBeChecked();
@@ -58,6 +74,7 @@ test.describe('notification preferences', () => {
     // Restored, so this spec leaves the setting as it found it.
     await page.getByLabel('Email for Escalated to me').setChecked(true);
     await expect(page.getByLabel('Email for Escalated to me')).toBeChecked();
+    await waitForSaved(page, 'Email for Escalated to me');
   });
 
   test('a colleague’s own preference is untouched by another user’s change', async ({ page }) => {
@@ -65,6 +82,7 @@ test.describe('notification preferences', () => {
     await page.goto('/settings/notifications');
     await page.getByLabel('Email for Reminders').setChecked(false);
     await expect(page.getByLabel('Email for Reminders')).not.toBeChecked();
+    await waitForSaved(page, 'Email for Reminders');
 
     await signIn(page);
     await page.goto('/settings/notifications');
@@ -74,6 +92,7 @@ test.describe('notification preferences', () => {
     await signInAsManager(page);
     await page.goto('/settings/notifications');
     await page.getByLabel('Email for Reminders').setChecked(true);
+    await waitForSaved(page, 'Email for Reminders');
   });
 
   test('turning off both channels for a template suppresses it entirely', async ({ page }) => {
@@ -85,7 +104,9 @@ test.describe('notification preferences', () => {
     await signInAsManager(page);
     await page.goto('/settings/notifications');
     await page.getByLabel('Email for Assigned to me').setChecked(false);
+    await waitForSaved(page, 'Email for Assigned to me');
     await page.getByLabel('In-app for Assigned to me').setChecked(false);
+    await waitForSaved(page, 'In-app for Assigned to me');
 
     await signIn(page);
     const reference = await submitLaptopRequest(page, '640');
@@ -99,7 +120,9 @@ test.describe('notification preferences', () => {
     // in-app row (approvals.spec.ts, notifications.spec.ts) are unaffected.
     await page.goto('/settings/notifications');
     await page.getByLabel('Email for Assigned to me').setChecked(true);
+    await waitForSaved(page, 'Email for Assigned to me');
     await page.getByLabel('In-app for Assigned to me').setChecked(true);
+    await waitForSaved(page, 'In-app for Assigned to me');
   });
 
   test('has no accessibility violations', async ({ page }) => {
