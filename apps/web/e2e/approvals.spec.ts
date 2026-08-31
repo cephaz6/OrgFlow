@@ -133,6 +133,69 @@ test.describe('approvals', () => {
     await expect(page.getByText('Request amended and resubmitted')).toBeVisible();
   });
 
+  test('filters the assigned queue by process and by status', async ({ page }) => {
+    await signIn(page);
+    const reference = await submitLaptopRequest(page, '640');
+
+    await signInAsManager(page);
+    await page.goto('/approvals');
+
+    await page.getByLabel('Process').selectOption({ label: 'Laptop request' });
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByRole('row').filter({ hasText: reference })).toBeVisible();
+
+    // A directly-assigned task (the manager step's lineManager strategy)
+    // is never 'claimed', only ever 'pending' until decided, so filtering
+    // to 'claimed' has to remove it: proof the filter actually narrows the
+    // server query rather than being decorative.
+    await page.goto('/approvals');
+    await page.getByLabel('Status').selectOption('claimed');
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByRole('row').filter({ hasText: reference })).toHaveCount(0);
+
+    await page.getByLabel('Status').selectOption('pending');
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByRole('row').filter({ hasText: reference })).toBeVisible();
+  });
+
+  test('supports arrow-key navigation between rows, and Enter opens the focused row', async ({
+    page,
+  }) => {
+    await signIn(page);
+    const referenceA = await submitLaptopRequest(page, '640');
+    await signIn(page);
+    await submitLaptopRequest(page, '650');
+
+    await signInAsManager(page);
+    await page.goto('/approvals');
+
+    // Scoped to a link this test itself created, not to a row position:
+    // the manager's queue can carry rows left behind by other specs run
+    // earlier (this project's workers: 1 makes that ordering real, not
+    // hypothetical), so nothing here assumes exactly two rows exist or
+    // that they sit next to each other.
+    const link = page.getByRole('row').filter({ hasText: referenceA }).getByRole('link');
+    await link.focus();
+    const originalHref = await link.getAttribute('href');
+
+    await page.keyboard.press('ArrowDown');
+    let focusedHref = await page.evaluate(() => document.activeElement?.getAttribute('href'));
+    if (focusedHref === originalHref) {
+      // This row was already the last one; the other direction is the one
+      // guaranteed to move, since a second row from this same test exists.
+      await page.keyboard.press('ArrowUp');
+      focusedHref = await page.evaluate(() => document.activeElement?.getAttribute('href'));
+    }
+    expect(focusedHref).not.toBe(originalHref);
+    expect(focusedHref).toBeTruthy();
+
+    // Enter needs no bespoke handling: a focused reference link is a plain
+    // anchor, so the browser's own Enter-activates-a-link behaviour is
+    // what PRD.md §13.2's "Enter to open" actually relies on.
+    await page.keyboard.press('Enter');
+    await page.waitForURL(/\/approvals\/[0-9a-f-]{36}$/);
+  });
+
   test('does not let the requester decide their own request', async ({ page }) => {
     await signIn(page);
     const reference = await submitLaptopRequest(page, '640');
