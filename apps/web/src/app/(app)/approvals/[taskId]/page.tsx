@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 
 import { DecisionForm, fetchTask, urgencyOf } from '../../../../features/approvals';
 import { AttachmentList, fetchCase, formatDate, SubmittedValues } from '../../../../features/cases';
-import { PageHeader } from '../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../features/shell';
 
 interface PageProps {
   params: Promise<{ taskId: string }>;
@@ -47,6 +47,11 @@ export default async function DecisionPage({ params }: PageProps) {
           the stored option code ("mbp16"), which means nothing to an
           approver. The pinned document knows what the process is called. */}
       <PageHeader
+        breadcrumbs={[
+          HOME_CRUMB,
+          { label: 'Approvals', href: '/approvals' },
+          { label: detail.case.reference },
+        ]}
         title={step?.name ?? task.stepName}
         description={`${detail.case.reference}${caseDetail ? ` · ${caseDetail.document.name}` : ''}`}
       />

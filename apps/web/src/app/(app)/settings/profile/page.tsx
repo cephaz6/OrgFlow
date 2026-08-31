@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { getSession } from '../../../../features/auth';
-import { PageHeader } from '../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../features/shell';
 
 export const metadata: Metadata = {
   title: 'Profile — OrgFlow',
@@ -28,6 +28,7 @@ export default async function ProfilePage() {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB, { label: 'Settings', href: '/settings' }]}
         title="Profile"
         description="Who you are signed in as, and what you can do in this organisation."
       />

@@ -3,7 +3,7 @@ import { LibraryBig } from 'lucide-react';
 import type { Metadata } from 'next';
 
 import { CatalogueGrid, fetchCatalogue } from '../../../features/catalogue';
-import { PageHeader } from '../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../features/shell';
 import { buildNextHref, buildPrevHref } from '../../../lib/pagination';
 
 export const metadata: Metadata = {
@@ -25,6 +25,7 @@ export default async function CataloguePage({ searchParams }: PageProps) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB]}
         title="Catalogue"
         description="The processes your organisation has published. Choose one to start a request."
       />

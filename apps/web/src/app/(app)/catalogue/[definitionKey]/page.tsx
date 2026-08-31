@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { fetchDefinitionByKey, ProcessIcon } from '../../../../features/catalogue';
-import { PageHeader } from '../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../features/shell';
 
 interface PageProps {
   params: Promise<{ definitionKey: string }>;
@@ -43,6 +43,7 @@ export default async function ProcessDetailPage({ params }: PageProps) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB, { label: 'Catalogue', href: '/catalogue' }]}
         title={definition.name}
         {...(definition.description ? { description: definition.description } : {})}
         actions={

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { getSession } from '../../../features/auth';
 import { fetchManagedDefinitions, ManageList } from '../../../features/form-builder';
 import { fetchGroups } from '../../../features/groups';
-import { PageHeader } from '../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../features/shell';
 import { buildNextHref, buildPrevHref } from '../../../lib/pagination';
 
 export const metadata: Metadata = {
@@ -29,7 +29,7 @@ export default async function ProcessesPage({ searchParams }: PageProps) {
   if (!canManage) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Processes" />
+        <PageHeader breadcrumbs={[HOME_CRUMB]} title="Processes" />
         <EmptyState
           icon={ShieldOff}
           title="Process owner access required"
@@ -50,6 +50,7 @@ export default async function ProcessesPage({ searchParams }: PageProps) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB]}
         title="Processes"
         description="The forms and workflows you own, at every stage from draft to published."
         actions={

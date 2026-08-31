@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 import { fetchInvitations } from '../../../../features/invitations';
 import { fetchMembers } from '../../../../features/members';
-import { PageHeader } from '../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../features/shell';
 
 export const metadata: Metadata = {
   title: 'Members: OrgFlow',
@@ -22,7 +22,7 @@ export default async function MembersPage() {
   if (memberPage === null) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Members" />
+        <PageHeader breadcrumbs={[HOME_CRUMB]} title="Members" />
         <EmptyState
           icon={ShieldOff}
           title="Admin access required"
@@ -43,6 +43,7 @@ export default async function MembersPage() {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB]}
         title="Members"
         description="Everyone in this organisation, the roles they hold, and who they report to."
       />

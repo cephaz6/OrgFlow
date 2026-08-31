@@ -7,7 +7,7 @@ import {
   IdentityProviderForm,
   IdentityProviderList,
 } from '../../../../features/identity-providers';
-import { PageHeader } from '../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../features/shell';
 
 export const metadata: Metadata = {
   title: 'Identity providers: OrgFlow',
@@ -19,7 +19,7 @@ export default async function IdentityProvidersPage() {
   if (providers === null) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Identity providers" />
+        <PageHeader breadcrumbs={[HOME_CRUMB]} title="Identity providers" />
         <EmptyState
           icon={ShieldOff}
           title="Admin access required"
@@ -32,6 +32,7 @@ export default async function IdentityProvidersPage() {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB]}
         title="Identity providers"
         description="OIDC providers this organisation's members sign in through, routed by their email domain."
       />

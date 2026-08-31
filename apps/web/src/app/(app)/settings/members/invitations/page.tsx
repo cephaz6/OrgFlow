@@ -3,7 +3,7 @@ import { ShieldOff } from 'lucide-react';
 import type { Metadata } from 'next';
 
 import { fetchInvitations, PendingInvitationsList } from '../../../../../features/invitations';
-import { PageHeader, SectionTabs } from '../../../../../features/shell';
+import { HOME_CRUMB, PageHeader, SectionTabs } from '../../../../../features/shell';
 import { buildNextHref, buildPrevHref } from '../../../../../lib/pagination';
 
 export const metadata: Metadata = {
@@ -31,7 +31,10 @@ export default async function InvitationsPage({ searchParams }: PageProps) {
   if (page === null) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Invitations" />
+        <PageHeader
+          breadcrumbs={[HOME_CRUMB, { label: 'Members', href: '/settings/members' }]}
+          title="Invitations"
+        />
         <EmptyState
           icon={ShieldOff}
           title="Admin access required"
@@ -46,6 +49,7 @@ export default async function InvitationsPage({ searchParams }: PageProps) {
       <SectionTabs label="Members sections" items={TABS} />
 
       <PageHeader
+        breadcrumbs={[HOME_CRUMB, { label: 'Members', href: '/settings/members' }]}
         title="Invitations"
         description="Every invitation sent from this organisation, and its current status."
       />

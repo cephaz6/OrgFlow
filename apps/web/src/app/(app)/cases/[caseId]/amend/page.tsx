@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getSession } from '../../../../../features/auth';
 import { fetchCase, FormRuntime, isReturnedToRequester } from '../../../../../features/cases';
-import { PageHeader } from '../../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../../features/shell';
 
 interface PageProps {
   params: Promise<{ caseId: string }>;
@@ -35,6 +35,11 @@ export default async function AmendCasePage({ params }: PageProps) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeader
+        breadcrumbs={[
+          HOME_CRUMB,
+          { label: 'My requests', href: '/cases' },
+          { label: detail.case.reference, href: `/cases/${detail.case.caseId}` },
+        ]}
         title={`Amend ${detail.case.reference}`}
         description="Change what the approver asked you to, then send it back. The reference stays the same."
       />

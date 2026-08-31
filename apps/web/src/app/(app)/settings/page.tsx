@@ -3,7 +3,7 @@ import { ArrowLeftRight, Bell, ChevronRight, UserRound } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { PageHeader } from '../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../features/shell';
 import { ThemeSetting } from '../../../features/theme';
 
 export const metadata: Metadata = {
@@ -13,7 +13,11 @@ export const metadata: Metadata = {
 export default function SettingsPage() {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
-      <PageHeader title="Settings" description="How OrgFlow looks and behaves for you." />
+      <PageHeader
+        breadcrumbs={[HOME_CRUMB]}
+        title="Settings"
+        description="How OrgFlow looks and behaves for you."
+      />
 
       <Card>
         <CardHeader>

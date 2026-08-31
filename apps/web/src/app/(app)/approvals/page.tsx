@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 
 import { ApprovalQueue, fetchClaimableQueue, fetchMyQueue } from '../../../features/approvals';
 import { fetchCatalogue } from '../../../features/catalogue';
-import { PageHeader } from '../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../features/shell';
 import { buildNextHref, buildPrevHref } from '../../../lib/pagination';
 
 export const metadata: Metadata = {
@@ -71,7 +71,11 @@ export default async function ApprovalsPage({ searchParams }: PageProps) {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader title="Approvals" description="Work waiting on you, most urgent first." />
+      <PageHeader
+        breadcrumbs={[HOME_CRUMB]}
+        title="Approvals"
+        description="Work waiting on you, most urgent first."
+      />
 
       <section className="flex flex-col gap-4" aria-labelledby="assigned-heading">
         <h2 id="assigned-heading" className="text-lg font-semibold">

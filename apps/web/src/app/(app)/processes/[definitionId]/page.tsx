@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getSession } from '../../../../features/auth';
 import { Builder, fetchDraft } from '../../../../features/form-builder';
-import { PageHeader } from '../../../../features/shell';
+import { HOME_CRUMB, PageHeader } from '../../../../features/shell';
 import { ApiError } from '../../../../lib/api-error';
 
 interface PageProps {
@@ -44,6 +44,7 @@ export default async function ProcessBuilderPage({ params }: PageProps) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        breadcrumbs={[HOME_CRUMB, { label: 'Processes', href: '/processes' }]}
         title={draft.definition.name}
         description="Build the form here. The workflow that routes a submitted request is set up separately."
       />
