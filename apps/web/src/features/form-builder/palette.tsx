@@ -33,7 +33,7 @@ export function Palette({ targetSectionTitle, onAdd }: PaletteProps) {
             size="sm"
             disabled={!targetSectionTitle}
             onClick={() => onAdd(type)}
-            className="justify-start"
+            className="h-auto min-h-9 justify-start whitespace-normal py-2 text-left leading-snug"
           >
             {FIELD_TYPE_LABELS[type]}
           </Button>
