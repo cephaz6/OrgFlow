@@ -18,9 +18,16 @@ import { useId } from 'react';
 // that was fixed the same way.
 import { ConditionEditor } from '../form-builder/condition-editor';
 import {
+  addEscalationRule,
+  addReminder,
   addTransitionRule,
+  moveEscalationRule,
   moveTransitionRule,
+  removeEscalationRule,
+  removeReminder,
   removeTransitionRule,
+  updateEscalationRule,
+  updateReminder,
   updateTransitionRule,
 } from './document-ops';
 import {
@@ -284,6 +291,166 @@ function DecisionTransitions({
   );
 }
 
+// A step with a durationHours can additionally warn ahead of the deadline
+// (reminders) and add further assignees once it is missed (escalation),
+// per PRD.md §15.2-15.3. Both stay hidden until an SLA exists, since neither
+// means anything without a dueAt to count from.
+function SlaTimersEditor({
+  step,
+  sla,
+  personFields,
+  onChange,
+}: {
+  step: WorkflowStep;
+  sla: NonNullable<WorkflowStep['sla']>;
+  personFields: FormField[];
+  onChange: (step: WorkflowStep) => void;
+}) {
+  const stepWithSla = { ...step, sla };
+  const escalation = sla.escalation ?? [];
+
+  return (
+    <div className="flex flex-col gap-4 border-t border-divider pt-4">
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-primary"
+          checked={sla.businessHoursOnly !== false}
+          onChange={(event) => {
+            if (event.target.checked) {
+              const { businessHoursOnly: _drop, ...rest } = sla;
+              onChange({ ...step, sla: rest });
+            } else {
+              onChange({ ...step, sla: { ...sla, businessHoursOnly: false } });
+            }
+          }}
+        />
+        Skip weekends when calculating the deadline
+      </label>
+
+      <div className="flex flex-col gap-2">
+        <Label>Reminders</Label>
+        {(sla.reminders ?? []).map((reminder, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <Input
+              aria-label={`Reminder ${index + 1}, hours before the deadline`}
+              type="number"
+              min={1}
+              className="w-24"
+              value={reminder.atHoursBefore}
+              onChange={(event) =>
+                onChange(
+                  updateReminder(stepWithSla, index, {
+                    atHoursBefore: Number(event.target.value),
+                  }),
+                )
+              }
+            />
+            <span className="text-sm text-muted-foreground">hours before the deadline</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label={`Remove reminder ${index + 1}`}
+              onClick={() => onChange(removeReminder(stepWithSla, index))}
+            >
+              <Trash2 aria-hidden="true" className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onChange(addReminder(stepWithSla, { atHoursBefore: 24 }))}
+        >
+          <Plus aria-hidden="true" className="h-4 w-4" />
+          Add reminder
+        </Button>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label>Escalation</Label>
+        {escalation.map((rule, index) => (
+          <div key={index} className="flex flex-col gap-2 rounded-md border border-divider p-3">
+            <p className="text-sm font-medium">Level {index + 1}</p>
+            <AssignmentEditor
+              assignment={rule}
+              personFields={personFields}
+              onChange={(assignment) =>
+                onChange(
+                  updateEscalationRule(stepWithSla, index, {
+                    ...assignment,
+                    atHoursAfter: rule.atHoursAfter,
+                  }),
+                )
+              }
+            />
+            <div className="flex items-center gap-2">
+              <Input
+                aria-label={`Level ${index + 1}, hours after the deadline`}
+                type="number"
+                min={1}
+                className="w-24"
+                value={rule.atHoursAfter}
+                onChange={(event) =>
+                  onChange(
+                    updateEscalationRule(stepWithSla, index, {
+                      ...rule,
+                      atHoursAfter: Number(event.target.value),
+                    }),
+                  )
+                }
+              />
+              <span className="text-sm text-muted-foreground">hours after the deadline</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={`Move level ${index + 1} up`}
+                disabled={index === 0}
+                onClick={() => onChange(moveEscalationRule(stepWithSla, index, -1))}
+              >
+                <ChevronUp aria-hidden="true" className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={`Move level ${index + 1} down`}
+                disabled={index === escalation.length - 1}
+                onClick={() => onChange(moveEscalationRule(stepWithSla, index, 1))}
+              >
+                <ChevronDown aria-hidden="true" className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={`Remove level ${index + 1}`}
+                onClick={() => onChange(removeEscalationRule(stepWithSla, index))}
+              >
+                <Trash2 aria-hidden="true" className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            onChange(addEscalationRule(stepWithSla, { strategy: 'lineManager', atHoursAfter: 24 }))
+          }
+        >
+          <Plus aria-hidden="true" className="h-4 w-4" />
+          Add escalation level
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function StepPanel({
   step,
   otherStepKeys,
@@ -432,6 +599,15 @@ export function StepPanel({
           }}
         />
       </div>
+
+      {step.sla ? (
+        <SlaTimersEditor
+          step={step}
+          sla={step.sla}
+          personFields={personFields}
+          onChange={onChange}
+        />
+      ) : null}
 
       <div className="flex flex-col gap-3 border-t border-divider pt-4">
         {step.allowedDecisions.map((decision) => (

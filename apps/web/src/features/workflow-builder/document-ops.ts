@@ -1,4 +1,10 @@
-import type { TransitionRule, WorkflowDecisionAction, WorkflowStep } from '@orgflow/types';
+import type {
+  EscalationRule,
+  SlaReminderRule,
+  TransitionRule,
+  WorkflowDecisionAction,
+  WorkflowStep,
+} from '@orgflow/types';
 
 // Pure operations on a document's workflow.steps, mirroring
 // features/form-builder/document-ops.ts: the canvas and the list view both
@@ -106,6 +112,70 @@ export function moveTransitionRule(
   const next = [...existing];
   [next[index], next[target]] = [next[target]!, next[index]!];
   return { ...step, transitions: { ...step.transitions, [decision]: next } };
+}
+
+// Reminders and escalation only make sense once a step has an SLA duration
+// (step-panel.tsx only renders their editors then), so these operate on a
+// step already carrying one rather than inventing a default duration.
+type StepWithSla = WorkflowStep & { sla: NonNullable<WorkflowStep['sla']> };
+
+// packages/core/src/engine/sla.ts fires one reminder timer per entry,
+// atHoursBefore counted back from dueAt, so order has no execution meaning:
+// unlike escalation, these can only be appended to and removed from.
+export function addReminder(step: StepWithSla, rule: SlaReminderRule): StepWithSla {
+  const reminders = [...(step.sla.reminders ?? []), rule];
+  return { ...step, sla: { ...step.sla, reminders } };
+}
+
+export function updateReminder(
+  step: StepWithSla,
+  index: number,
+  rule: SlaReminderRule,
+): StepWithSla {
+  const reminders = (step.sla.reminders ?? []).map((entry, i) => (i === index ? rule : entry));
+  return { ...step, sla: { ...step.sla, reminders } };
+}
+
+export function removeReminder(step: StepWithSla, index: number): StepWithSla {
+  const reminders = (step.sla.reminders ?? []).filter((_rule, i) => i !== index);
+  return { ...step, sla: { ...step.sla, reminders } };
+}
+
+// escalation.test.ts resolves a level from its position in this array
+// (index + 1, tried in order until one resolves), so unlike reminders,
+// order here is execution meaning and moveEscalationRule exists for it.
+export function addEscalationRule(step: StepWithSla, rule: EscalationRule): StepWithSla {
+  const escalation = [...(step.sla.escalation ?? []), rule];
+  return { ...step, sla: { ...step.sla, escalation } };
+}
+
+export function updateEscalationRule(
+  step: StepWithSla,
+  index: number,
+  rule: EscalationRule,
+): StepWithSla {
+  const escalation = (step.sla.escalation ?? []).map((entry, i) => (i === index ? rule : entry));
+  return { ...step, sla: { ...step.sla, escalation } };
+}
+
+export function removeEscalationRule(step: StepWithSla, index: number): StepWithSla {
+  const escalation = (step.sla.escalation ?? []).filter((_rule, i) => i !== index);
+  return { ...step, sla: { ...step.sla, escalation } };
+}
+
+export function moveEscalationRule(
+  step: StepWithSla,
+  index: number,
+  direction: -1 | 1,
+): StepWithSla {
+  const existing = step.sla.escalation ?? [];
+  const target = index + direction;
+  if (target < 0 || target >= existing.length) {
+    return step;
+  }
+  const escalation = [...existing];
+  [escalation[index], escalation[target]] = [escalation[target]!, escalation[index]!];
+  return { ...step, sla: { ...step.sla, escalation } };
 }
 
 const KEY_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]*$/;
