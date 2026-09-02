@@ -26,6 +26,7 @@ import { DocumentProperties, type DocumentSettings } from './document-properties
 import { FieldProperties } from './field-properties';
 import { LivePreview } from './live-preview';
 import { Palette } from './palette';
+import { SaveAsTemplate } from './save-as-template';
 import { SectionProperties } from './section-properties';
 import { hasBlockingIssues, validateDraft } from './validation';
 import { ValidationPanel } from './validation-panel';
@@ -232,6 +233,17 @@ export function Builder({ initial, userId }: BuilderProps) {
           </Button>
         </div>
       </div>
+
+      {/* Below the header rather than inside it: opening the panel expands
+          it to a form, and growing the header row would push Save and
+          Publish around while somebody is reaching for them. */}
+      <SaveAsTemplate
+        definitionId={definitionId}
+        defaultName={settings.name}
+        defaultDescription={settings.description}
+        defaultCategory={settings.category}
+        onBeforeSave={handleSave}
+      />
 
       {saveStatus.kind === 'error' ? (
         <Alert variant="destructive">{saveStatus.message}</Alert>
