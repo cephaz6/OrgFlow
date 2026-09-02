@@ -279,7 +279,7 @@ function enterStep(
   // self-approval guard redirected still keeps the step's own deadline,
   // since it is the same piece of work due at the same time, just assigned
   // to someone else.
-  const dueAt = computeDueAt(step.sla, input.context.now);
+  const dueAt = computeDueAt(step.sla, input.context.now, input.context.calendar);
 
   const task: TaskSpec = {
     stepKey: step.key,

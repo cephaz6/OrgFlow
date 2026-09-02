@@ -88,6 +88,19 @@ export type {
   TemplateDetail,
   UpdateTemplateInput,
 } from './repositories/templates.js';
+export {
+  addHoliday,
+  findOrganisationCalendar,
+  removeHoliday,
+  resolveWorkingCalendar,
+  upsertOrganisationCalendar,
+} from './repositories/working-calendar.js';
+export type {
+  AddHolidayInput,
+  Holiday,
+  OrganisationCalendar,
+  UpsertCalendarInput,
+} from './repositories/working-calendar.js';
 export { findMembershipsForUser } from './repositories/memberships.js';
 export {
   createIdentityProvider,

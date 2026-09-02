@@ -348,6 +348,28 @@ export interface SystemTemplatesTable {
   updated_at: Generated<Date>;
 }
 
+// PRD.md §15.1, ADR-0044. One row per organisation; absence means the
+// engine's default (UTC, weekdays, 09:00-17:00).
+export interface OrganisationCalendarsTable {
+  organisation_id: string;
+  time_zone: Generated<string>;
+  workdays: Generated<number[]>;
+  start_minute: Generated<number>;
+  end_minute: Generated<number>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface OrganisationHolidaysTable {
+  holiday_id: string;
+  organisation_id: string;
+  // TEXT rather than DATE, so it round-trips as the 'YYYY-MM-DD' somebody
+  // entered rather than as a JS Date at local midnight. See the migration.
+  holiday_date: string;
+  name: string;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   organisations: OrganisationsTable;
   users: UsersTable;
@@ -373,4 +395,6 @@ export interface Database {
   notification_preferences: NotificationPreferencesTable;
   templates: TemplatesTable;
   system_templates: SystemTemplatesTable;
+  organisation_calendars: OrganisationCalendarsTable;
+  organisation_holidays: OrganisationHolidaysTable;
 }
