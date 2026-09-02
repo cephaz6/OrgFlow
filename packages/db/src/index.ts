@@ -73,6 +73,21 @@ export type {
   NotificationPreference,
   SetNotificationPreferenceInput,
 } from './repositories/notification-preferences.js';
+export {
+  createTemplate,
+  deleteTemplate,
+  findSystemTemplateById,
+  findTemplateById,
+  listBrowsableTemplates,
+  setTemplateScope,
+  updateTemplate,
+} from './repositories/templates.js';
+export type {
+  BrowsableTemplate,
+  CreateTemplateInput,
+  TemplateDetail,
+  UpdateTemplateInput,
+} from './repositories/templates.js';
 export { findMembershipsForUser } from './repositories/memberships.js';
 export {
   createIdentityProvider,

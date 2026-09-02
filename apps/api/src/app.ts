@@ -30,6 +30,7 @@ import { createMembersRouter } from './routes/members.js';
 import { createNotificationsRouter } from './routes/notifications.js';
 import { createReportsRouter } from './routes/reports.js';
 import { createTasksRouter } from './routes/tasks.js';
+import { createTemplatesRouter } from './routes/templates.js';
 
 export interface CreateAppDeps {
   db: Kysely<Database>;
@@ -81,6 +82,15 @@ export function createApp(deps: CreateAppDeps): Express {
   app.use(
     '/api/v1',
     createProcessDefinitionsRouter({
+      db: deps.db,
+      mongoClient: deps.mongoClient,
+      sessionSecret: deps.sessionSecret,
+    }),
+  );
+
+  app.use(
+    '/api/v1',
+    createTemplatesRouter({
       db: deps.db,
       mongoClient: deps.mongoClient,
       sessionSecret: deps.sessionSecret,

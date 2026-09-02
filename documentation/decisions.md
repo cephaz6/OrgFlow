@@ -1651,3 +1651,76 @@ running process.
   nothing holds a foreign key to one. Rejected: it diverges from how definitions are stored for
   no gain, and the clone path is most instructive when it mirrors the definition-creation path it
   sits beside.
+
+## ADR-0043: A clone resets user- and group-specific assignments to `lineManager`, and flags them out of band
+
+**Date:** 2026-09-02
+**Status:** Accepted
+**Deciders:** Project operator
+
+**Context**
+`PRD.md` §9.2 says that on clone, "assignment strategies referencing specific users or groups are
+reset to unresolved and flagged for configuration". Both halves of that sentence needed a decision
+before any of it could be built.
+
+There is no `unresolved` member of `AssignmentStrategy`. The type is a closed union of seven
+strategies (`packages/types/src/assignment.ts`), and adding an eighth would reach the engine's
+assignment resolver, every exhaustive switch over the union, the workflow builder's strategy
+picker, and the validation rules, for a value that is never legal at execution time. A definition
+carrying it could not run, so the engine would need a new failure path for a state the builder is
+supposed to prevent.
+
+The reason for the reset is real, though. A `specificUser` names a `userId` that belongs to the
+template's original organisation and means nothing in the one cloning it. A `group` names a group
+key that very likely does not exist there either. Carrying either across unchanged would route
+work to somebody arbitrary, or to nobody.
+
+**Decision**
+Both are reset to `{ strategy: 'lineManager' }`, which is exactly what the workflow builder gives
+a brand new step (`step-defaults.ts`'s `blankStep`). The clone therefore lands in a state the
+builder already treats as ordinary, rather than one it has to learn to render.
+
+The "flagged" half is carried out of band, as a `CloneWarning[]` returned alongside the document
+rather than encoded into it. Each warning names the step and what the blueprint originally
+pointed at, so the message can say "this step went to a group called `itSupport`" rather than
+merely "this needs attention". The caller shows them; the document stays clean.
+
+The transform lives in `packages/core/src/templates/clone.ts` and is pure, like everything else
+there: it is given the target organisation, the definition id, the keys already in use, the
+cloning user and the time, and it returns a document plus warnings. It performs no I/O and reads
+no clock.
+
+**Consequences**
+A cloned process is never silently misrouted, and the reset target is a strategy that resolves
+against the cloning organisation's own directory, so the clone is runnable the moment it is
+reviewed. The cost is that "reset to unresolved" is not literally what happens: an owner who
+ignores the warnings gets a workflow that routes to line managers rather than one that refuses to
+publish. That is the trade, and it is the reason the warnings name the original target rather
+than being a bare count.
+
+Because the warnings are not in the document, they exist only at the moment of cloning. Reopening
+the definition later shows a workflow with no memory of what was reset. If that proves too
+forgetful in use, the natural fix is a validation rule in the builder rather than a new
+strategy in the type.
+
+`packages/core` gains a `templates/` directory beside `conditions/` and `engine/`, which widens
+what that package is for: not only executing a definition, but pure transformations over one. The
+no-I/O rule that makes the package browser-safe (ADR-0018) is unaffected, and the clone transform
+is covered at 97%, above the 90% bar `CLAUDE.md` §7 sets.
+
+**Alternatives rejected**
+
+- **Add an `unresolved` strategy to `AssignmentStrategy`.** The literal reading of §9.2, and it
+  would make an unconfigured clone unpublishable, which is arguably safer. Rejected: it puts a
+  value that can never execute into the union every runtime switch must handle, so the engine
+  grows a failure path for a state that should not reach it, and the cost lands in the most
+  correctness-sensitive package in the repository.
+- **Keep the original strategy and flag it.** Preserves the author's intent for a human to
+  correct. Rejected: a `specificUser` id from another organisation is not merely unconfigured, it
+  is wrong, and a clone published without review would route real work to a stranger, or to a
+  group key that silently resolves to nobody.
+- **Write the warnings into the document as a `needsConfiguration` field.** They would survive
+  reopening, which is a genuine advantage. Rejected for now because it puts non-executable
+  annotation into a document that is otherwise entirely execution input, and the same durability
+  is available later as a builder validation rule computed from the document rather than stored
+  in it.

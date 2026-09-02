@@ -2,7 +2,6 @@ import type { Transaction } from 'kysely';
 import { sql } from 'kysely';
 
 import type { Database } from '../schema.js';
-import { generateId } from '../uuid.js';
 
 // PRD.md §9, ADR-0042. Two tables sit behind this repository: `templates`,
 // which is tenant-owned and RLS-scoped like everything else, and
@@ -153,6 +152,11 @@ export async function findSystemTemplateById(
 }
 
 export interface CreateTemplateInput {
+  // Supplied by the caller rather than generated here, because the Mongo
+  // blueprint has to carry the same id and is written first: the registry
+  // row is what points at a document, so it is the half that lands last.
+  // Mirrors how process_versions is written only once its document exists.
+  templateId: string;
   organisationId: string;
   key: string;
   name: string;
@@ -167,7 +171,7 @@ export async function createTemplate(
   trx: Transaction<Database>,
   input: CreateTemplateInput,
 ): Promise<string> {
-  const templateId = generateId();
+  const templateId = input.templateId;
 
   await trx
     .insertInto('templates')
