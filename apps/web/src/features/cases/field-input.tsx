@@ -20,6 +20,15 @@ export interface FieldInputProps {
   attachments?: AttachmentResponse[] | undefined;
   onAttachmentAdded?: ((attachment: AttachmentResponse) => void) | undefined;
   onAttachmentRemoved?: ((attachmentId: string) => void) | undefined;
+  // Namespaces this instance's DOM ids. Ids are derived from the field key,
+  // which is unique within a form but not within a page, and the builder
+  // renders the same form twice: once on the preview tab and once on the
+  // simulate tab, both mounted at all times and only one of them `hidden`.
+  // Without a namespace the two copies share every id, `for` binds to
+  // whichever renders first, and the second copy's control is left with no
+  // accessible name at all. Omitted by the case runtime, whose error summary
+  // links to `#${field.key}` and must keep doing so.
+  idPrefix?: string | undefined;
 }
 
 interface ControlProps extends FieldInputProps {
@@ -27,8 +36,8 @@ interface ControlProps extends FieldInputProps {
   described: string | undefined;
 }
 
-function describedBy(field: FormField, hasError: boolean): string | undefined {
-  const ids = [field.hint ? `${field.key}-hint` : null, hasError ? `${field.key}-error` : null];
+function describedBy(field: FormField, hasError: boolean, base: string): string | undefined {
+  const ids = [field.hint ? `${base}-hint` : null, hasError ? `${base}-error` : null];
   const present = ids.filter((id): id is string => id !== null);
   return present.length > 0 ? present.join(' ') : undefined;
 }
@@ -130,7 +139,10 @@ function FieldControl({
             <label key={option.value} className="flex items-center gap-2 text-sm">
               <input
                 type="radio"
-                name={field.key}
+                // controlId, not field.key: a radio group's name is what
+                // binds its options together, so two mounted copies of one
+                // form sharing a name would fight over the same selection.
+                name={controlId}
                 value={option.value}
                 checked={value === option.value}
                 aria-describedby={described}
@@ -223,7 +235,12 @@ export function FieldInput({
   attachments,
   onAttachmentAdded,
   onAttachmentRemoved,
+  idPrefix,
 }: FieldInputProps) {
+  // Every id this component emits hangs off this one value, so a namespaced
+  // instance namespaces its label target, its hint and its error together.
+  const base = idPrefix ? `${idPrefix}-${field.key}` : field.key;
+
   if (field.type === 'heading') {
     return <h3 className="pt-2 text-base font-semibold">{field.label}</h3>;
   }
@@ -232,23 +249,19 @@ export function FieldInput({
     return <p className="text-sm text-muted-foreground">{field.label}</p>;
   }
 
-  const described = describedBy(field, Boolean(error));
+  const described = describedBy(field, Boolean(error), base);
 
   const hintAndError = (
     <>
       {field.hint ? (
-        <p id={`${field.key}-hint`} className="text-sm text-muted-foreground">
+        <p id={`${base}-hint`} className="text-sm text-muted-foreground">
           {field.hint}
         </p>
       ) : null}
       {error ? (
         // role="alert" so the message is announced when it appears, rather
         // than only being found by somebody who navigates back to the field.
-        <p
-          id={`${field.key}-error`}
-          role="alert"
-          className="text-sm text-destructive-subtle-foreground"
-        >
+        <p id={`${base}-error`} role="alert" className="text-sm text-destructive-subtle-foreground">
           {error}
         </p>
       ) : null}
@@ -261,7 +274,7 @@ export function FieldInput({
       value={value}
       error={error}
       onChange={onChange}
-      controlId={field.key}
+      controlId={base}
       described={described}
       caseId={caseId}
       attachments={attachments}
@@ -291,7 +304,7 @@ export function FieldInput({
       {/* A checkbox carries its own label beside the box, so repeating it
           above would announce the question twice. */}
       {field.type === 'checkbox' ? null : (
-        <Label htmlFor={field.key}>
+        <Label htmlFor={base}>
           {field.label}
           {field.required ? <RequiredMark /> : null}
         </Label>

@@ -1419,3 +1419,157 @@ A pre-existing, unrelated rough edge surfaced while choosing crumb labels: a dra
 
 - **A route-keyed lookup table mapping each pathname to its breadcrumb trail, resolved centrally in the layout.** Rejected: with 28 distinct pages, most needing a dynamically-fetched label (a case reference, a process name, a group name) that only the page itself has already loaded, a central resolver would need the same per-route data-fetching this change already does at each call site, just relocated and duplicated against it.
 - **Deriving the trail automatically from the URL's path segments.** Rejected outright: OrgFlow's own hierarchy does not match its URL structure (`/settings/data-protection` belongs under Members, not under an invented "Settings" segment already used by an unrelated hub page; `/cases/:caseId/continue` belongs under My requests, not under `/cases/:caseId`), so a path-derived trail would be wrong for most of the pages that most need one.
+
+## ADR-0040: The workflow simulator runs the real engine in the browser against a synthetic context
+
+**Date:** 2026-09-01
+**Status:** Accepted
+**Deciders:** Project operator (chose the feature from a shortlist, and chose the context strategy)
+
+**Context**
+`PRD.md` does not describe a simulator. It was proposed and accepted as new scope, so this ADR
+records both the invention and its shape, per `CLAUDE.md` §7's "do not invent scope, ask first".
+
+A process owner building a workflow currently has one way to find out what it does: publish it,
+submit a real case, and act as each approver in turn. That is slow, it produces junk cases in a
+tenant's own data, and it cannot answer the question actually being asked, which is conditional:
+"where does this go if the cost is above one thousand pounds and the requester has no line
+manager?" `validateWorkflow` already catches unreachable steps and missing defaults, but a
+workflow can be structurally valid and still route wrongly.
+
+The engine is unusually well suited to answering this without any of that cost. `CLAUDE.md` §3
+requires `packages/core` to perform no I/O, not even `Date.now()`, and to return what should
+happen rather than performing it. A caller that simply never persists the result is therefore a
+legitimate caller, not a hack. ADR-0018 already established that the browser may import
+`packages/core`, and `apps/web/src/features/cases/visibility.ts` already calls
+`evaluateCondition` on every keystroke.
+
+**Decision**
+A fifth builder tab, "Simulate", drives `advance` from `@orgflow/core` in the browser. The
+simulation is a loop: `caseSubmitted` produces the first task, the owner picks one of that
+task's `allowedDecisions`, `taskDecided` produces the next, and so on until the case reaches a
+terminal status. Nothing is written, no API is called, and no case, task, or audit row exists at
+any point.
+
+`EvaluationContext` is **fully synthetic and edited by the owner**: department, roles, and
+whether a line manager exists are inputs on the panel, not facts about the signed-in user. The
+question a simulator answers is hypothetical by nature, so binding it to the real directory would
+answer a different and less useful question. `directory.groupIdsByKey` is derived from the
+definition itself, by scanning the workflow for `group` strategies and synthesising an id for
+each key, so a group assignment resolves rather than failing for a reason that is an artefact of
+the simulation rather than a property of the workflow.
+
+Task ids are synthesised (`sim-task-1`, and so on) by the simulator, because `TaskSpec` carries
+no id: ids are assigned by the persistence layer that this feature deliberately does not have.
+
+The stepping logic lives in `simulate.ts` as pure functions over `SimulationState`, with the
+React component driving them, so the interesting behaviour is unit-testable with no rendering.
+
+**Consequences**
+The engine acquires a third consumer, after the API and the browser's form runtime, and the
+first that calls `advance` rather than only `evaluateCondition`. That deepens the
+bundle-size and browser-compatibility obligation ADR-0018 already recorded, still bounded by the
+same no-I/O rule.
+
+Because it is the real engine and not a model of it, the simulator cannot drift from production
+routing the way a hand-written preview would. The converse is the honest limitation: it is exact
+about routing, conditions, assignment resolution, the self-approval guard, and computed due
+dates and timers, and it is silent about everything the engine does not decide, notably whether
+a notification is actually delivered.
+
+This makes the two features queued behind it materially easier to verify. Template processes can
+be checked by simulating them instead of submitting cases, and the organisation working calendar
+becomes directly observable, since the simulator already displays each task's `dueAt` and
+`timersToSchedule`.
+
+Escalation firing is not simulated in this first cut. Escalation is triggered by a timer rather
+than by a decision, so it has no place in a loop the owner drives; the scheduled timers are
+displayed instead. The self-approval guard, which does fire during a decision, is simulated and
+surfaces through `EngineOutput.errors` like any other engine finding.
+
+**Alternatives rejected**
+
+- **Fetch the real directory context from the API and let the owner override it.** More faithful
+  to what would actually happen for that specific user, and worth revisiting. Rejected for the
+  first cut because it adds an API surface for a feature that otherwise needs none, and it
+  answers "what happens to me" when the question being asked is "what happens to anyone".
+- **Simulate routing only, showing assignment as a strategy name rather than a resolved person.**
+  Smaller, and it sidesteps the context question entirely. Rejected because assignment resolution
+  is where the interesting failures live: an unresolvable line manager, a self-approval guard
+  firing, a group key that does not exist. A simulator that hides exactly the parts most likely
+  to be wrong is not worth building.
+- **Run the simulation server-side through a new endpoint.** Rejected: it would need a route, a
+  permission check, and a round trip per decision, to run a function that is pure and already in
+  the browser's bundle for other reasons.
+
+## ADR-0041: A condition's threshold is typed to the field it compares against, in the editor
+
+**Date:** 2026-09-02
+**Status:** Accepted
+**Deciders:** Project operator
+
+**Context**
+Found by the workflow simulator (ADR-0040) on its first real use, which is the reason that
+feature was built and worth recording as such. Simulating a purchase request of 2,500 against a
+step routing anything above 1,000 to finance, the trace read:
+
+    Rule 1 to Finance approval: did not match
+      (Cannot compare number with string using 'gt'. (field 'number'))
+
+`features/form-builder/condition-editor.tsx` stored every threshold as the raw string an
+`<input>` yields, including for `number` and `currency` fields. A number field's answer, by
+contrast, is stored as a real number: `features/cases/field-input.tsx` coerces it on change.
+`packages/core`'s `compareOrdered` requires both operands to be numbers or both to be strings and
+refuses anything else rather than guessing, which is correct and deliberate.
+
+The consequence was that **every numeric branch built through the workflow builder silently never
+matched**. A request configured to escalate above a threshold took the default branch instead.
+Nothing surfaced it: the warning was recorded on a transition row that no screen reads, so the
+only symptom was a case going somewhere unexpected, long after the definition was published.
+
+**Decision**
+The editor coerces a threshold to a number when the field it references is `number` or
+`currency`, and leaves it a string otherwise. This happens both when the value is typed and when
+the referenced field is changed, since repointing a condition from a text field to a number field
+would otherwise leave a string behind.
+
+A value that does not parse stays the string it is rather than becoming `NaN`. `NaN` compares
+false against everything and explains nothing, whereas a string still reaches the engine's
+"cannot compare" warning, which the simulator now displays.
+
+The coercion lives in `condition-value.ts` rather than inside the component, matching how
+`document-ops.ts` and `validation.ts` are already split out, and because the web test setup does
+not transform JSX for imports from a `.tsx` module. It is unit tested against `applyOperator`
+itself, so the test states the engine consequence rather than asserting the coercion in isolation.
+
+**Consequences**
+Numeric routing works from the builder for the first time. This is a behaviour change, not only a
+fix: a definition whose numeric branch never fired will now fire, so a process owner who
+unknowingly relied on everything falling to the default branch will see cases route differently
+once they republish.
+
+Existing published versions are untouched, and deliberately so. Version pinning (`CLAUDE.md` §3)
+means an in-flight case keeps executing the document it was submitted against, and rewriting
+stored definition documents to repair their thresholds would violate the immutability that
+guarantee rests on. The repair happens when a definition is next edited and republished. A
+migration that rewrote published documents in place was considered and rejected for exactly that
+reason.
+
+The engine was left alone. Loosening `compareOrdered` to coerce numeric-looking strings would
+have fixed every existing definition without a republish, which is a genuine advantage, but it
+would weaken the condition language's type discipline inside `packages/core` for every caller
+forever, to compensate for one editor writing the wrong type.
+
+**Alternatives rejected**
+
+- **Coerce inside the engine's `compareOrdered`.** Retroactive and needs no republish. Rejected:
+  it trades a narrow, correct fix at the source for a permanent loosening of the type rules in
+  the one package `CLAUDE.md` §3 holds to the strictest standard, and it would silently make
+  `'10' > 9` true throughout the condition language.
+- **Validate rather than coerce, and refuse to publish a mistyped threshold.** Rejected as the
+  first move: it reports the problem without solving it, and every existing draft carrying a
+  string threshold would become unpublishable until hand-edited. Worth revisiting as a
+  belt-and-braces check in the validate tab.
+- **Store the threshold as a string and coerce the answer instead.** Rejected: the answer's type
+  is set by the field type, which is the more trustworthy of the two, and coercing answers would
+  make a text field's "10" compare as a number.

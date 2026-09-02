@@ -35,13 +35,14 @@ import {
   ValidationPanel as WorkflowValidationPanel,
   WorkflowEditor,
 } from '../workflow-builder';
+import { Simulator } from '../workflow-simulator';
 
 export interface BuilderProps {
   initial: DraftDetail;
   userId: string;
 }
 
-type View = 'build' | 'workflow' | 'preview' | 'validate';
+type View = 'build' | 'workflow' | 'preview' | 'simulate' | 'validate';
 
 type SaveStatus =
   { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved' } | { kind: 'error'; message: string };
@@ -179,7 +180,7 @@ export function Builder({ initial, userId }: BuilderProps) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
         <div role="tablist" aria-label="Builder view" className="flex gap-1">
-          {(['build', 'workflow', 'preview', 'validate'] as const).map((tab) => (
+          {(['build', 'workflow', 'preview', 'simulate', 'validate'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -337,6 +338,17 @@ export function Builder({ initial, userId }: BuilderProps) {
         hidden={view !== 'preview'}
       >
         <LivePreview sections={sections} userId={userId} />
+      </div>
+
+      <div
+        id="panel-simulate"
+        role="tabpanel"
+        aria-labelledby="tab-simulate"
+        hidden={view !== 'simulate'}
+      >
+        {/* The live document, so a workflow edit made a moment ago on the
+            Workflow tab is what gets simulated, published or not. */}
+        <Simulator document={document} userId={userId} />
       </div>
 
       <div

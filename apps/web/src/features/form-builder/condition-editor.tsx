@@ -3,6 +3,8 @@
 import type { Condition, ConditionOperator, FormField } from '@orgflow/types';
 import { Input, Label, Select } from '@orgflow/ui';
 
+import { coerceValue } from './condition-value';
+
 export interface ConditionEditorProps {
   condition: Condition | null | undefined;
   // Every field on the form this condition could reference, so the picker
@@ -39,16 +41,6 @@ const NO_VALUE_OPERATORS = new Set<ConditionOperator>([
   'isFalse',
 ]);
 
-// PRD.md §13.2: conditional visibility is edited through a rule builder,
-// never raw JSON. This is deliberately scoped to a single field comparison
-// rather than the engine's full all/any/not tree: one comparison covers
-// the common case ("show this when that equals X"), and the tenant-facing
-// cost of a UI for arbitrary nested boolean logic is not justified yet.
-// Condition itself already supports the richer shape server-side, so
-// nothing here forecloses building that editor later; a document with a
-// nested condition (from an earlier, richer edit, or written by hand)
-// still round-trips through save untouched as long as this editor is not
-// opened for that field.
 export function ConditionEditor({ condition, availableFields, onChange }: ConditionEditorProps) {
   const isSimple = condition === null || condition === undefined || 'field' in condition;
   const active = isSimple ? (condition ?? null) : null;
@@ -90,7 +82,17 @@ export function ConditionEditor({ condition, availableFields, onChange }: Condit
             <Select
               id="condition-field"
               value={active.field}
-              onChange={(event) => onChange({ ...active, field: event.target.value })}
+              onChange={(event) => {
+                // Re-coerce against the newly chosen field: a threshold
+                // typed for a text field is a string, and pointing the same
+                // condition at a number field would otherwise leave it one.
+                const next = availableFields.find((field) => field.key === event.target.value);
+                onChange({
+                  ...active,
+                  field: event.target.value,
+                  value: coerceValue(String(active.value ?? ''), next),
+                });
+              }}
             >
               {availableFields.map((field) => (
                 <option key={field.key} value={field.key}>
@@ -123,7 +125,15 @@ export function ConditionEditor({ condition, availableFields, onChange }: Condit
               <Input
                 id="condition-value"
                 value={typeof active.value === 'string' ? active.value : String(active.value ?? '')}
-                onChange={(event) => onChange({ ...active, value: event.target.value })}
+                onChange={(event) =>
+                  onChange({
+                    ...active,
+                    value: coerceValue(
+                      event.target.value,
+                      availableFields.find((field) => field.key === active.field),
+                    ),
+                  })
+                }
               />
             </div>
           ) : null}
