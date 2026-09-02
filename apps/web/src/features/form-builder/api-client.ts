@@ -51,3 +51,16 @@ export async function publishDraft(
     changeNote ? { changeNote } : {},
   );
 }
+
+export interface SaveAsTemplateBody {
+  definitionId: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+}
+
+export async function saveAsTemplate(body: SaveAsTemplateBody): Promise<{
+  template: { templateId: string; name: string };
+}> {
+  return apiPost('/templates', body);
+}

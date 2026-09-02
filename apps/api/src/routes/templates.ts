@@ -162,14 +162,16 @@ export function createTemplatesRouter(deps: TemplatesDeps): Router {
         const definition = definitions.find(
           (candidate) => candidate.definitionId === body.definitionId,
         );
-        if (!definition || !definition.currentVersionId) {
-          throw new HttpProblemError(
-            404,
-            'Not Found',
-            'No such process, or it has never been published.',
-          );
+        if (!definition) {
+          throw new HttpProblemError(404, 'Not Found', 'No such process.');
         }
 
+        // Deliberately not gated on the process being published. A template
+        // is a starting shape rather than something that runs, so an owner
+        // who has built a process they like should be able to save it as
+        // one without publishing it first. The read below takes the latest
+        // document either way, so requiring publication would also have
+        // been inconsistent with what actually gets captured.
         const stored = await findLatestProcessDefinitionDocument(
           deps.mongoClient,
           session.organisationId,

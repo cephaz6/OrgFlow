@@ -108,6 +108,34 @@ test.describe('templates', () => {
     await expect(page.getByRole('tab', { name: 'workflow' })).toBeVisible();
   });
 
+  test('saves a process as a template from the builder, in three clicks', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page);
+
+    const label = `Button source ${Date.now()}`;
+    await createPublishedProcess(page, label);
+
+    // One: open the panel. Two: press save, with the name already filled in
+    // from the process itself. That is the whole interaction.
+    await page.getByRole('button', { name: 'Save as template' }).click();
+    await expect(page.getByLabel('Template name')).toHaveValue(label);
+    // The button that opened the panel unmounts, so focus has to be moved
+    // deliberately or it falls to the body and a keyboard user is stranded.
+    await expect(page.getByLabel('Template name')).toBeFocused();
+    await expectNoAccessibilityViolations(page);
+    await page.getByLabel('Category (optional)').fill('Testing');
+    await page.getByRole('button', { name: 'Save as template' }).click();
+
+    await expect(page.getByText(`Saved “${label}” as a template`)).toBeVisible();
+
+    // Three: follow the link and find it there.
+    await page.getByRole('link', { name: 'See it in Templates' }).click();
+    await page.waitForURL(/\/templates$/);
+    const card = page.getByRole('listitem').filter({ hasText: label });
+    await expect(card).toBeVisible();
+    await expect(card.getByText('Your organisation')).toBeVisible();
+  });
+
   test('is reachable from the sidebar for a process owner', async ({ page }) => {
     await signIn(page);
     await page.goto('/');
