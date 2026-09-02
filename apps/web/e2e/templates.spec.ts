@@ -77,6 +77,37 @@ test.describe('templates', () => {
     await expect(page.getByRole('tab', { name: 'workflow' })).toBeVisible();
   });
 
+  test('shows the six built-in templates, and copies one that runs', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page);
+    await page.goto('/templates');
+
+    // PRD.md §9.3's catalogue, seeded at API boot.
+    for (const name of [
+      'Equipment request',
+      'System access request',
+      'Expense claim',
+      'New starter onboarding',
+      'Annual leave request',
+      'Policy exception',
+    ]) {
+      await expect(page.getByRole('listitem').filter({ hasText: name })).toBeVisible();
+    }
+
+    const card = page.getByRole('listitem').filter({ hasText: 'New starter onboarding' });
+    await expect(card.getByText('Built in')).toBeVisible();
+    await card.getByRole('button', { name: 'Use this' }).click();
+
+    // Every step of onboarding is assigned to a group that does not exist
+    // in a fresh organisation, so all four are reset and named (ADR-0043).
+    await expect(page.getByText('4 steps need somebody assigned to them')).toBeVisible();
+    await expect(page.getByText(/went to a group called "hr"/)).toBeVisible();
+
+    await page.getByRole('link', { name: 'Open it in the builder' }).click();
+    await page.waitForURL(/\/processes\/[0-9a-f-]{36}$/);
+    await expect(page.getByRole('tab', { name: 'workflow' })).toBeVisible();
+  });
+
   test('is reachable from the sidebar for a process owner', async ({ page }) => {
     await signIn(page);
     await page.goto('/');
