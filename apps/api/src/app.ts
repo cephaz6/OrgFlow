@@ -31,6 +31,7 @@ import { createNotificationsRouter } from './routes/notifications.js';
 import { createReportsRouter } from './routes/reports.js';
 import { createTasksRouter } from './routes/tasks.js';
 import { createTemplatesRouter } from './routes/templates.js';
+import { createWorkingCalendarRouter } from './routes/working-calendar.js';
 
 export interface CreateAppDeps {
   db: Kysely<Database>;
@@ -95,6 +96,11 @@ export function createApp(deps: CreateAppDeps): Express {
       mongoClient: deps.mongoClient,
       sessionSecret: deps.sessionSecret,
     }),
+  );
+
+  app.use(
+    '/api/v1',
+    createWorkingCalendarRouter({ db: deps.db, sessionSecret: deps.sessionSecret }),
   );
 
   app.use(

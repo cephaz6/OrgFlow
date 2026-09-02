@@ -2,7 +2,9 @@ import {
   findActiveDelegateByUserId,
   findGroupIdsByKeyForCurrentTenant,
   findOrganisationMemberByUserId,
+  resolveWorkingCalendar,
 } from '@orgflow/db';
+import { DEFAULT_CALENDAR } from '@orgflow/core';
 import type { Database } from '@orgflow/db';
 import type { Case, EvaluationContext } from '@orgflow/types';
 import type { Transaction } from 'kysely';
@@ -32,14 +34,19 @@ export async function buildEvaluationContext(
   trx: Transaction<Database>,
   input: BuildEvaluationContextInput,
 ): Promise<EvaluationContext> {
-  const [member, groupIdsByKey, activeDelegateByUserId, currentAssigneeMember] = await Promise.all([
-    findOrganisationMemberByUserId(trx, input.submitterUserId),
-    findGroupIdsByKeyForCurrentTenant(trx),
-    findActiveDelegateByUserId(trx, input.now),
-    input.currentAssigneeUserId
-      ? findOrganisationMemberByUserId(trx, input.currentAssigneeUserId)
-      : Promise.resolve(undefined),
-  ]);
+  const [member, groupIdsByKey, activeDelegateByUserId, currentAssigneeMember, calendar] =
+    await Promise.all([
+      findOrganisationMemberByUserId(trx, input.submitterUserId),
+      findGroupIdsByKeyForCurrentTenant(trx),
+      findActiveDelegateByUserId(trx, input.now),
+      input.currentAssigneeUserId
+        ? findOrganisationMemberByUserId(trx, input.currentAssigneeUserId)
+        : Promise.resolve(undefined),
+      // ADR-0044: the organisation's working calendar, or the engine's own
+      // default when it has configured none. Resolved here for the same
+      // reason the directory is: packages/core performs no I/O.
+      resolveWorkingCalendar(trx, DEFAULT_CALENDAR),
+    ]);
 
   const createdAt = input.existingCase ? new Date(input.existingCase.createdAt) : input.now;
   const daysOpen = Math.max(
@@ -61,6 +68,7 @@ export async function buildEvaluationContext(
       lineManagerUserId: member?.lineManagerUserId ?? null,
     },
     case: { daysOpen },
+    calendar,
     step: { escalationLevel: input.escalationLevel ?? 0 },
     ...(input.currentAssigneeUserId
       ? { currentAssignee: { lineManagerUserId: currentAssigneeMember?.lineManagerUserId ?? null } }
