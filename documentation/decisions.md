@@ -1573,3 +1573,81 @@ forever, to compensate for one editor writing the wrong type.
 - **Store the threshold as a string and coerce the answer instead.** Rejected: the answer's type
   is set by the field type, which is the more trustworthy of the two, and coercing answers would
   make a text field's "10" compare as a number.
+
+## ADR-0042: System templates live in their own table, so tenant scoping keeps no exceptions
+
+**Date:** 2026-09-02
+**Status:** Accepted
+**Deciders:** Project operator
+
+**Context**
+`PRD.md` §9.1 gives templates three scopes: `system` (OrgFlow's own, visible to every
+organisation), `organisation` (visible to one), and `published` (one organisation's template,
+opted into a library all organisations can browse). Two of those are visible across tenant
+boundaries, which no table in this codebase has ever allowed.
+
+`CLAUDE.md` §3 states the rule with no room in it: "Every Postgres query is scoped by
+`organisation_id`. No exceptions, including admin, reporting and background jobs." Every existing
+tenant table carries `organisation_id NOT NULL` and a single RLS policy comparing it against
+`orgflow.organisation_id`.
+
+`PRD.md` also under-specifies the storage. §1 calls a template "Postgres (registry) + Mongo
+(document)", §3.1 lists a `templates` collection, and §2 contains no `CREATE TABLE templates` at
+all. So the shape had to be decided rather than transcribed.
+
+**Decision**
+Two tables.
+
+`templates` is an ordinary tenant table: `organisation_id NOT NULL`, RLS enabled and forced, and
+a `scope` column constrained to `('organisation','published')`. A row here always has an owning
+organisation, and the CHECK constraint is what prevents a system-scoped row appearing in a table
+whose isolation assumes otherwise.
+
+`system_templates` has no `organisation_id` column at all. It is reference data belonging to no
+tenant, granted `SELECT` and nothing else to `orgflow_app`, and seeded by migrations running as
+the owner. A table with no tenant column cannot leak one tenant's rows to another, because it
+never held any: the scoping rule is not weakened, it is inapplicable.
+
+The published library is expressed as a second, named policy on `templates`:
+
+    CREATE POLICY published_library_is_readable ON templates
+      FOR SELECT USING (scope = 'published');
+
+`FOR SELECT` deliberately, so sharing a template does not surrender it. Another organisation can
+read a published template and clone from it, and its `UPDATE` and `DELETE` still match zero rows,
+which the repository reports as `false` and the route turns into a 404. Proven directly in
+`templates.integration.test.ts` rather than asserted here.
+
+Storage follows the PRD: a Postgres registry row carrying the listable metadata, pointing at a
+Mongo document carrying the blueprint, the same split `process_versions` already uses.
+
+**Consequences**
+The catalogue's browse query reads two tables and concatenates them, which is marginally more
+code than one table with a nullable column would need. That is the whole cost, and it buys a
+schema in which no query anywhere has to remember a NULL tenant case, and no future author can
+write `WHERE organisation_id = $1` against a table where NULL means "everyone" and get it subtly
+wrong.
+
+Tenant isolation now has exactly one deliberate widening in the entire schema, it is a separate
+named policy rather than a disjunction buried inside the isolation rule, and it can be read,
+reviewed, or dropped without touching the rule it sits beside.
+
+An improvement OrgFlow makes to a system template does not propagate to processes already cloned
+from it. That is not a limitation of this decision but of §9.2's hard-copy rule, which is
+deliberate: a clone keeps no `template_id` reference, so a template edit can never alter a
+running process.
+
+**Alternatives rejected**
+
+- **One table with a nullable `organisation_id`, NULL meaning system.** Closest to the PRD's
+  wording and one table fewer. Rejected: it puts the first hole in the rule `CLAUDE.md` states
+  most emphatically, and every future query against that table inherits an easy-to-forget NULL
+  case, in the one area of the schema where a mistake is a cross-tenant data leak.
+- **Seed all six system templates into every organisation at creation.** Purest isolation, since
+  every row would be genuinely tenant-owned, and no special case anywhere. Rejected: the six
+  would exist once per organisation, and an organisation created before a catalogue improvement
+  would never receive it, which turns a fixable content problem into a permanent data problem.
+- **Mongo only, with no Postgres registry.** Defensible, since a template is never executed and
+  nothing holds a foreign key to one. Rejected: it diverges from how definitions are stored for
+  no gain, and the clone path is most instructive when it mirrors the definition-creation path it
+  sits beside.

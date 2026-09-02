@@ -63,6 +63,17 @@ describe('lambda-handler', () => {
     vi.unstubAllEnvs();
   });
 
+  // The first dynamic import in this file loads the handler's whole
+  // dependency graph, @orgflow/db included, which costs seconds rather than
+  // milliseconds. It has to be dynamic and inside a test, because the
+  // config module validates the environment at import time and beforeEach
+  // is what stubs it. Against the 5s default that left almost no headroom:
+  // under `turbo run test`, with other packages building and testing
+  // alongside, it tipped over, and the timeout then surfaced twice, once
+  // here and once as a confusing off-by-one in the next test, because the
+  // late import consumed one of its mockResolvedValueOnce values.
+  // Subsequent imports hit the module cache, so only this one needs the
+  // allowance.
   it('reports no failures when every record dispatches cleanly', async () => {
     dispatchDomainEvent.mockResolvedValue({ handled: true });
     const { handler } = await import('./lambda-handler.js');
@@ -72,7 +83,7 @@ describe('lambda-handler', () => {
 
     expect(result.batchItemFailures).toEqual([]);
     expect(dispatchDomainEvent).toHaveBeenCalledTimes(1);
-  });
+  }, 30_000);
 
   it('reports only the record whose handler threw, not the whole batch', async () => {
     // The property that matters: reportBatchItemFailures means one bad

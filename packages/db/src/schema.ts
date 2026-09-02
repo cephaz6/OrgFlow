@@ -316,6 +316,38 @@ export interface NotificationPreferencesTable {
   updated_at: Generated<Date>;
 }
 
+// PRD.md §9, ADR-0042. The tenant-owned half of the template catalogue:
+// scope is 'organisation' or 'published', never 'system'.
+export interface TemplatesTable {
+  template_id: string;
+  organisation_id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  icon: string | null;
+  scope: Generated<string>;
+  document_id: string;
+  created_by_user_id: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+// OrgFlow's own catalogue. No organisation_id by design: it is reference
+// data belonging to no tenant, which is what keeps CLAUDE.md §3's scoping
+// rule free of exceptions.
+export interface SystemTemplatesTable {
+  template_id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  icon: string | null;
+  document_id: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   organisations: OrganisationsTable;
   users: UsersTable;
@@ -339,4 +371,6 @@ export interface Database {
   attachments: AttachmentsTable;
   task_decision_tokens: TaskDecisionTokensTable;
   notification_preferences: NotificationPreferencesTable;
+  templates: TemplatesTable;
+  system_templates: SystemTemplatesTable;
 }
