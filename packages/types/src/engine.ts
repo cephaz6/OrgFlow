@@ -1,3 +1,4 @@
+import type { WorkingCalendar } from './calendar.js';
 import type { CaseOutcome, CaseStatus } from './case.js';
 import type { IsoDateTimeString, Uuid } from './common.js';
 import type { ProcessDefinitionDocument, WorkflowDecisionAction } from './definition-document.js';
@@ -36,6 +37,11 @@ export interface EvaluationContext {
   currentAssignee?: {
     lineManagerUserId: Uuid | null;
   };
+  // PRD.md §15.1's working calendar, resolved by the caller from the
+  // organisation's own configuration. Absent means the engine falls back to
+  // its documented default (weekdays, 09:00-17:00, UTC, no holidays), which
+  // is what an organisation that has configured nothing gets.
+  calendar?: WorkingCalendar;
   // Directory facts the caller resolves before invoking the engine.
   // Assignment strategies name a group by its stable key, but case_tasks
   // stores a group id, and turning one into the other is a database

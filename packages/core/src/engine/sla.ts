@@ -1,21 +1,26 @@
-import type { SlaConfig, TimerSpec } from '@orgflow/types';
+import type { SlaConfig, TimerSpec, WorkingCalendar } from '@orgflow/types';
 
-// PRD.md §15 computes due_at from durationHours, excluding weekends and
-// configured holidays when businessHoursOnly is set.
+import { addCalendarHours, addWorkingHours, DEFAULT_CALENDAR } from './calendar.js';
+
+// PRD.md §15.1: durationHours are working hours when businessHoursOnly is
+// set (the default), consumed only inside the organisation's working
+// window, skipping weekends and its configured holidays. So eight hours
+// raised at 16:00 on a Friday is due at 15:00 on Monday, not at midnight on
+// Saturday.
 //
-// Weekends only, not full business hours: organisation timezone, a working-
-// hours window and a holiday calendar are still not modelled (none of that
-// exists in the schema yet), so this advances whole SLA-hours across
-// calendar time and then skips forward over any Saturday/Sunday the result
-// lands on. That is honest about what it is, "excluding weekends," not
-// "excluding weekends and holidays, in the organisation's own working day",
-// rather than looking like the full PRD.md §15.1 calculation while
-// quietly being wrong about holidays and time zones.
+// businessHoursOnly: false means whole calendar time, for a process where
+// the clock genuinely does run overnight.
 //
-// The value is persisted at task creation and never recomputed, so a
-// definition change later does not shift an existing task's deadline
-// (PRD.md §15).
-export function computeDueAt(sla: SlaConfig | undefined, now: string): string | null {
+// The value is persisted at task creation and never recomputed, so neither
+// a later definition change nor a later change to the organisation's
+// calendar shifts an existing task's deadline (PRD.md §15.1). That is why
+// the calendar is an input here rather than something looked up at read
+// time: the deadline a task was given is the deadline it keeps.
+export function computeDueAt(
+  sla: SlaConfig | undefined,
+  now: string,
+  calendar: WorkingCalendar = DEFAULT_CALENDAR,
+): string | null {
   if (!sla || typeof sla.durationHours !== 'number') {
     return null;
   }
@@ -25,27 +30,16 @@ export function computeDueAt(sla: SlaConfig | undefined, now: string): string | 
     return null;
   }
 
-  let due = new Date(start.getTime() + sla.durationHours * 60 * 60 * 1000);
-
-  if (sla.businessHoursOnly !== false) {
-    due = skipWeekend(due);
+  if (sla.businessHoursOnly === false) {
+    return addCalendarHours(start, sla.durationHours).toISOString();
   }
 
-  return due.toISOString();
-}
-
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-
-// Advances a date forward, one day at a time, until it no longer lands on a
-// Saturday or Sunday (UTC day-of-week, the same clock everything else in
-// the engine already runs on). A due date is never moved backward: skipping
-// forward is what "excluding weekends" means for a deadline.
-function skipWeekend(date: Date): Date {
-  let result = date;
-  while (result.getUTCDay() === 0 || result.getUTCDay() === 6) {
-    result = new Date(result.getTime() + MILLISECONDS_PER_DAY);
-  }
-  return result;
+  // Null when the calendar could never consume the duration, which means it
+  // has no working days or no working day length. A step with no reachable
+  // deadline is better than one invented from a broken calendar, and the
+  // caller already handles a task without a dueAt.
+  const due = addWorkingHours(start, sla.durationHours, calendar);
+  return due ? due.toISOString() : null;
 }
 
 // PRD.md §15.2: one `reminder` timer per configured `atHoursBefore`, one

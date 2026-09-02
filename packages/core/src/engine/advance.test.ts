@@ -140,11 +140,10 @@ describe('submission', () => {
 
   it('computes dueAt from the step SLA', () => {
     const output = advance(input());
-    // 48 hours after the injected clock (a Friday), not the real one. That
-    // lands on a Sunday, and businessHoursOnly defaults to true, so the
-    // weekend-skip in computeDueAt pushes it to the following Monday at the
-    // same time of day.
-    expect(output.tasksToCreate[0]?.dueAt).toBe('2026-08-17T12:00:00.000Z');
+    // 48 working hours from the injected clock (a Friday), not the real
+    // one. ADR-0044: those are hours of the working day, so they run out on
+    // Monday the 24th rather than two calendar days later.
+    expect(output.tasksToCreate[0]?.dueAt).toBe('2026-08-24T12:00:00.000Z');
   });
 
   it('refuses to submit a case that is not a draft', () => {
@@ -723,7 +722,10 @@ describe('engine invariants (PRD.md §6.4)', () => {
     const output = advance(input({ context: context({ now: '2030-01-01T00:00:00.000Z' }) }));
 
     expect(output.eventsToEmit[0]?.occurredAt).toBe('2030-01-01T00:00:00.000Z');
-    expect(output.tasksToCreate[0]?.dueAt).toBe('2030-01-03T00:00:00.000Z');
+    // Midnight on Tuesday 1 January is before the working day opens, so the
+    // 48 working hours start at 09:00 and run out at closing time on
+    // Tuesday the 8th, a weekend in between.
+    expect(output.tasksToCreate[0]?.dueAt).toBe('2030-01-08T17:00:00.000Z');
   });
 
   it('gives every emitted event the correlation id it was handed', () => {

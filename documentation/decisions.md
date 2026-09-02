@@ -1724,3 +1724,84 @@ is covered at 97%, above the 90% bar `CLAUDE.md` §7 sets.
   annotation into a document that is otherwise entirely execution input, and the same durability
   is available later as a builder validation rule computed from the document rather than stored
   in it.
+
+## ADR-0044: SLA hours are working hours, computed against an injected calendar with Intl
+
+**Date:** 2026-09-02
+**Status:** Accepted
+**Deciders:** Project operator
+
+**Context**
+`PRD.md` §15.1 says a business-hours SLA "excludes weekends and configured organisation holidays.
+Business hours default 09:00-17:00 in the organisation's timezone", and Phase 6's acceptance
+criterion repeats it. What `packages/core/src/engine/sla.ts` actually did was add `durationHours`
+of calendar time and then nudge the result forward off a Saturday or Sunday, with a comment
+admitting exactly that: no timezone, no working-hours window, no holidays.
+
+The gap was not cosmetic. Under the old rule a 48-hour SLA raised at noon on Friday was due at
+noon on Monday, roughly two calendar days later. A process owner writing "48 hours" against a
+step meant six working days. Every deadline, reminder and escalation in the system inherited the
+difference.
+
+**Decision**
+`durationHours` are hours of the working day. They are consumed only inside the organisation's
+working window, skipping days that are not worked and dates on its holiday list, so eight hours
+raised at 16:00 on a Friday is due at 15:00 on Monday. `businessHoursOnly: false` keeps the old
+meaning, whole calendar time, for a process whose clock genuinely runs overnight.
+
+The calendar is `WorkingCalendar` in `packages/types` (timezone, worked weekdays, opening and
+closing minute, holiday dates) and reaches the engine on `EvaluationContext`, resolved by the
+caller exactly as `directory.groupIdsByKey` already is. The engine looks nothing up. Absent, it
+falls back to `DEFAULT_CALENDAR`: UTC, Monday to Friday, 09:00-17:00, no holidays, which is
+`PRD.md` §15.1's own stated default. UTC rather than the host's zone, because a deadline that
+silently depends on where the server runs is worse than one that is plainly UTC until somebody
+configures it.
+
+**Timezone handling uses `Intl.DateTimeFormat`, not a new dependency.** Correctness here needs the
+IANA database and DST rules, and the runtime already carries both, in Node and in the browser.
+`packages/core` currently has zero runtime dependencies, and `TECH-STACK.md` allows it only `zod`
+and `date-fns`; `date-fns-tz` is neither, so using it would have meant adding a dependency to the
+one package `CLAUDE.md` §3 holds to "no I/O dependencies, ever" for something the platform does
+natively. The arithmetic is done in wall-clock space and converted to an instant exactly once at
+the end, which is what keeps a working day the same length either side of a clock change.
+
+**Consequences**
+Every deadline computed from now on is later than the same definition would have produced before,
+usually by a factor of about three, because a working day is eight hours rather than twenty-four.
+That is the correction, not a regression, but it is a behaviour change to the most visible number
+in the product and it is why this is recorded rather than treated as a bug fix. Four existing
+engine tests asserted the old rule and were rewritten to state the new one, each value checked by
+hand rather than taken from the new output.
+
+Existing tasks are untouched. `due_at` is computed at task creation and persisted (`PRD.md`
+§15.1), so neither this change nor a later edit to an organisation's calendar shifts a deadline
+somebody has already been given. That is also why the calendar is an input to the calculation
+rather than something read at display time: the deadline a task was given is the deadline it
+keeps.
+
+A calendar that can never consume the duration, having no worked days or a zero-length day, yields
+`null` rather than looping or inventing a date, and the caller already handles a task with no
+`dueAt`. The walk is capped at ten years of days so a misconfiguration terminates promptly.
+
+The calculation is covered by nineteen tests including both DST directions, a half-hour offset
+zone, a Saturday-to-Wednesday working week, consecutive holidays, and the misconfiguration
+guards. Getting an hour wrong here is silent and only shows up as a deadline somebody disputes
+weeks later, which is why the coverage is disproportionate to the size of the file.
+
+**Alternatives rejected**
+
+- **Add `date-fns-tz`.** The obvious choice, and it would have been less code. Rejected because
+  it puts a dependency into the package held to the strictest standard in the repository, for
+  behaviour `Intl` already provides correctly, and `TECH-STACK.md` §2 does not list it.
+- **Store the calendar on the definition document.** It would then be version-pinned like
+  everything else in a definition, which is superficially attractive. Rejected: a working calendar
+  is a fact about an organisation, not about a process, and pinning it would mean a bank holiday
+  added this year never reaching a process published last year.
+- **Recompute `due_at` on read, from the current calendar.** Deadlines would then always reflect
+  the latest configuration. Rejected outright: it makes a deadline somebody has already committed
+  to move under them when an administrator edits the calendar, and `PRD.md` §15.1 explicitly
+  requires the persisted value.
+- **Keep calendar hours and treat the working window as display only.** The smallest change.
+  Rejected because it leaves "48 hours" meaning two different things to the person writing the
+  definition and the person reading the deadline, which is the confusion the feature exists to
+  remove.

@@ -171,11 +171,14 @@ describe('assignment resolution (PRD.md §7)', () => {
 });
 
 describe('SLA due dates', () => {
-  it('adds the step duration to the injected clock, then skips forward over the weekend it lands on', () => {
-    // Friday 12:00 + 48h = Sunday 12:00; businessHoursOnly defaults to
-    // true, so this pushes forward to the following Monday.
+  it('spends the duration as working hours, not calendar hours', () => {
+    // ADR-0044: durationHours are hours of the working day, so 48 of them
+    // is six working days rather than two calendar ones. From Friday 12:00
+    // the default calendar (UTC, weekdays, 09:00-17:00) has five hours left
+    // that day, then eight on each of the next five weekdays, which is 45.
+    // The last three are worked 09:00 to 12:00 on Monday the 24th.
     expect(computeDueAt({ durationHours: 48 }, '2026-08-14T12:00:00.000Z')).toBe(
-      '2026-08-17T12:00:00.000Z',
+      '2026-08-24T12:00:00.000Z',
     );
   });
 
@@ -185,10 +188,12 @@ describe('SLA due dates', () => {
     ).toBe('2026-08-16T12:00:00.000Z');
   });
 
-  it('leaves a due date that never lands on a weekend untouched', () => {
-    // Monday 12:00 + 24h = Tuesday 12:00, nowhere near a weekend.
+  it('spans several days even when no weekend is involved', () => {
+    // Monday 12:00, 24 working hours: five hours on Monday, eight on
+    // Tuesday and eight on Wednesday is 21, so the last three run 09:00 to
+    // 12:00 on Thursday.
     expect(computeDueAt({ durationHours: 24 }, '2026-08-17T12:00:00.000Z')).toBe(
-      '2026-08-18T12:00:00.000Z',
+      '2026-08-20T12:00:00.000Z',
     );
   });
 

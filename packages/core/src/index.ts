@@ -8,5 +8,6 @@ export { advance } from './engine/advance.js';
 export { resolveAssignment, resolveAssignmentWithValues } from './engine/assignment.js';
 export type { ResolvedAssignment } from './engine/assignment.js';
 export { computeDueAt } from './engine/sla.js';
+export { addCalendarHours, addWorkingHours, DEFAULT_CALENDAR } from './engine/calendar.js';
 export { cloneTemplate, uniqueKey } from './templates/clone.js';
 export type { CloneTemplateInput, CloneTemplateResult, CloneWarning } from './templates/clone.js';
