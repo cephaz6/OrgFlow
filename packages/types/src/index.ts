@@ -18,5 +18,6 @@ export type * from './report.js';
 export type * from './session.js';
 export type * from './sla-timer.js';
 export type * from './task.js';
+export type * from './template.js';
 export type * from './transition.js';
 export type * from './user.js';
