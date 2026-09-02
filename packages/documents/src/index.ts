@@ -40,3 +40,5 @@ export {
   LAPTOP_REQUEST_REFERENCE_PREFIX,
 } from './seed/laptop-request.js';
 export type { BuildLaptopRequestInput } from './seed/laptop-request.js';
+export { SYSTEM_TEMPLATES } from './seed/system-templates.js';
+export type { SystemTemplateSeed } from './seed/system-templates.js';

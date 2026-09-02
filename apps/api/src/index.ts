@@ -8,6 +8,7 @@ import { loadConfig } from './config/env.js';
 import { resolveEmailSender } from './email/resolve-sender.js';
 import { createLogger } from './logger.js';
 import { startRetentionSweep } from './retention/sweep.js';
+import { ensureSystemTemplatesSeeded } from './seed/system-templates.js';
 import { resolveFileStore } from './storage/resolve-file-store.js';
 import type { Logger } from './logger.js';
 import { startSlaSweep } from './sla/sweep.js';
@@ -43,6 +44,13 @@ async function main(): Promise<void> {
     const db = createDb({ connectionString: config.ORGFLOW_DATABASE_URL });
     const mongoClient = await createMongoClient({ uri: config.ORGFLOW_MONGODB_URI });
     await ensureIndexes(mongoClient);
+
+    // PRD.md §9.3's catalogue. Idempotent, so this is a no-op on every boot
+    // after the first; it logs only when it actually wrote something.
+    const seededTemplates = await ensureSystemTemplatesSeeded(db, mongoClient);
+    if (seededTemplates > 0) {
+      logger.info({ seededTemplates }, 'seeded system templates');
+    }
 
     const publisher = createPublisher(config, logger);
     const emailSender = resolveEmailSender(config, logger);
