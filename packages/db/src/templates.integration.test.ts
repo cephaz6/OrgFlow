@@ -75,6 +75,7 @@ describe('templates', () => {
   it('keeps an organisation-scoped template invisible to another tenant', async () => {
     const templateId = await withTenantTransaction(db, alpha.organisationId, (trx) =>
       createTemplate(trx, {
+        templateId: generateId(),
         organisationId: alpha.organisationId,
         key: `private-${generateId()}`,
         name: 'Alpha private template',
@@ -102,6 +103,7 @@ describe('templates', () => {
   it('makes a published template readable across tenants, but still not writable', async () => {
     const templateId = await withTenantTransaction(db, alpha.organisationId, async (trx) => {
       const id = await createTemplate(trx, {
+        templateId: generateId(),
         organisationId: alpha.organisationId,
         key: `shared-${generateId()}`,
         name: 'Alpha shared template',
@@ -155,6 +157,7 @@ describe('templates', () => {
     const ownKey = `own-${generateId()}`;
     await withTenantTransaction(db, beta.organisationId, (trx) =>
       createTemplate(trx, {
+        templateId: generateId(),
         organisationId: beta.organisationId,
         key: ownKey,
         name: 'Beta own template',
