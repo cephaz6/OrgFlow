@@ -6,6 +6,7 @@ export {
   COLLECTIONS,
   ensureIndexes,
   processDefinitionsCollection,
+  templatesCollection,
 } from './collections.js';
 export { hashDocument } from './document-hash.js';
 export {
@@ -18,7 +19,20 @@ export {
 export type { ReadProcessDefinitionDocument, StoredDefinition } from './process-definitions.js';
 export { findCaseValues, readCaseValues, upsertCaseValues } from './case-values.js';
 export type { UpsertCaseValuesInput } from './case-values.js';
-export type { CaseValuesDocument, StoredProcessDefinitionDocument } from './types.js';
+export {
+  deleteTemplateDocument,
+  findSharedTemplateDocument,
+  findTemplateDocument,
+  insertSystemTemplateDocument,
+  insertTemplateDocument,
+  updateTemplateDocument,
+} from './templates.js';
+export type { InsertTemplateDocumentInput } from './templates.js';
+export type {
+  CaseValuesDocument,
+  StoredProcessDefinitionDocument,
+  StoredTemplateDocument,
+} from './types.js';
 export {
   buildLaptopRequestDefinition,
   IT_SUPPORT_GROUP_KEY,
