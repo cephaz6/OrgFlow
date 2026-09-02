@@ -1,5 +1,6 @@
 import {
   ChartNoAxesCombined,
+  CalendarClock,
   Clock,
   Inbox,
   KeyRound,
@@ -99,6 +100,15 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         // A group is a pool of members a workflow step can assign to, so
         // managing one sits with the same "manage members" capability
         // PRD.md §12.2 gives to admin and above.
+        requiresAnyRole: ['admin', 'owner'],
+      },
+      {
+        href: '/settings/working-calendar',
+        label: 'Working calendar',
+        icon: CalendarClock,
+        // Editing is admin and above, the same gate PRD.md §12.2 puts on
+        // organisation configuration. The page itself is readable by any
+        // member, but it is not something a member goes looking for.
         requiresAnyRole: ['admin', 'owner'],
       },
       {
