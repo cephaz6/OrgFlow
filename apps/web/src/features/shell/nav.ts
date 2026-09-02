@@ -4,6 +4,7 @@ import {
   Inbox,
   KeyRound,
   LayoutDashboard,
+  LayoutTemplate,
   LibraryBig,
   ScrollText,
   Users,
@@ -55,6 +56,17 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         href: '/processes',
         label: 'Processes',
         icon: Wrench,
+        requiresAnyRole: ['processOwner', 'admin', 'owner'],
+      },
+      {
+        href: '/templates',
+        label: 'Templates',
+        icon: LayoutTemplate,
+        // Browsing is open to any member at the API, but the item is gated
+        // to the roles that can actually do something with a template: a
+        // member who cannot clone one has no reason to be sent here from
+        // the sidebar, and PRD.md §9 frames the catalogue as a process
+        // owner's starting point.
         requiresAnyRole: ['processOwner', 'admin', 'owner'],
       },
       {
