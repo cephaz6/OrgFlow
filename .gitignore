@@ -38,3 +38,6 @@ npm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local scratch notes, not part of the project
+do-and-todo.txt
