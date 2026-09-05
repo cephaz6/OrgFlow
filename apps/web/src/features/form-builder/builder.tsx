@@ -5,7 +5,7 @@ import { Alert, Button, cn } from '@orgflow/ui';
 import { useMemo, useState } from 'react';
 
 import { publishDraft, saveDraft } from './api-client';
-import { useAnnouncer, LiveRegion } from './announcer';
+import { useAnnouncer, LiveRegion } from '../../lib/announcer';
 import { Canvas, type CanvasSelection } from './canvas';
 import type { DraftDetail } from './types';
 import { blankField } from './field-defaults';

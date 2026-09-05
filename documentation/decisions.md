@@ -1805,3 +1805,85 @@ weeks later, which is why the coverage is disproportionate to the size of the fi
   Rejected because it leaves "48 hours" meaning two different things to the person writing the
   definition and the person reading the deadline, which is the confusion the feature exists to
   remove.
+
+---
+
+## ADR-0045: Conditional visibility is announced through a live region shared by the whole app
+
+**Date:** 2026-09-05
+**Status:** Accepted
+**Deciders:** Project operator
+
+**Context**
+`apps/web/src/features/cases/form-runtime.tsx` has evaluated conditional visibility since the form
+runtime was built: answering "Which model do you need?" with "Something else" reveals "Describe
+what you need", and `catalogue.spec.ts` has asserted that behaviour for as long. What it never did
+was say so. A sighted requester watches the question appear. Somebody using a screen reader is told
+nothing, and finds out only by tabbing past where the form previously ended, or does not find out
+at all and submits without an answer nobody asked them for.
+
+WCAG 2.2 AA treats content appearing and disappearing under a user's own input as a change that
+must be communicated, and `CLAUDE.md` §3 makes accessibility a completion criterion rather than a
+follow-up ticket. `do-and-todo.txt` had carried "aria-live announcement for conditional form
+fields" as an outstanding item since the runtime was written.
+
+**Decision**
+The runtime announces what changed, through a polite live region, whenever the set of visible
+questions changes.
+
+**What is said is decided by a pure function.** `announce-visibility.ts` exports
+`describeVisibilityChange(previous, next)`, which returns a sentence or `null`. It is separated
+from the component for the same reason `visibility.ts` is: the interesting decisions are all about
+phrasing and grouping, they are worth a dozen cheap unit tests, and none of them need a browser.
+Returning `null` when nothing appeared or disappeared is what keeps the region silent on every
+keystroke, which is the failure mode that makes people switch announcements off.
+
+**A section is announced as a section, not as its contents.** When a whole section becomes visible,
+the message names the section and counts what it holds ("Approval details section added, with 2
+questions") rather than reading every label. The fields inside it are deliberately excluded from
+the field list so the same change is not described twice. A list of more than three labels is
+truncated with a count, because a longer spoken list is not holdable in memory.
+
+**Static content is excluded.** Headings and guidance paragraphs that appear conditionally are not
+announced. The message speaks of questions; a revealed heading is read when the user reaches it,
+and counting it as a question would misstate what is being asked for.
+
+**The announcer moved to `apps/web/src/lib/`.** It was written for the form builder's
+drag-and-drop keyboard equivalent and lived in that feature. The case runtime is its second real
+caller, and `form-builder` already imports from `cases` (`field-input`, `visibility`), so importing
+back would have pointed the feature dependency at itself. Moving it to the app's shared layer was a
+prerequisite for this change rather than incidental cleanup.
+
+**Consequences**
+Every conditional form now speaks, including the six system templates and anything a process owner
+builds, with no per-definition configuration: the announcement is derived from the same
+`visibleFields`/`visibleSections` evaluation the render already performs, so it cannot disagree
+with what is on screen.
+
+The live region is in the accessibility tree and in the DOM, which changed what some existing
+tests match. `catalogue.spec.ts`'s quote-field assertion resolved to two elements once the region
+began saying "Attach a supplier quote added.", and was made exact. That is worth stating plainly:
+adding a live region makes substring text locators ambiguous wherever the announcement repeats a
+label, and the fix is a more specific locator, never removing the announcement.
+
+Twelve unit tests cover the phrasing, including the silent case, the section-supersedes-its-fields
+case, truncation, and the empty-section wording. One end-to-end test drives the real form and
+asserts the region's text changes on arrival and on departure, because the pure function being
+correct says nothing about whether the effect that calls it ever runs.
+
+**Alternatives rejected**
+
+- **`aria-relevant="additions removals"` on the form.** Superficially the declarative answer.
+  Rejected because support is inconsistent and, where it works, it reads the raw inserted subtree:
+  the requester hears the field's markup content rather than "Estimated cost added", and a whole
+  revealed section is read out in full.
+- **Move focus to the first revealed field.** Unambiguous, and it is what a wizard would do.
+  Rejected because it steals focus mid-answer from somebody who has not finished the question that
+  caused the change, which is a worse violation than the silence it fixes.
+- **Announce on a debounce rather than per change.** Considered for numeric conditions, where
+  typing "1500" crosses the threshold on the final keystroke. Rejected as unnecessary: the message
+  is only produced when the visible set actually differs, so intermediate keystrokes are already
+  silent, and a debounce would delay the announcement behind the visual change.
+- **Keep the announcer in `form-builder` and import it from `cases`.** The smallest diff.
+  Rejected: it creates a cycle between two feature modules, which ADR-0008's single-public-barrel
+  rule exists to prevent.

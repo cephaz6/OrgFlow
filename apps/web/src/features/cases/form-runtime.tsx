@@ -7,7 +7,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useAnnouncer, LiveRegion } from '../../lib/announcer';
 import { createDraftCase, patchCaseValues, resubmitCase, submitCase } from './api-client';
+import {
+  describeVisibilityChange,
+  describeVisible,
+  type VisibleShape,
+} from './announce-visibility';
 import { FieldInput } from './field-input';
 import type { AttachmentResponse, CaseResponse } from './types';
 import { isStaticField, UNSUPPORTED_TYPES, validateFields } from './validate';
@@ -117,6 +123,31 @@ export function FormRuntime({
   const answerable = sections.flatMap((section) =>
     visibleFields(section, visibility).filter((field) => !isStaticField(field)),
   );
+
+  // Conditional visibility is a change of context a sighted requester sees
+  // and a screen reader user does not, so it is spoken. The comparison is
+  // against a ref rather than state: it must not itself cause a render, and
+  // the first pass establishes a baseline without announcing the form's own
+  // opening shape as though it had just appeared.
+  const { announcedText, announce } = useAnnouncer();
+  const previousShape = useRef<VisibleShape | null>(null);
+  const currentShape = describeVisible(sections, (section) => visibleFields(section, visibility));
+
+  useEffect(() => {
+    const previous = previousShape.current;
+    previousShape.current = currentShape;
+    if (previous === null) {
+      return;
+    }
+    const message = describeVisibilityChange(previous, currentShape);
+    if (message !== null) {
+      announce(message);
+    }
+    // currentShape is rebuilt every render by design; values is what can
+    // actually change it, and depending on the object would announce on
+    // every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values, announce]);
 
   // A visible, required question the runtime cannot collect. Submitting
   // would produce a case with an unanswered mandatory field, so the form
@@ -342,6 +373,8 @@ export function FormRuntime({
           </CardContent>
         </Card>
       ))}
+
+      <LiveRegion text={announcedText} />
 
       {status.kind === 'failed' ? <Alert variant="destructive">{status.message}</Alert> : null}
       {draftSaveError ? <Alert variant="destructive">{draftSaveError}</Alert> : null}
