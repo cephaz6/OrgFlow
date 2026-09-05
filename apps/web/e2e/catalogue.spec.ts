@@ -56,16 +56,39 @@ test.describe('catalogue and form runtime', () => {
     await expect(page.getByLabel(/Describe what you need/)).toBeHidden();
   });
 
+  test('announces a conditional field arriving and leaving, for a screen reader', async ({
+    page,
+  }) => {
+    await page.goto('/cases/new/laptop-request');
+
+    // The claim is not that the region exists, it is that a change a
+    // sighted requester sees is spoken to somebody who cannot. The region
+    // is visually hidden, so its text is read rather than its visibility.
+    const liveRegion = page.getByRole('status');
+    await expect(liveRegion).toHaveText('');
+
+    await page.getByLabel(/Which model do you need/).selectOption('other');
+    await expect(liveRegion).toHaveText(/Describe what you need added/);
+
+    await page.getByLabel(/Which model do you need/).selectOption('mbp14');
+    await expect(liveRegion).toHaveText(/Describe what you need removed/);
+  });
+
   test('reveals the quote field above the branch threshold', async ({ page }) => {
     await page.goto('/cases/new/laptop-request');
 
     // The same £1000 threshold the workflow branches on, so this is the
     // form agreeing with the engine rather than a separate rule.
+    // Exact, because the live region announcing the same field says
+    // "Attach a supplier quote added." and a substring match resolves to
+    // both it and the label.
+    const quoteLabel = page.getByText('Attach a supplier quote', { exact: true });
+
     await page.getByLabel(/Estimated cost/).fill('900');
-    await expect(page.getByText('Attach a supplier quote')).toBeHidden();
+    await expect(quoteLabel).toBeHidden();
 
     await page.getByLabel(/Estimated cost/).fill('1500');
-    await expect(page.getByText('Attach a supplier quote')).toBeVisible();
+    await expect(quoteLabel).toBeVisible();
   });
 
   test('refuses to submit an incomplete request and says what is wrong', async ({ page }) => {
