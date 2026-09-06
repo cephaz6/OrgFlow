@@ -1,8 +1,13 @@
 import {
+  buildIdempotencyKey,
+  claimNotification,
+  countUnreadNotifications,
   createDb,
   createOrganisation,
   createUserWithIdentity,
   findCaseById,
+  findDelegationById,
+  findOrganisationCalendar,
   findProcessVersionById,
   generateId,
   insertOrganisationMember,
@@ -54,6 +59,10 @@ describe('cross-tenant isolation', () => {
     caseId: string;
     reference: string;
     taskId: string;
+    delegateUserId: string;
+    delegationId: string;
+    holidayId: string;
+    notificationId: string;
   }
 
   let alpha: Tenant;
@@ -143,6 +152,75 @@ describe('cross-tenant isolation', () => {
       .set('Cookie', cookie);
     expect(submitted.status).toBe(200);
 
+    // A second member, so this tenant can hold a delegation: PRD.md §7
+    // requires a delegate to be an active member of the same organisation.
+    const delegate = await createUserWithIdentity(db, {
+      email: `${label}-delegate-${generateId()}@example.invalid`,
+      displayName: `${label} delegate`,
+      issuer: 'urn:orgflow:test',
+      subject: `${label}-delegate-${generateId()}`,
+    });
+
+    await withTenantTransaction(db, organisation.organisationId, (trx) =>
+      insertOrganisationMember(trx, {
+        organisationId: organisation.organisationId,
+        userId: delegate.userId,
+        roles: ['member'],
+      }),
+    );
+
+    const delegation = await request(app)
+      .post('/api/v1/delegations')
+      .set('Cookie', cookie)
+      .send({
+        toUserEmail: delegate.email,
+        startsAt: '2026-01-01T09:00:00.000Z',
+        endsAt: '2026-12-31T17:00:00.000Z',
+        reason: `Cover for the ${label} tenant while its owner is away.`,
+      });
+    expect(delegation.status).toBe(201);
+
+    // findOrganisationCalendar returns null until the organisation has an
+    // organisation_calendars row, and GET /working-calendar reports holidays
+    // through it, so the calendar is configured before one is added.
+    const calendar = await request(app)
+      .put('/api/v1/working-calendar')
+      .set('Cookie', cookie)
+      .send({
+        timeZone: 'Europe/London',
+        workdays: [1, 2, 3, 4, 5],
+        startMinute: 540,
+        endMinute: 1020,
+      });
+    expect(calendar.status).toBe(204);
+
+    const holiday = await request(app)
+      .post('/api/v1/working-calendar/holidays')
+      .set('Cookie', cookie)
+      .send({ date: '2026-12-25', name: `${label} shutdown` });
+    expect(holiday.status).toBe(201);
+
+    // The dummy publisher means no worker ever runs, so an in-app
+    // notification is claimed directly rather than waiting for a delivery
+    // that will not happen.
+    const claimed = await withTenantTransaction(db, organisation.organisationId, (trx) =>
+      claimNotification(trx, {
+        organisationId: organisation.organisationId,
+        recipientUserId: user.userId,
+        caseId: submitted.body.case.caseId,
+        channel: 'inApp',
+        templateKey: 'taskAssigned',
+        subject: `A task is waiting in the ${label} tenant`,
+        idempotencyKey: buildIdempotencyKey({
+          eventId: `cross-tenant-${label}-${generateId()}`,
+          recipientUserId: user.userId,
+          templateKey: 'taskAssigned',
+          channel: 'inApp',
+        }),
+      }),
+    );
+    expect(claimed.outcome).toBe('claimed');
+
     return {
       label,
       organisationId: organisation.organisationId,
@@ -153,6 +231,10 @@ describe('cross-tenant isolation', () => {
       caseId: submitted.body.case.caseId,
       reference: submitted.body.case.reference,
       taskId: submitted.body.tasks[0].taskId,
+      delegateUserId: delegate.userId,
+      delegationId: delegation.body.delegation.delegationId,
+      holidayId: holiday.body.holiday.holidayId,
+      notificationId: claimed.notification.notificationId,
     };
   }
 
@@ -442,6 +524,113 @@ describe('cross-tenant isolation', () => {
       expect(found?.currentStepKey).toBe('managerApproval');
       expect(found?.reference).toBe('LAP-000001');
       expect(found?.title).toBe('mbp14');
+    }
+  });
+
+  it('refuses to cancel another tenant’s delegation, with 404', async () => {
+    for (const { intruder, victim } of bothDirections()) {
+      const response = await request(buildApp())
+        .delete(`/api/v1/delegations/${victim.delegationId}`)
+        .set('Cookie', intruder.cookie);
+
+      // 404 rather than 403: the route separates "RLS hid the row" from
+      // "somebody else's delegation in your own organisation", and only the
+      // latter is a permission question.
+      expect(response.status).toBe(404);
+      expect(response.status).not.toBe(403);
+    }
+
+    // The probes must not have deleted anything.
+    for (const tenant of [alpha, beta]) {
+      const found = await withTenantTransaction(db, tenant.organisationId, (trx) =>
+        findDelegationById(trx, tenant.delegationId),
+      );
+      expect(found, `${tenant.label} delegation survived`).not.toBeNull();
+    }
+  });
+
+  it('never lists another tenant’s delegations', async () => {
+    for (const { intruder, victim } of bothDirections()) {
+      const response = await request(buildApp())
+        .get('/api/v1/delegations?mine=false')
+        .set('Cookie', intruder.cookie);
+
+      expect(response.status).toBe(200);
+      const ids = (response.body.data ?? []).map((d: { delegationId: string }) => d.delegationId);
+      expect(ids).not.toContain(victim.delegationId);
+      expect(ids).toContain(intruder.delegationId);
+    }
+  });
+
+  it('refuses to delete another tenant’s working-calendar holiday, with 404', async () => {
+    for (const { intruder, victim } of bothDirections()) {
+      const response = await request(buildApp())
+        .delete(`/api/v1/working-calendar/holidays/${victim.holidayId}`)
+        .set('Cookie', intruder.cookie);
+
+      // The intruder holds every role, so a 403 here would mean the route
+      // had checked the role but not the tenant.
+      expect(response.status).toBe(404);
+      expect(response.status).not.toBe(403);
+    }
+
+    for (const tenant of [alpha, beta]) {
+      const calendar = await withTenantTransaction(db, tenant.organisationId, (trx) =>
+        findOrganisationCalendar(trx),
+      );
+      const ids = (calendar?.holidays ?? []).map((h: { holidayId: string }) => h.holidayId);
+      expect(ids, `${tenant.label} holiday survived`).toContain(tenant.holidayId);
+    }
+  });
+
+  it('shows each tenant only its own working calendar', async () => {
+    for (const { intruder, victim } of bothDirections()) {
+      const response = await request(buildApp())
+        .get('/api/v1/working-calendar')
+        .set('Cookie', intruder.cookie);
+
+      expect(response.status).toBe(200);
+      const ids = (response.body.calendar?.holidays ?? []).map(
+        (h: { holidayId: string }) => h.holidayId,
+      );
+      expect(ids).not.toContain(victim.holidayId);
+      expect(ids).toContain(intruder.holidayId);
+    }
+  });
+
+  it('never lists another tenant’s notifications', async () => {
+    for (const { intruder, victim } of bothDirections()) {
+      const response = await request(buildApp())
+        .get('/api/v1/notifications')
+        .set('Cookie', intruder.cookie);
+
+      expect(response.status).toBe(200);
+      const ids = (response.body.data ?? []).map(
+        (n: { notificationId: string }) => n.notificationId,
+      );
+      expect(ids).not.toContain(victim.notificationId);
+      expect(ids).toContain(intruder.notificationId);
+    }
+  });
+
+  it('cannot mark another tenant’s notification as read', async () => {
+    for (const { intruder, victim } of bothDirections()) {
+      const response = await request(buildApp())
+        .post(`/api/v1/notifications/${victim.notificationId}/read`)
+        .set('Cookie', intruder.cookie);
+
+      // This route answers 204 for an unknown id by design, so that a
+      // caller learns nothing about which ids exist. The isolation claim
+      // therefore has to be checked in the database rather than read off
+      // the status code: the victim's notification must still be unread.
+      expect(response.status).toBe(204);
+    }
+
+    for (const tenant of [alpha, beta]) {
+      const unread = await withTenantTransaction(db, tenant.organisationId, (trx) =>
+        countUnreadNotifications(trx, tenant.userId),
+      );
+      expect(unread, `${tenant.label} notification still unread`).toBe(1);
     }
   });
 
