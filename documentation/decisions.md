@@ -1652,6 +1652,14 @@ running process.
   no gain, and the clone path is most instructive when it mirrors the definition-creation path it
   sits beside.
 
+**Enforcement added 2026-09-06.** The claim above, that tenant isolation has exactly one
+deliberate widening in the entire schema, is now asserted rather than merely stated.
+`packages/db/src/rls-coverage.integration.test.ts` reads `pg_policies` and fails on any policy
+that is neither `tenant_isolation` nor this one, so a second widening cannot reach `main` as a
+migration alone: it has to come back here first. The same file also asserts that
+`published_library_is_readable` is still `FOR SELECT`, which is what keeps sharing a template
+from surrendering it.
+
 ## ADR-0043: A clone resets user- and group-specific assignments to `lineManager`, and flags them out of band
 
 **Date:** 2026-09-02
