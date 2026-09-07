@@ -1,0 +1,12 @@
+# core.autocrlf=true is the Git for Windows default, so a checkout rewrites
+# LF to CRLF. That is harmless for source Git only ever hands to a compiler,
+# and fatal for a file an operating system has to execute: a shell script
+# checked out with CRLF has a shebang of "#!/bin/sh\r", and the kernel then
+# looks for an interpreter literally named "/bin/sh\r".
+#
+# The failure does not name the cause. LocalStack reported
+# "No such file or directory: /etc/localstack/init/ready.d/orgflow-init.sh"
+# for a file that was demonstrably present and executable, because it is the
+# interpreter that is missing, not the script. It also only reproduces on a
+# Windows checkout, so CI stayed green throughout.
+*.sh text eol=lf
