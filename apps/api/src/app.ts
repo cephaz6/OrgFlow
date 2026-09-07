@@ -54,7 +54,30 @@ export function createApp(deps: CreateAppDeps): Express {
   const app = express();
 
   app.disable('x-powered-by');
-  app.use(helmet());
+  // helmet()'s default Content-Security-Policy carries
+  // style-src 'self' https: 'unsafe-inline', which GOV-STANDARDS.md §11
+  // forbids outright. That default exists for services that serve HTML;
+  // this one never does. Every route returns application/json or
+  // application/problem+json, so nothing here may load a script, a
+  // stylesheet, an image or a frame, and the policy says exactly that.
+  //
+  // A CSP on a JSON response is close to inert in any case: it matters
+  // when a browser is tricked into rendering a response as a document.
+  // default-src 'none' is what makes that inert response harmless, and it
+  // costs nothing to state, unlike the permissive default it replaces.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          'default-src': ["'none'"],
+          'base-uri': ["'none'"],
+          'form-action': ["'none'"],
+          'frame-ancestors': ["'none'"],
+        },
+      },
+    }),
+  );
   app.use(cors({ origin: deps.corsOrigin, credentials: true }));
   app.use(correlationId);
   app.use(pinoHttp({ logger: deps.logger, genReqId: (req) => req.correlationId }));
