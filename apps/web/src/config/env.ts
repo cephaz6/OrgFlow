@@ -19,3 +19,11 @@ if (!parsed.success) {
 }
 
 export const config = Object.freeze(parsed.data);
+
+// Not part of the schema above: NODE_ENV is set by Next.js itself rather
+// than supplied by the operator, so there is nothing to validate and a
+// missing value is not a misconfiguration. It is read here rather than at
+// its point of use only because ADR-0001 confines process.env to this
+// directory, and middleware.ts needs it to decide whether the CSP may carry
+// the relaxations React's development build requires (ADR-0046).
+export const isDevelopment = process.env.NODE_ENV === 'development';

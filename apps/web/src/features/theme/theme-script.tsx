@@ -41,6 +41,14 @@ const SCRIPT = `
 // report. The warning was a false positive from Next's App Router
 // relocating <head> content before React's hydration diff ever saw it,
 // and this prop is exactly what it exists to silence for a case like this.
-export function ThemeScript() {
-  return <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: SCRIPT }} />;
+// The nonce is required, not optional, and is threaded down from the root
+// layout rather than read here: Next.js applies its own nonce to the scripts
+// it emits, but a hand-authored <script> like this one is invisible to that,
+// so under ADR-0046's policy it is refused execution unless it carries the
+// nonce itself. Typing it as required means removing it is a type error
+// rather than a silent return of the flash this script exists to prevent.
+export function ThemeScript({ nonce }: { nonce: string }) {
+  return (
+    <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: SCRIPT }} />
+  );
 }

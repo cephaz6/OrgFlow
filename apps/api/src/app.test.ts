@@ -45,6 +45,31 @@ describe('GET /health', () => {
   });
 });
 
+describe('the Content-Security-Policy', () => {
+  // GOV-STANDARDS.md §11 lists "CSP without unsafe-inline or unsafe-eval" as
+  // a release gate. helmet()'s default policy carries
+  // style-src 'self' https: 'unsafe-inline', so this asserts that the
+  // default was actually replaced rather than merely configured alongside
+  // (ADR-0046). Dropping useDefaults: false would reintroduce it silently.
+  it('carries no unsafe directive', async () => {
+    const response = await request(buildApp()).get('/health');
+
+    const csp = response.headers['content-security-policy'];
+    expect(csp).toBeDefined();
+    expect(csp).not.toContain('unsafe-inline');
+    expect(csp).not.toContain('unsafe-eval');
+  });
+
+  it('forbids every resource type, because this service serves only JSON', async () => {
+    const response = await request(buildApp()).get('/health');
+
+    const csp = response.headers['content-security-policy'];
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("base-uri 'none'");
+  });
+});
+
 describe('an unmatched route', () => {
   it('returns an RFC 7807 problem response', async () => {
     const response = await request(buildApp()).get('/does-not-exist');

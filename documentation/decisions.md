@@ -1895,3 +1895,78 @@ correct says nothing about whether the effect that calls it ever runs.
 - **Keep the announcer in `form-builder` and import it from `cases`.** The smallest diff.
   Rejected: it creates a cycle between two feature modules, which ADR-0008's single-public-barrel
   rule exists to prevent.
+
+## ADR-0046: A nonce-based Content Security Policy in `apps/web` middleware, and a `default-src 'none'` policy on the API
+
+**Date:** 2026-09-07
+**Status:** Accepted
+**Deciders:** Project operator
+
+**Context**
+`GOV-STANDARDS.md` §11 lists "CSP without `unsafe-inline` or `unsafe-eval`" as a release gate. An
+audit of that checklist found the item unmet twice over, and the more serious half was the one the
+checklist does not spell out.
+
+`apps/web` sent no security headers at all: no CSP, no `X-Frame-Options`, no
+`X-Content-Type-Options`. `next.config.ts` had no `headers()` and there was no middleware. The only
+policy anywhere in the system was `helmet()`'s default on `apps/api`, which carried
+`style-src 'self' https: 'unsafe-inline'`. So the one place a CSP genuinely constrains anything,
+the HTML document, had none, and the place that had one served only JSON.
+
+**Decision**
+Two policies, because the two services have nothing in common.
+
+`apps/api` serves no HTML: every route returns `application/json` or `application/problem+json`,
+verified by there being no `res.send`, `res.render` or `text/html` anywhere in it. Its policy is
+therefore `default-src 'none'` with `base-uri`, `form-action` and `frame-ancestors` also `'none'`.
+`helmet()`'s permissive default is replaced rather than extended, via `useDefaults: false`.
+
+`apps/web` gets a nonce-based policy in `src/middleware.ts`. A fresh nonce per request goes onto
+both the request and the response header; Next.js parses it back out of the request header and
+applies it to the framework scripts, page bundles and inline styles it emits. `'strict-dynamic'`
+lets a nonced bundle load the chunks it imports without enumerating chunk URLs.
+
+Development keeps two relaxations that production must never carry: `'unsafe-eval'`, because React's
+development build uses `eval` to reconstruct server-side error stacks in the browser, and
+`'unsafe-inline'` for styles, because the dev overlay injects them directly. The flag comes from
+`config/env.ts`, since ADR-0001 confines `process.env` to that directory.
+
+`style-src` also names `https://fonts.googleapis.com`, and `font-src` names
+`https://fonts.gstatic.com`, because ADR-0021 loads Google Sans Flex with a plain `<link>` to
+Google's CSS API rather than through `next/font/google`. That is the one deliberate exception to
+`CLAUDE.md` §5.2's self-hosting rule, and it is easy to miss: the first version of this policy
+omitted both origins on the assumption that §5.2 held everywhere, which would have dropped the body
+typeface to the system sans in production while leaving development, where `'unsafe-inline'` masks
+it, looking correct.
+
+**Consequences**
+The standard objection to nonces is that they force dynamic rendering and give up static
+optimisation, CDN caching and Partial Prerendering. **That cost is already fully paid here and this
+decision adds none of it.** `app/(app)/layout.tsx` awaits `getSession()`, which reads `cookies()`,
+so every page inside the authenticated group is dynamically rendered already. OrgFlow is a
+multi-tenant internal tool where every page is behind a session and personalised by role; there was
+never a static page to lose.
+
+Security headers now diverge between the two services, and `apps/web`'s live in middleware rather
+than alongside the API's helmet configuration. That is inherent: the header set a JSON API needs and
+the set an HTML document needs genuinely differ, and Next.js has no equivalent of helmet.
+
+HSTS is asserted only when the request arrived over HTTPS. A browser ignores it on plain HTTP in any
+case, and emitting it in local development would pin `localhost` to HTTPS in a developer's browser
+for a year.
+
+`connect-src` names the API's origin, parsed from `NEXT_PUBLIC_ORGFLOW_API_URL`, because a CSP source
+expression matches scheme, host and port and a path on it would silently never match.
+
+**Alternatives rejected**
+
+- **A static CSP in `next.config.ts`'s `headers()`.** Far simpler, no middleware, and keeps static
+  rendering available. Rejected: it requires `script-src 'unsafe-inline'` and
+  `style-src 'unsafe-inline'` to let Next's own bootstrap run, which fails the §11 gate outright.
+  It would have satisfied the letter of "has a CSP" while leaving the property that matters absent.
+- **Experimental Subresource Integrity (`experimental.sri`).** Keeps static generation with a strict
+  policy, by hashing bundles at build time. Rejected: `TECH-STACK.md` admits no experimental
+  framework features, and the static rendering it buys back is rendering this app does not do.
+- **Extending helmet's defaults on the API rather than replacing them.** Fewer lines. Rejected: the
+  default exists for services that serve HTML, and inheriting a permissive `style-src` in order to
+  then override it invites the next author to assume the rest of the default is appropriate here.

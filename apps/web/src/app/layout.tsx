@@ -1,5 +1,6 @@
 import { SkipLink } from '@orgflow/ui';
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
 
 import { ThemeProvider, ThemeScript } from '../features/theme';
@@ -20,7 +21,14 @@ export const metadata: Metadata = {
 const GOOGLE_SANS_FLEX_HREF =
   'https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&display=swap';
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Set by src/middleware.ts on the request, and the same value it put in
+  // the Content-Security-Policy header (ADR-0046). ThemeScript is a
+  // hand-authored inline <script>, so Next.js does not nonce it the way it
+  // nonces its own, and without this it is blocked before it can apply a
+  // stored theme choice.
+  const nonce = (await headers()).get('x-nonce') ?? '';
+
   return (
     // suppressHydrationWarning here too, not only on <body>: ThemeScript
     // sets data-theme on this element before React hydrates, which is
@@ -32,7 +40,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${fontDisplay.variable} ${fontMono.variable} ${fontBrand.variable}`}
     >
       <head>
-        <ThemeScript />
+        <ThemeScript nonce={nonce} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         {/* crossOrigin is required on this one and not the other: font files
             are fetched in CORS mode, and a preconnect whose mode does not
