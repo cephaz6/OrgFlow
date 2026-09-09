@@ -43,6 +43,10 @@ services:
       - '4566:4566'
     volumes:
       - localstack-data:/var/lib/localstack
+      # PERSISTENCE is 0, so the container starts empty every time. This script
+      # runs once the edge port is serving and recreates the topic, queues and
+      # bucket the API and workers expect.
+      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/orgflow-init.sh:ro
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4566/_localstack/health']
       interval: 5s
