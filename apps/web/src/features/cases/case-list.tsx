@@ -18,7 +18,7 @@ export function CaseList({ cases, processNames }: CaseListProps) {
     // narrow viewport. A table is the right element here: these are records
     // with shared columns, and a screen reader user gets row and column
     // headers to navigate by, which a stack of divs would not give them.
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="relative overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-2xl border-collapse text-sm">
         <caption className="sr-only">Requests you have submitted, most recent first</caption>
         <thead>

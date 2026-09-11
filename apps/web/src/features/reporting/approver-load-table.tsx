@@ -26,7 +26,7 @@ export function ApproverLoadTable({ entries }: ApproverLoadTableProps) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="relative overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-lg border-collapse text-sm">
         <caption className="sr-only">Approver load, tasks handled and median turnaround</caption>
         <thead>

@@ -39,10 +39,18 @@ export function AppShell({ session, children }: AppShellProps) {
 
           {/* The product name, shown only where the sidebar is not: on a
               narrow viewport the shell would otherwise carry no OrgFlow
-              mark at all once the column collapses. */}
+              mark at all once the column collapses.
+
+              The wordmark itself is dropped below sm, leaving the mark.
+              At 320px, WCAG 2.2 AA's reflow width, the menu button, the
+              full wordmark and the three action controls together measure
+              354px against a 320px viewport, and the row overflowed. The
+              word is the only part that is purely redundant here: the mark
+              still identifies the product, and the mobile navigation panel
+              spells the name out in full when it opens. */}
           <span className="flex items-center gap-2 lg:hidden">
             <OrgFlowMark className="h-6 w-6 text-foreground" />
-            <span className="text-sm font-semibold">OrgFlow</span>
+            <span className="hidden text-sm font-semibold sm:inline">OrgFlow</span>
           </span>
 
           <span className="ms-auto flex items-center gap-1.5">

@@ -60,3 +60,55 @@ export async function signInAsManager(page: Page): Promise<void> {
   });
   expect(response.ok(), 'the seeded manager login must be available').toBe(true);
 }
+
+// WCAG 2.2 AA reflow (1.4.10), which GOV-STANDARDS.md §11 states as "usable
+// at 400% zoom and 320px width". Those are the same requirement: 400% zoom
+// on a 1280px screen leaves a 320px viewport, which is why one check covers
+// both rather than needing a separate zoom simulation.
+//
+// The assertion is that the page does not scroll horizontally. A data table
+// too wide to fit is explicitly allowed to scroll inside its own container,
+// and does here, so this deliberately measures the document rather than
+// hunting for wide descendants: an element extending past the viewport
+// inside a scroller is correct, and only the page itself scrolling sideways
+// is the failure.
+export const REFLOW_VIEWPORT = { width: 320, height: 800 } as const;
+
+export async function expectNoHorizontalScroll(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const root = document.documentElement;
+    // documentElement rather than body: an absolutely positioned element
+    // that escapes its container widens the former while leaving the latter
+    // untouched, and that is exactly how this first failed. An sr-only
+    // table, which cannot clamp to 1px because a table sizes to its
+    // content, widened the document by 234px while body stayed at its
+    // proper width.
+    const overflowBy = root.scrollWidth - root.clientWidth;
+    if (overflowBy <= 1) {
+      return { overflowBy, offenders: [] as string[] };
+    }
+
+    // Naming the widest boxes, because "the page scrolls sideways by 234px"
+    // on its own sends the reader hunting through the whole tree.
+    const offenders = [...document.querySelectorAll<HTMLElement>('*')]
+      .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width > 0 && rect.right > root.clientWidth + 1)
+      .sort((a, b) => b.rect.right - a.rect.right)
+      .slice(0, 3)
+      .map(({ element, rect }) => {
+        const classes =
+          typeof element.className === 'string' && element.className
+            ? `.${element.className.trim().split(/\s+/).slice(0, 3).join('.')}`
+            : '';
+        return `${element.tagName.toLowerCase()}${classes} (right edge ${Math.round(rect.right)}px)`;
+      });
+
+    return { overflowBy, offenders };
+  });
+
+  expect(
+    overflow.overflowBy,
+    `the page scrolls horizontally at ${REFLOW_VIEWPORT.width}px by ${overflow.overflowBy}px. ` +
+      `Widest boxes: ${overflow.offenders.join('; ') || 'none identified'}`,
+  ).toBeLessThanOrEqual(1);
+}

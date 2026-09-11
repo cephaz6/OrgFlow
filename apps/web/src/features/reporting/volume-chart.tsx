@@ -71,23 +71,34 @@ export function VolumeChart({ volume }: VolumeChartProps) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <table className="sr-only">
-        <caption>Cases submitted by period</caption>
-        <thead>
-          <tr>
-            <th scope="col">Period</th>
-            <th scope="col">Cases submitted</th>
-          </tr>
-        </thead>
-        <tbody>
-          {totals.map((row) => (
-            <tr key={row.periodStart}>
-              <td>{formatDate(row.periodStart)}</td>
-              <td>{row.count}</td>
+      {/* The chart's text alternative. sr-only sits on a wrapping div
+          rather than on the table itself: the class works by clamping to a
+          1px box and hiding the overflow, and a table sizes to its content
+          and ignores that width, so an sr-only table stays as wide as its
+          widest row. Being absolutely positioned, it then widened the
+          document and put a horizontal scrollbar on the whole page at
+          320px, which is the reflow failure this markup exists to avoid
+          causing for anybody. A div clamps as intended and clips the table
+          inside it. */}
+      <div className="sr-only">
+        <table>
+          <caption>Cases submitted by period</caption>
+          <thead>
+            <tr>
+              <th scope="col">Period</th>
+              <th scope="col">Cases submitted</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {totals.map((row) => (
+              <tr key={row.periodStart}>
+                <td>{formatDate(row.periodStart)}</td>
+                <td>{row.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

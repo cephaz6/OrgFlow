@@ -36,8 +36,15 @@ export function ManageList({ definitions, groups }: ManageListProps) {
     <div className="flex flex-col gap-3">
       {definitions.map((definition) => (
         <Card key={definition.definitionId}>
-          <CardContent className="flex items-center gap-4 p-4">
-            <div className="flex flex-1 flex-col gap-1">
+          {/* flex-wrap and min-w-0 together are what let this row reflow at
+              320px, WCAG 2.2 AA's reflow width. A flex item defaults to
+              min-width:auto, so the text column refused to shrink below its
+              longest line and pushed the report link and the status badge
+              past the viewport; min-w-0 lets it narrow, and flex-wrap lets
+              the controls drop onto their own line once it cannot narrow
+              further. */}
+          <CardContent className="flex flex-wrap items-center gap-4 p-4">
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
               <Link
                 href={`/processes/${definition.definitionId}`}
                 className="font-medium hover:underline"

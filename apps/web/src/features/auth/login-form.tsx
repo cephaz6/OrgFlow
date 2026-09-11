@@ -140,9 +140,15 @@ export function LoginForm() {
       </div>
 
       <div className="flex flex-col gap-2">
+        {/* whitespace-normal on this one button rather than on the shared
+            base: nowrap is the right default for a button, and this is the
+            only label long enough to break it. At 320px, WCAG 2.2 AA's
+            reflow width, it needs 299px inside a 270px box and scrolled the
+            sign-in page sideways rather than wrapping. */}
         <Button
           type="button"
           variant="outline"
+          className="h-auto whitespace-normal py-2"
           onClick={() => void onDevLogin()}
           disabled={devLoginStatus.kind === 'submitting'}
         >

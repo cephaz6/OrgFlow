@@ -50,7 +50,7 @@ export function ApprovalQueue({ entries, now, claimable = false }: ApprovalQueue
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="relative overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-3xl border-collapse text-sm">
         <caption className="sr-only">
           {claimable
