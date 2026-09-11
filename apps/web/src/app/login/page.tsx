@@ -16,7 +16,12 @@ export default async function LoginPage() {
 
   return (
     <div className="flex min-h-screen">
-      <main id="main-content" className="flex flex-1 items-center justify-center p-6">
+      {/* min-w-0 for the same reason the shell's own main carries it: this
+          is a flex item in a row, so it defaults to min-width:auto and
+          cannot shrink below the sign-in card's content width. At 320px,
+          WCAG 2.2 AA's reflow width, that pushed the card 90px past the
+          viewport and scrolled the page sideways. */}
+      <main id="main-content" className="flex min-w-0 flex-1 items-center justify-center p-6">
         <div className="flex w-full max-w-sm flex-col gap-8">
           {/* Inherits text-foreground, so the one asset serves both themes
               without a second file to keep in step. Decorative here: the

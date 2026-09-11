@@ -65,7 +65,7 @@ export function RetentionList({ definitions }: RetentionListProps) {
     <div className="flex flex-col gap-4">
       {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="relative overflow-x-auto rounded-lg border border-border">
         <table className="w-full min-w-2xl border-collapse text-sm">
           <caption className="sr-only">
             Every process definition and how long a completed case is kept before redaction

@@ -69,27 +69,38 @@ export function StepDurationChart({ steps }: StepDurationChartProps) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <table className="sr-only">
-        <caption>Step duration, slowest first</caption>
-        <thead>
-          <tr>
-            <th scope="col">Step</th>
-            <th scope="col">Mean duration</th>
-            <th scope="col">Median duration</th>
-            <th scope="col">Sample size</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((step) => (
-            <tr key={step.stepKey}>
-              <td>{step.stepName}</td>
-              <td>{formatHours(step.meanDurationHours)}</td>
-              <td>{formatHours(step.medianDurationHours)}</td>
-              <td>{step.sampleSize}</td>
+      {/* The chart's text alternative. sr-only sits on a wrapping div
+          rather than on the table itself: the class works by clamping to a
+          1px box and hiding the overflow, and a table sizes to its content
+          and ignores that width, so an sr-only table stays as wide as its
+          widest row. Being absolutely positioned, it then widened the
+          document and put a horizontal scrollbar on the whole page at
+          320px, which is the reflow failure this markup exists to avoid
+          causing for anybody. A div clamps as intended and clips the table
+          inside it. */}
+      <div className="sr-only">
+        <table>
+          <caption>Step duration, slowest first</caption>
+          <thead>
+            <tr>
+              <th scope="col">Step</th>
+              <th scope="col">Mean duration</th>
+              <th scope="col">Median duration</th>
+              <th scope="col">Sample size</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sorted.map((step) => (
+              <tr key={step.stepKey}>
+                <td>{step.stepName}</td>
+                <td>{formatHours(step.meanDurationHours)}</td>
+                <td>{formatHours(step.medianDurationHours)}</td>
+                <td>{step.sampleSize}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
